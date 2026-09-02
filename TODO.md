@@ -94,6 +94,10 @@
 
 ## ユーザー作業（未完了）
 
+- ⚠️**公開前に、実在のレース名・コース名を使うことの権利関係を確認する。**
+  第1弾-B B-1で「レース名もコース名も実名／馬名だけもじる」と決めた
+  （`devlog/wave01b.md`）。⚠️Claudeは権利関係を判断できないため、確認はユーザーが行う。
+
 - ⚠️**GitHubのリポジトリ設定で、PagesのSourceを「Deploy from a branch」から
   「GitHub Actions」へ変更する。** 第1弾-Cで`.github/workflows/deploy.yml`を追加済みだが、
   この設定を切り替えないと`main`へのpushがあっても配信されない。
