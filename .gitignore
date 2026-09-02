@@ -1,0 +1,41 @@
+# allowlist方式：まず全部無視し、必要なものだけ明示的に許可する
+# （前作Roadrace_Gameから継承。作業ディレクトリに無関係のファイルが混ざるのを防ぐ）
+*
+!.gitignore
+# --- GitHub Pagesの配信設定。空ファイルだがJekyll処理を丸ごと止める役割がある。
+#     置かないとJekyllが全ての.mdをHTML化しようとし、devlog内のJSXコード（style={{...}}）を
+#     Liquidのテンプレート変数と誤読してデプロイが丸ごと失敗する（前作で9回連続失敗した） ---
+!.nojekyll
+# --- ドキュメント4ファイル制（CLAUDE.md §4）---
+!CLAUDE.md
+!DEVLOG.md
+!TODO.md
+!ARCHITECTURE.md
+# --- ゲーム開発の指針（外部知見の収蔵庫）。本体は薄い索引、全文はdesign/配下 ---
+!DESIGN_PRINCIPLES.md
+!design/
+!design/**
+# --- 弾（wave）ごとの詳細記録 ---
+!devlog/
+!devlog/**
+# --- ビルド定義とソース ---
+!package.json
+!package-lock.json
+!vite.config.js
+!index.html
+!src/
+!src/**
+# --- 開発補助スクリプト（ヘッドレスsim・計測ツール等）---
+!tools/
+!tools/**
+# --- ドット絵抽出の参考画像シート ---
+!reference/
+!reference/**
+# --- アーカイブ（履歴保存用・src/から未参照）---
+!archive/
+!archive/**
+# ビルド生成物・依存（allowlistしない＝ふつうに無視される）
+node_modules/
+dist/
+__pycache__/
+*.pyc
