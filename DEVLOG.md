@@ -39,31 +39,43 @@ Read上限25,000トークン、換算2.5〜2.6バイト/トークン）。
 
 ---
 
-## 1. ファイル構成と開発フロー
+## 1. ファイル構成と開発フロー（第1弾-Cで確定）
 
-⚠️**未確定**。第1弾の設計図（CLAUDE.md §1）で決めて、ここに記入する。
-前作の構成が下敷きになる：
-
-- **`src/`** … 唯一の編集対象・真実の源
+- **`src/`** … 唯一の編集対象・真実の源。`root: "src"`でVite管理（`src/index.html`が入口）
   - `src/data/` … 静的データ定数のみ（ロジック禁止・JSX/domain import禁止）
-  - `src/view/` … 文字列生成の純関数（JSX無し）
-  - `src/domain/` … 純粋なドメインロジック（JSX無し）
+  - `src/core/` … 乱数・共通の小関数（⚠️C4の週×馬シード方式はここに置く。`devlog/wave01.md`§15-4）
   - `src/sim/` … レースシミュレーション
-  - `src/state/` `src/components/` `src/controllers/` `src/screens/` … 分割済み
-- **`index.html`（直下）** … ビルド成果物（手で編集しない）
-- `tools/` … ヘッドレスsim・計測ツール（ビルドには不要）
+  - `src/domain/` … 純粋なドメインロジック（JSX無し）。馬・騎手・信頼・週の進行など
+  - `src/view/` … 文字列生成の純関数（JSX無し）
+  - `src/state/` … セーブ・ロード
+  - `src/components/` … 共通UI部品
+  - `src/screens/` … 画面（今週／騎乗確定／レース／結果 など）
+  - `src/app.jsx` … 画面遷移の起点
+  - `src/main.jsx` … Reactのマウント処理
+- **`index.html`はリポジトリに置かない**（ビルド成果物。`.gitignore`でも除外済み）。
+  `npm run build`が`dist/index.html`を生成し、GitHub Actionsがそのまま配信する
+- `tools/` … ヘッドレスsim・計測ツール（ビルドには不要。第1弾ではまだ無い）
 
-依存は下向き一方通行：`data → core/sim → domain/state/view → controllers → screens → app`。
+依存は下向き一方通行：`data → core/sim → domain/state/view → components/screens → app`。
+`data/`・`view/`はJSXをimportしない（＝常にNode単体テストが可能な状態を保つ）。
 
 ---
 
-## 2. 検証
+## 2. 検証（第1弾-Cで確定）
 
-⚠️**未確定**。第1弾で決める。前作の方式：`npm run build` → `npx http-server` →
-Playwright（`executablePath: /opt/pw-browsers/chromium`）。
-純ロジックはNode単体テスト。
+- **ビルド確認**：`npm run build` → `dist/index.html`が単一ファイルとして生成されることを確認
+- **描画確認**：`npx http-server dist -p <port> -s` → Playwright
+  （`executablePath: "/opt/pw-browsers/chromium"`）でpageerror・console errorがゼロであることを確認
+- 純ロジック（`domain/`・`sim/`・`core/`）はNode単体テスト。JSXを含まないため軽量に回せる
+- **配信の確認**：`main`へpush → Actionsの`deploy.yml`が緑になり、Pagesが更新されることを確認
+  （初回のみ。以降は自動）
 
-⚠️**CLAUDE.md §0-4より：simは退屈を検知できない。第3弾までに人間が最小ループを1回通す。**
+⚠️**CLAUDE.md §0-4より：simは退屈を検知できない。第3弾までに人間が最小ループ
+（本編の最初の30分＝デビューから1年目の終わりまで。`devlog/wave01.md`§2）を1回通す。**
+
+⚠️**simを実測するときの必須手順**（前作`Roadrace_Game/ARCHITECTURE.md`より継承・
+`devlog/wave01.md`§10）：`Math.random`・`Date.now`・乱数ストリームの状態をすべて固定する。
+A/B比較では各アームの直前に共通副シードへ張り直す。固定しないと得られる数字は無意味。
 
 ---
 
@@ -99,12 +111,15 @@ Playwright（`executablePath: /opt/pw-browsers/chromium`）。
 
 ## 7. 実装履歴（弾ごとの索引）
 
-- **第1弾｜騎手モードの設計図** — 進行中（-A完了・合意待ち／-B・-C未着手。コードは未着手）。
+- **第1弾｜騎手モードの設計図と土台** — 進行中（-A・-C完了／-B未着手）。
   奪う器官の中核は**主戦の座**（同じ馬に5回乗り、その間に1勝すると主戦。他の馬を選んだ週に失う
   ＝選択の結果なのでリロードで取り返せない）。**週ごとに乱数を固定**し、運はやり直せず判断だけ
   やり直せる。馬の能力は**確率で開示**され、⚠️進むのは**プレイヤーが自分で判断した鞍だけ**。
   キャリア18〜48歳・総プレイ25時間・騎手ランク6段・配信はActions＋`main`。
   ⚠️途中で**独断で決めていた11件の監査**を実施（§15）。11件すべてを直し、うち
   H3（難易度の自動低下）は**丸ごと機能していなかった**。
+  -Cで配信ワークフロー・`src/`の最小骨組み（起動して1画面出るところまで）・
+  DEVLOG §1/§2を実装し、ビルド→配信→描画の経路を実機（Playwright）で確認済み。
+  ⚠️PagesのSource変更はユーザー作業として`TODO.md`に残っている。
   ⚠️`Roadrace_Game/devlog/wave95.md`と`tools/decisioncard_ev.mjs`は**接続された前作リポジトリに
   存在しなかった**（第85弾時点のため）。→ `devlog/wave01.md`

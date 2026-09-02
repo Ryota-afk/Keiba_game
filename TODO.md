@@ -82,11 +82,6 @@
 
 5. **オーナーブリーダーモード**（未定）。⚠️調教師と道筋が被るため、実装するかどうかから決める。
 
-6. **第1弾-C：土台の確定**（設計はOpus、実装はSonnet）
-   - `DEVLOG.md`§1（ファイル構成）・§2（検証方法）を確定して記入する
-   - `.github/workflows/`のデプロイワークフロー、`.gitignore`の3点修正、`package.json`
-   - ⚠️**ユーザー作業**：GitHubの設定でPagesのSourceを「GitHub Actions」へ変更する
-
 7. **B4：飛ばした週の「見せ方」**。必ず知らせる5項目は確定済み（`devlog/wave01.md`§13-8）。
    残るのはレイアウト・級数・配置で、CLAUDE.md §8のUI手順（候補を複数提示→選択→合意→実装）で決める。
    ⚠️口頭で決めると§8が禁じる「良さそうなので作ってみました」になる。
@@ -96,6 +91,12 @@
    `devlog/wave95.md`と、TODO #1が指定していた`tools/decisioncard_ev.mjs`は**存在しない**
    （`devlog/wave01.md`§0）。結論は本リポジトリのCLAUDE.md・DESIGN_PRINCIPLES.md・design/に
    引用の形で残っているが、実測値そのものは失われている。
+
+## ユーザー作業（未完了）
+
+- ⚠️**GitHubのリポジトリ設定で、PagesのSourceを「Deploy from a branch」から
+  「GitHub Actions」へ変更する。** 第1弾-Cで`.github/workflows/deploy.yml`を追加済みだが、
+  この設定を切り替えないと`main`へのpushがあっても配信されない。
 
 ## 恒常タスク（終わりが無い）
 

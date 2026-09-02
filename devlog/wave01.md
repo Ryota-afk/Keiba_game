@@ -1127,3 +1127,46 @@ C4ですら、MAGIの出力の中で自分で答えていた。
 
 **次の弾では、変数を確定させるたびに「これは誰が決めたか」を1行で記録する。**
 決定の直後に書けば、後から23件を洗い直す作業は要らない。
+
+---
+
+# 16. 第1弾-C：土台の実装（Sonnetへ切り替え後）
+
+第1弾-A・-Bの設計を受け、配信の土台とファイル構成を実装した。**この節から実装が入る**
+（CLAUDE.md §2に従い`/model sonnet`へ切り替え済み）。
+
+## 16-1. デプロイ規律の実装
+
+第1弾-A §9で確定した「GitHub Actions＋`main`」を実装した。
+
+- `.github/workflows/deploy.yml`：`main`へのpushで`npm ci && npm run build`し、
+  `dist/`をGitHub Pagesへ配信する。`actions/deploy-pages@v4`を使用
+- `.gitignore`：`!.github/`・`!.github/**`を追加、`!index.html`を削除
+  （allowlist方式なので、書かないとワークフロー自体がコミットされない）
+- `.nojekyll`を削除（Actions方式はJekyllを通らないため不要）。9回連続失敗した経緯は
+  `.gitignore`のコメントとして残した
+- `package.json`の`build`は`vite build`のみ（前作の`cp dist/index.html index.html`は
+  引き継がない——これが26弾分未反映の真因だったため）
+
+⚠️**ユーザー側の作業が1つ残っている**：GitHubのリポジトリ設定でPagesのSourceを
+「GitHub Actions」へ変更すること。ワークフローを追加しただけでは配信は始まらない。
+`TODO.md`「ユーザー作業（未完了）」に明記した。
+
+## 16-2. src/の最小骨組み
+
+CLAUDE.md §5の依存規則（`data → core/sim → domain/state/view → components/screens → app`、
+`data/`・`view/`はJSXをimportしない）に従い、`DEVLOG.md`§1へ確定して記入した。
+
+第1弾-Cの時点では「起動して1画面出る」ところまで：`src/index.html`（Viteの入口）→
+`src/main.jsx`（マウント）→ `src/app.jsx`（画面遷移の起点）→
+`src/screens/TitleScreen.jsx`（準備中の表示のみ）。
+
+## 16-3. 検証（DEVLOG §2に記入）
+
+`npm run build`でdist/index.htmlが単一ファイルとして生成されることを確認し、
+`http-server`で配信してPlaywright（`executablePath: /opt/pw-browsers/chromium`）で
+pageerror・console errorがゼロで`<h1>競馬ゲーム</h1>`が描画されることを実機で確認した。
+（コンソールに出た404はfaviconのみで無害）
+
+⚠️前作の「A/B比較では各アームの直前に共通副シードへ張り直す」実測作法をDEVLOG §2に
+明記し、C4（週×馬シードの乱数固定）実装時にそのまま使えるようにした。
