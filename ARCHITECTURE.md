@@ -284,7 +284,7 @@
 | 1年分の番組表 | JRA公式が一次資料。⚠️PDFは文字化け。`/keiba/calendar/`から週ごとに辿れるか要調査 | 未解決 |
 
 ⚠️⚠️**競馬ブック・netkeiba・アホヌラ館・JBISは使わない**——規約で公開目的の利用を明示的に禁止
-（`design/rights-check.md`）。⭐**JRA公式（事実は対象外）とWikipedia（CC BY-SA）の2本に絞る。**
+（`design/rights-check.md`）。⭐**JRA公式（事実は対象外）とWikipedia（CC BY-SA 4.0）の2本に確定**（2026-09-02・ユーザー）。
 ⚠️Wikipediaのデータは別ファイルに分け、出典表示とライセンス表記を付ける。重要な値はJRA公式で突き合わせる。
 
 ⚠️**JRAのPDFは全て読めない**（CIDエンコード＋`poppler-utils`が導入不可）。HTMLの経路を使う。
