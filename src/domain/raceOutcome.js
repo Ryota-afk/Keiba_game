@@ -12,7 +12,7 @@ export const MIN_FIELD_SIZE = 6;
 export const MAX_FIELD_SIZE = 18;
 
 /** 馬の強さを1つの数値にまとめる（仮の指標。⑦の消耗式に置き換える）。 */
-function horseStrengthScore(horse, declaredStrategy) {
+export function horseStrengthScore(horse, declaredStrategy) {
   const a = horse.abilities;
   const gradeSum = [a.sharpness, a.grit, a.flexibility, a.power]
     .map(gradeToNumber)
@@ -43,14 +43,17 @@ function syntheticRivalScore(rand01) {
  * @param {object} horse
  * @param {number} [fatiguePenaltyFactor] - 疲労による騎手の能力低下の係数（1で無補正）。
  *   §6「疲労」が奪う3つのうち「騎手の能力が落ちる」をここで反映する。
+ * @param {number} [bonus] - 加算ボーナス（仮）。判断カードの選択などを反映する
+ *   （§5「判断カード」の正式な効果量は⑦で確定。それまでの仮の差し込み口）。
  * @returns {{ position: number, fieldSize: number, won: boolean }}
  */
-export function runPlaceholderRace(saveSeed, week, mount, horse, fatiguePenaltyFactor = 1) {
+export function runPlaceholderRace(saveSeed, week, mount, horse, fatiguePenaltyFactor = 1, bonus = 0) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
   const fieldSize =
     MIN_FIELD_SIZE + Math.floor(rand01() * (MAX_FIELD_SIZE - MIN_FIELD_SIZE + 1));
   const noise = (rand01() - 0.5) * 10;
-  const ownScore = horseStrengthScore(horse, mount.declaredStrategy) * fatiguePenaltyFactor + noise;
+  const ownScore =
+    horseStrengthScore(horse, mount.declaredStrategy) * fatiguePenaltyFactor + noise + bonus;
   const rivalScores = Array.from({ length: fieldSize - 1 }, () => syntheticRivalScore(rand01));
   const position = rivalScores.filter((s) => s > ownScore).length + 1;
   return { position, fieldSize, won: position === 1 };
