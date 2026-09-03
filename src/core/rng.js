@@ -47,6 +47,7 @@ export const RNG_STREAMS = Object.freeze({
   RIVAL: "rival", // 他の騎手の動き（NPC騎手の依頼選択など）
   GENERATION: "generation", // 馬・厩舎・馬主・NPC騎手などエンティティの生成
   REQUESTS: "requests", // 週次の騎乗依頼一覧の生成
+  PITCH: "pitch", // 自分から売り込む（成功判定）
 });
 
 /**
