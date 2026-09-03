@@ -67,6 +67,18 @@ export function pick(rand01, list) {
   return list[Math.floor(rand01() * list.length) % list.length];
 }
 
+/** rand01から重み付きで1つ選ぶ。weights は {キー: 重み} の形。 */
+export function weightedPick(rand01, weights) {
+  const entries = Object.entries(weights);
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let x = rand01() * total;
+  for (const [key, w] of entries) {
+    x -= w;
+    if (x <= 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
 /** rand01から確率pで真を返す（p=0.008なら0.8%の確率）。 */
 export function chance(rand01, p) {
   return rand01() < p;
