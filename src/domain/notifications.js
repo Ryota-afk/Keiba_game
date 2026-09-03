@@ -1,16 +1,9 @@
 // 必ず知らせる6項目（ARCHITECTURE.md §1「必ず知らせる6項目（飛んだ週でも通知する）」）。
 // 純ロジック（JSX無し。外部依存なし）。
 //
-// ⚠️6項目のうち、この時点で組み立てられるのは3・4・6のみ：
-//   1. 主戦の座を失ったこと ── 検出には「プレイヤーが乗っていない週でも、主戦の座を
-//      持つ馬にNPC騎手が勝ったら失う」判定が要る。今は確定した鞍（自分が乗る鞍）の
-//      結果しか処理していないため、まだ組み立てられない（週の進行の主ループを書く
-//      ときに追加する）。
-//   2. 預けた鞍で自分の馬が勝ったこと ── 「預ける」仕組み自体が未実装（§3 D4）。
-//   5. 新しい依頼が来たこと ── 週次の依頼一覧どうしの差分から出せるはずだが、
-//      「先週の一覧」を保持する場所（state/セーブ）が無いとまだ比較できない。
-// 3件とも実装しない理由をここに明記し、`TODO.md`へは上げない
-// （まだ「その弾で直しきれない」段階ではなく、依存する仕組みが後続で実装される予定のため）。
+// ⚠️2番（預けた鞍で自分の馬が勝ったこと）だけは、この時点でまだ組み立てられない。
+// 「預ける」仕組み自体が未実装のため（§3 D4）。1・4・5・6は`domain/weekLoop.js`
+// （週の進行の主ループ）が組み立てる。
 
 export const NOTIFICATION_TYPES = Object.freeze({
   LOST_MAIN_MOUNT: "lostMainMount", // 1
@@ -22,7 +15,10 @@ export const NOTIFICATION_TYPES = Object.freeze({
 });
 
 // 「信頼が大きく動いた」と見なす変化幅（暫定）。
-export const BIG_TRUST_CHANGE_THRESHOLD = 5;
+// ⚠️実測で判明：`weekResults.js`の1回の勝利で動く最大幅は4（RIDE_TRAINER_TRUST_GAIN 1 +
+// WIN_TRAINER_TRUST_GAIN 3）。閾値を5のままにすると、勝っても絶対にこの通知が発火しない
+// （104週のシミュレーションで実測0件）。勝利を「大きく動いた」に含める意図で4に下げた。
+export const BIG_TRUST_CHANGE_THRESHOLD = 4;
 
 export function injuryNotification(horseId, injuryType, weeksOut) {
   return { type: NOTIFICATION_TYPES.INJURY, horseId, injuryType, weeksOut };
@@ -34,6 +30,14 @@ export function bigTrustChangeNotification(targetType, targetId, delta) {
 
 export function fatigueDangerNotification(fatigue) {
   return { type: NOTIFICATION_TYPES.FATIGUE_DANGER, fatigue };
+}
+
+export function lostMainMountNotification(horseId) {
+  return { type: NOTIFICATION_TYPES.LOST_MAIN_MOUNT, horseId };
+}
+
+export function newRequestNotification(horseId, stableId) {
+  return { type: NOTIFICATION_TYPES.NEW_REQUEST, horseId, stableId };
 }
 
 /** 信頼の変化幅が「大きく動いた」と言える大きさか。 */
