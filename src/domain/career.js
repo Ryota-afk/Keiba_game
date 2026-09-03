@@ -5,7 +5,7 @@
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { generateStable } from "./stable.js";
 import { generateOwner, isMajorOwner } from "./owner.js";
-import { generateHorse } from "./horse.js";
+import { generateHorse, RACE_INTERVAL_WEEKS } from "./horse.js";
 import { generateJockey } from "./jockey.js";
 
 // JRAの実数（ARCHITECTURE.md §3「馬の供給」・§6「調教師」「NPC騎手」）。
@@ -62,13 +62,20 @@ export function createInitialRoster(saveSeed) {
     })
   );
 
+  // ⚠️`lastRaceWeek`を全頭nullのままにすると、キャリア開始の第1週に全馬が一斉に
+  // 出走候補になってしまう（`domain/weeklyRequests.js`で実測して判明）。
+  // 30年続く世界には元々「出走してからの経過週」がばらけた馬がいるはずなので、
+  // 開始時点で`-0`〜`-(RACE_INTERVAL_WEEKS-1)`週の範囲に均等に散らしておく。
+  const lastRaceWeekRand = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "horse-stagger");
   const horses = Array.from({ length: HORSE_COUNT }, (_, i) => {
     const stable = stables[stableIdxByHorse[i]];
     const owner = owners[ownerIdxByHorse[i]];
+    const staggerOffset = Math.floor(lastRaceWeekRand() * RACE_INTERVAL_WEEKS);
     return generateHorse(saveSeed, i, {
       stableId: stable.id,
       ownerId: owner.id,
       ownerPrefix: owner.ownerPrefix ?? undefined,
+      lastRaceWeek: 1 - RACE_INTERVAL_WEEKS + staggerOffset,
     });
   });
 

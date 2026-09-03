@@ -44,7 +44,7 @@ function createInitialAdaptability(bloodlineFamily) {
  * @param {string|number} key - 一意なキー（例: `${生成年}-${連番}`）
  * @param {{ ownerPrefix?: string, sireId?: string|null, damId?: string|null,
  *           bloodlineFamily?: string, bornYear?: number,
- *           stableId?: string|null, ownerId?: string|null }} [opts]
+ *           stableId?: string|null, ownerId?: string|null, lastRaceWeek?: number|null }} [opts]
  */
 export function generateHorse(saveSeed, key, opts = {}) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "horse", key);
@@ -83,7 +83,9 @@ export function generateHorse(saveSeed, key, opts = {}) {
     classId: CLASS_LADDER[0], // 新馬からスタート
     abilities,
     adaptability: createInitialAdaptability(bloodlineFamily),
-    lastRaceWeek: null, // まだ出走したことが無い
+    // 前走の週。⚠️新規キャリア開始時は`opts.lastRaceWeek`で散らす（career.js参照）——
+    // 全頭nullのままだと初週に全馬が一斉に出走候補になってしまう。
+    lastRaceWeek: opts.lastRaceWeek ?? null,
   };
 }
 

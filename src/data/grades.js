@@ -15,3 +15,9 @@ export function nextGrade(grade) {
   if (idx < 0 || idx >= GRADE_SCALE.length - 1) return grade;
   return GRADE_SCALE[idx + 1];
 }
+
+/** 等級を0(G)〜7(S)の数値に変換する。計算式で使うための変換。 */
+export function gradeToNumber(grade) {
+  const idx = GRADE_SCALE.indexOf(grade);
+  return idx < 0 ? 0 : idx;
+}
