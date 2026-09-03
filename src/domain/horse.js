@@ -76,11 +76,17 @@ export function generateHorse(saveSeed, key, opts = {}) {
     damId: opts.damId ?? null,
     bornYear: opts.bornYear ?? null,
     isHistorical: false,
+    isRetired: false, // 引退したらtrue（年齢・成績・怪我。世代交代）
     classId: CLASS_LADDER[0], // 新馬からスタート
     abilities,
     adaptability: createInitialAdaptability(bloodlineFamily),
     lastRaceWeek: null, // まだ出走したことが無い
   };
+}
+
+/** 馬を引退させる。純関数——引数を書き換えず新しいオブジェクトを返す。 */
+export function retireHorse(horse) {
+  return { ...horse, isRetired: true };
 }
 
 /**

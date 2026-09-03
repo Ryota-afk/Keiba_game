@@ -44,6 +44,11 @@ export function generateStable(saveSeed, key) {
 
 // 信頼値の見せ方は3段（§6「調教師」）：1段目＝得意分野／2段目＝育てる力／
 // 3段目＝見抜く力・仕上げ・特性。⚠️閾値の具体値は実装の弾で置く（ARCHITECTURE.md §15）。
+/** 厩舎（調教師）を引退させる。純関数。世代交代で新規開業の厩舎と入れ替える想定。 */
+export function retireStable(stable) {
+  return { ...stable, isActive: false };
+}
+
 export const TRUST_DISCLOSURE_TIERS = Object.freeze([
   { tier: 1, reveals: ["specialty"] },
   { tier: 2, reveals: ["abilities.developing"] },

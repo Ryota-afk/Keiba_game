@@ -8,3 +8,10 @@ export const GRADE_SCALE = Object.freeze(["G", "F", "E", "D", "C", "B", "A", "S"
 export function pickGrade(rand01) {
   return GRADE_SCALE[Math.floor(rand01() * GRADE_SCALE.length)];
 }
+
+/** 等級を1段上げる。既にSなら変わらない。自己完結の純関数。 */
+export function nextGrade(grade) {
+  const idx = GRADE_SCALE.indexOf(grade);
+  if (idx < 0 || idx >= GRADE_SCALE.length - 1) return grade;
+  return GRADE_SCALE[idx + 1];
+}
