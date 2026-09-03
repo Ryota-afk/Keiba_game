@@ -43,7 +43,8 @@ function createInitialAdaptability(bloodlineFamily) {
  * @param {number|string} saveSeed
  * @param {string|number} key - 一意なキー（例: `${生成年}-${連番}`）
  * @param {{ ownerPrefix?: string, sireId?: string|null, damId?: string|null,
- *           bloodlineFamily?: string, bornYear?: number }} [opts]
+ *           bloodlineFamily?: string, bornYear?: number,
+ *           stableId?: string|null, ownerId?: string|null }} [opts]
  */
 export function generateHorse(saveSeed, key, opts = {}) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "horse", key);
@@ -75,6 +76,8 @@ export function generateHorse(saveSeed, key, opts = {}) {
     sireId: opts.sireId ?? null,
     damId: opts.damId ?? null,
     bornYear: opts.bornYear ?? null,
+    stableId: opts.stableId ?? null,
+    ownerId: opts.ownerId ?? null,
     isHistorical: false,
     isRetired: false, // 引退したらtrue（年齢・成績・怪我。世代交代）
     classId: CLASS_LADDER[0], // 新馬からスタート
