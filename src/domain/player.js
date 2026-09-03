@@ -5,6 +5,8 @@
 
 import { generateJockey } from "./jockey.js";
 import { RANK_LADDER } from "../data/ranks.js";
+import { DEFAULT_START_YEAR } from "../data/startYears.js";
+import { DEFAULT_DIFFICULTY } from "../data/difficulty.js";
 
 // 初期所持金（暫定・ARCHITECTURE.md §15「暫定・未定の数値」）。
 export const STARTING_MONEY = 100000;
@@ -12,7 +14,7 @@ export const STARTING_MONEY = 100000;
 /**
  * 新人騎手のプレイヤー状態を作る。自己完結の純関数。
  * @param {number|string} saveSeed
- * @param {{ stableId?: string|null, startYear?: number }} [opts]
+ * @param {{ stableId?: string|null, startYear?: number, difficulty?: string }} [opts]
  */
 export function createPlayer(saveSeed, opts = {}) {
   const jockey = generateJockey(saveSeed, "player", {
@@ -28,7 +30,8 @@ export function createPlayer(saveSeed, opts = {}) {
     mainMounts: {}, // horseId -> { rides: number, hasWon: boolean, isMain: boolean }（主戦の座の進捗）
     fatigue: 0, // 疲労（0〜100。§6「疲労」。詳細は`domain/fatigue.js`）
     currentWeek: 1,
-    currentYear: opts.startYear ?? 1974,
+    currentYear: opts.startYear ?? DEFAULT_START_YEAR,
+    difficulty: opts.difficulty ?? DEFAULT_DIFFICULTY, // §9「難易度（悪魔の釜）」。年1回のみ変更可
   };
 }
 
