@@ -41,14 +41,16 @@ function syntheticRivalScore(rand01) {
  * @param {number} week
  * @param {{ horseId: string, declaredStrategy?: string|null }} mount
  * @param {object} horse
+ * @param {number} [fatiguePenaltyFactor] - 疲労による騎手の能力低下の係数（1で無補正）。
+ *   §6「疲労」が奪う3つのうち「騎手の能力が落ちる」をここで反映する。
  * @returns {{ position: number, fieldSize: number, won: boolean }}
  */
-export function runPlaceholderRace(saveSeed, week, mount, horse) {
+export function runPlaceholderRace(saveSeed, week, mount, horse, fatiguePenaltyFactor = 1) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
   const fieldSize =
     MIN_FIELD_SIZE + Math.floor(rand01() * (MAX_FIELD_SIZE - MIN_FIELD_SIZE + 1));
   const noise = (rand01() - 0.5) * 10;
-  const ownScore = horseStrengthScore(horse, mount.declaredStrategy) + noise;
+  const ownScore = horseStrengthScore(horse, mount.declaredStrategy) * fatiguePenaltyFactor + noise;
   const rivalScores = Array.from({ length: fieldSize - 1 }, () => syntheticRivalScore(rand01));
   const position = rivalScores.filter((s) => s > ownScore).length + 1;
   return { position, fieldSize, won: position === 1 };

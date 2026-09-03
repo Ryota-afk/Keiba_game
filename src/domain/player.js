@@ -25,7 +25,8 @@ export function createPlayer(saveSeed, opts = {}) {
     trainerTrust: {}, // stableId -> 信頼値（0始まり。関わったことのある相手だけ持つ）
     ownerTrust: {}, // ownerId -> 信頼値
     reputation: 0, // 評判（信頼の上位数件の平均。実装の弾で計算方法を確定）
-    mainMounts: {}, // horseId -> { rides: number, hasWon: boolean }（主戦の座の進捗）
+    mainMounts: {}, // horseId -> { rides: number, hasWon: boolean, isMain: boolean }（主戦の座の進捗）
+    fatigue: 0, // 疲労（0〜100。§6「疲労」。詳細は`domain/fatigue.js`）
     currentWeek: 1,
     currentYear: opts.startYear ?? 1974,
   };

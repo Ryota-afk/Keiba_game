@@ -86,6 +86,16 @@ export function generateHorse(saveSeed, key, opts = {}) {
     // 前走の週。⚠️新規キャリア開始時は`opts.lastRaceWeek`で散らす（career.js参照）——
     // 全頭nullのままだと初週に全馬が一斉に出走候補になってしまう。
     lastRaceWeek: opts.lastRaceWeek ?? null,
+    // 能力の開示（§3「能力の開示（確率式）」）。2プールそれぞれの開示済み項目と
+    // 連続で開かなかった回数を持つ。詳細は`domain/disclosure.js`。
+    disclosure: {
+      trainingRevealed: [],
+      raceRevealed: [],
+      trainingMissStreak: 0,
+      raceMissStreak: 0,
+    },
+    // 落馬・怪我による離脱（§6「落馬・怪我」）。詳細は`domain/fall.js`。
+    injury: { type: null, weeksRemaining: 0 },
   };
 }
 
