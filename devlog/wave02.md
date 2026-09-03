@@ -119,3 +119,36 @@ Nodeで直接実行：①同じ(saveSeed,key)から同一の馬が生成され�
 ### 次
 
 ③の続き——厩舎（190）・馬主（100）・NPC騎手（160）の生成。その後④週の進行（仮sim）。
+
+## ③の続き（2/4）——厩舎（調教師）と馬主
+
+### リファクタ：`GRADE_SCALE`を`data/grades.js`へ切り出し
+
+厩舎の能力（4軸のうち3軸）も馬と同じG〜S記号スケールを使うため、`domain/horse.js`に
+置いていた`GRADE_SCALE`/`pickGrade`を`data/grades.js`（リテラル定数＋自己完結の純関数）へ
+移した。`horse.js`は`GRADE_SCALE`を re-export して既存の呼び出し元との互換を保つ。
+CLAUDE.md §5「特定の1ファイルが肥大化の受け皿になり続けていないか都度チェック」に沿った判断。
+
+同様に、調教師・馬主・（次に作るNPC騎手も含む）「人の名前をもじる」処理は馬の名前
+（`data/names.js`）と語彙の性質が異なるため、新しく`data/humanNames.js`を作って分離した。
+
+### 実装した内容
+
+| ファイル | 内容 |
+|---|---|
+| `data/grades.js` | `GRADE_SCALE`（G〜S）と`pickGrade` |
+| `data/humanNames.js` | もじった人名の生成（`generateModeledName`。音節16種の組み合わせ） |
+| `domain/stable.js` | `generateStable`（厩舎1件：得意分野・4軸のうち3軸・管理頭数）／`SPECIALTIES`6種／`TRUST_DISCLOSURE_TIERS`（信頼値の見せ方3段） |
+| `domain/owner.js` | `generateOwner`（馬主1人：もじった名前・大口なら冠名）／`isMajorOwner`（暫定閾値5頭） |
+
+### 検証
+
+Nodeで確認：①厩舎生成の決定性②190件生成して得意分野6種が全て出現・名前の重複は
+139/190に留まる（⚠️音節16種×16種＝256通りのため、実装が進んだら`data/humanNames.js`の
+語彙を増やす）③馬主：大口のみ冠名を持つ・小口は持たない・100人生成して85件が別名④
+`horse.js`のリファクタ後も既存の生成が壊れていないことを再確認。`npm run build`も継続して成功。
+
+### 次
+
+③の続き（3/4・4/4）——NPC騎手（160人・§4の適性10＋基礎能力2と同型）の生成、
+および世代管理（引退・新規デビュー）。その後④週の進行（仮sim）。

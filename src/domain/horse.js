@@ -5,12 +5,11 @@
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 import { CLASS_LADDER, classIndex } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
+import { pickGrade } from "../data/grades.js";
+
+export { GRADE_SCALE } from "../data/grades.js";
 
 export const GENDERS = Object.freeze(["colt", "filly", "gelding"]); // 牡・牝・セン
-
-// 記号評価のスケール（G〜S）。ARCHITECTURE.md §3「表示形式はウイポ基準」＝抽象的な
-// 等級の枠組みのみを参照した独自スケール（数値そのものは丸写ししていない）。
-export const GRADE_SCALE = Object.freeze(["G", "F", "E", "D", "C", "B", "A", "S"]);
 
 export const GROWTH_TYPES = Object.freeze([
   "early", // 早熟：2歳後半〜3歳前半にピーク
@@ -31,10 +30,6 @@ const ADAPTABILITY_KEY_BY_FAMILY = Object.freeze({
   [BLOODLINE_FAMILIES.EUROPE]: "endurance",
   [BLOODLINE_FAMILIES.AMERICA]: "attrition",
 });
-
-function pickGrade(rand01) {
-  return GRADE_SCALE[Math.floor(rand01() * GRADE_SCALE.length)];
-}
 
 function createInitialAdaptability(bloodlineFamily) {
   const base = { burst: 0, endurance: 0, attrition: 0 };
