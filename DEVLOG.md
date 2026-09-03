@@ -121,6 +121,10 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
   基準0.3＋ランク×0.1＋評判/100、上限0.9）・人に会う（所持金が無いと不成立）は仕様どおり。
   体を作る／買い物／牧場・セリは効果が未定（ARCHITECTURE.md §15）のため明示的な
   プレースホルダー（詳細`devlog/wave02.md`）。
+- **`src/domain/weather.js`**／**`src/domain/strategy.js`**／**`src/domain/fridayConfirmation.js`**
+  （第2弾④の4/n）：金曜の確定（競馬場→鞍→脚質→予報）。天候予報は的中率85%（外れ率実測
+  14.9%）。脚質は4軸から導く暫定ヒューリスティック。週末に乗れる競馬場は1つという制約を
+  `confirmMounts`で実装（詳細`devlog/wave02.md`）。
 
 ---
 
@@ -165,6 +169,8 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
   続けて月曜の依頼一覧生成（`domain/player.js`・`domain/weeklyRequests.js`）を実装。
   平日7行動が次。
   続けて平日7行動（`domain/weekdayActions.js`）を実装。金曜の確定が次。
+  続けて金曜の確定（`domain/weather.js`・`domain/strategy.js`・
+  `domain/fridayConfirmation.js`）を実装。仮simと結果処理が次。
 
 - **第1弾｜騎手モードの設計図と土台** — **設計完了**（-A〜-E。監査6回）。実装は第2弾。
   奪う器官の中核は**主戦の座**（同じ馬に5回乗りその間に1勝すると主戦。他の馬を選んだ週に失う
