@@ -547,7 +547,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       callbacks.setResultData({
         position: result.position,
         fieldSize: result.fieldSize,
-        flavor: result.won ? "先頭でゴール板を過ぎた。" : "先頭の馬を、最後まで捉えられなかった。",
         rows: boardRows,
         splitsText: `タイム ${result.goalTimeLabel}　上がり4F ${result.last4F}　上がり3F ${result.last3F}`,
       });

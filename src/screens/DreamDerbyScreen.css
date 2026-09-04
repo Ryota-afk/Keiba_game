@@ -517,7 +517,6 @@
 .result-overlay.active, .intro-overlay.active { opacity: 1; pointer-events: auto; }
 .result-position { font-family: "M PLUS 1p", sans-serif; font-weight: 900; font-size: 44px; margin-bottom: 4px; }
 .result-of { color: var(--muted); font-size: 11px; margin-bottom: 14px; }
-.result-flavor { font-size: 13.5px; line-height: 1.9; margin: 10px 0 6px; }
 
 /* 紙吹雪（軽い演出。CSSのみ） */
 .confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }

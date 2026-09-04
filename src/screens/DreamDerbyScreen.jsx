@@ -267,7 +267,6 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
                   ))}
                   <div className="result-splits">{resultData.splitsText}</div>
                 </div>
-                <p className="result-flavor">{resultData.flavor}</p>
               </>
             )}
           </div>
