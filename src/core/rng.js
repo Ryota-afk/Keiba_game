@@ -83,3 +83,12 @@ export function weightedPick(rand01, weights) {
 export function chance(rand01, p) {
   return rand01() < p;
 }
+
+/**
+ * キャリア開始時に1回だけ発行する基底シード（セーブに保存する値そのもの）。
+ * ⚠️セーブに保存するのはこの1個の値だけでよい——週ごと・馬ごとの乱数は
+ * `streamRandom(saveSeed, stream, ...keyParts)`でその都度再導出できる。
+ */
+export function createSaveSeed() {
+  return `${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffffff).toString(36)}`;
+}

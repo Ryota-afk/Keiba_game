@@ -518,7 +518,30 @@
 掛けること（馬だけ別スケールにしない）。`dream-derby-mock2.html`はこの回で
 `#worldZoom`（CSS transform: scaleを共有）と1枚の`#trackBoundary`SVGへ作り直した。
 
-### 金曜の作戦＝脚質の指定
+#### 実装移植版（第2弾・`dream-derby-mock2.html`から実コードへ）
+
+上記の設計は`src/data/dreamDerbyCourse.js`（距離・時刻・SVG境界の定数）・
+`src/view/dreamDerbyRace.js`（distanceAtTime／gapMetersAt／カメラの一次遅れ／
+curveY・curveRow・bandPath等の純関数）・`src/view/dreamDerbySprite.js`（馬＋騎手の
+SVGマークアップ）・`src/view/dreamDerbyCommentary.js`（実況の文組み立て）・
+`src/screens/dreamDerbyEngine.js`（rAFループ＋DOM書き込みのエンジン本体）・
+`src/screens/DreamDerbyScreen.jsx`（Reactの薄い殻）へそのまま移植済み（第2弾）。
+
+⚠️**移植時にモックのバグを1件直した**：モックは`gapMetersAt`が「残り1200m地点」から
+最終着差（`finishGap`。自分は常に0＝常に勝つ前提の飾り）へ収束を始めていたが、その
+瞬間はまだ直線の判断カード（結果に影響する選択）が選ばれていない。実装では
+`domain/dreamDerby.js`の`runDreamDerbyRace`を**直線カードで選んだ瞬間**（結果が必要に
+なる直前）にだけ呼び、それ以前の隊列の見え方は結果と無関係な演出専用の揺らぎ
+（`viewHash01`。着順を決める`core/rng.js`の乱数ストリームとは別）だけで動かす。
+これにより`## 11. 導入`の「勝つ。ただし選択によっては負ける」が文字どおり成立する
+（自分が2着以下になるケースをPlaywrightで実測確認済み）。
+
+⚠️**着差(m)・ゴールタイム・上がり3F/4Fの算出式は「仮」のまま**（`domain/dreamDerby.js`の
+`PAR_SCORE`・`SECONDS_PER_SCORE_POINT`・`METERS_PER_SCORE_POINT`等）。`horseStrengthScore`
+（仮simの強さ指標）の差を線形にmへ・秒へ変換しているだけで、消耗式・レース傾向（本節）とは
+まだ繋がっていない。⑦のレースsim本実装で正式な値へ差し替える対象として明示しておく。
+
+
 
 **逃げ／先行／差し／追込を宣言する。** 馬の得意脚質から外してもよい。
 ⭐騎手の戦法適性4つ（§4）がここで使われ、⭐**逃げ馬の数がレース傾向を揺らす**ので自分の作戦が

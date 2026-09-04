@@ -177,6 +177,19 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
   定型160本超を実際の隊列で穴埋め。実在の実況の文句は写さない）に置き換え、判断カードを
   残り1200m／直線入りの瞬間に距離で出す形へ、選択肢を騎手の判断＋損得1行へ改めた
   （詳細`devlog/wave02.md`）。
+- **夢のダービー画面（実装）**（第2弾・`dream-derby-mock2.html`をReactへ移植）：
+  `data/dreamDerbyCourse.js`・`data/raceMargins.js`・`data/dreamDerbyVisuals.js`・
+  `data/dreamDerbyCommentary.js`（COMMENTARY／WAKE_LINESを転記後diff一致確認）・
+  `view/dreamDerbyRace.js`・`view/dreamDerbySprite.js`・`view/dreamDerbyCommentary.js`
+  （純関数のみ）・`screens/dreamDerbyEngine.js`（rAFループ＋DOM書き込み）・
+  `screens/DreamDerbyScreen.jsx`＋`.css`を新設し`app.jsx`へ配線。⚠️移植時にモックのバグを
+  1件修正——`domain/dreamDerby.js`の`resolveDreamDerby`/`drawDreamDerbySituations`を削除し
+  `assignPostPositions`/`runDreamDerbyRace`に置き換え、最終着差への収束を**直線カードで
+  選んだ瞬間**からにした（モックは自分が常に勝つ前提だった。実装では選択次第で負ける。
+  Playwrightで実測確認）。着差・タイム換算式は「仮」（⑦で正式化）。ビルド確認・
+  Playwrightでの通しシナリオ（実況→チュートリアル3種→判断カード2回→ゴール→掲示板→
+  暗転→目覚め）をJSエラー0件で確認済み。⚠️**CLAUDE.md §0-4の人間の通しプレイは
+  未実施のまま**（詳細`devlog/wave02.md`）。
 
 ---
 
@@ -231,7 +244,9 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
   完了**。104週のヘッドレス実行で決定的に動作することを確認。⑤導入が次。
   ⑤タイトル画面を実装（「本馬場」デザイン・タイトル「ファーストジョッキー」）。
   続けて判断カード・夢のダービーのバックエンドを実装（正式な効果量は⑦へ残す判断）。
-  夢のダービーの画面が次。
+  続けて夢のダービー画面をモック（`dream-derby-mock2.html`）からReactへ実装し、
+  `app.jsx`から到達可能にした（自分が負けることもある形に修正済み。人間の通しプレイは
+  未実施）。⚠️**卒業式の画面（キャラ作成）がまだ無い**——これが次。
 
 - **第1弾｜騎手モードの設計図と土台** — **設計完了**（-A〜-E。監査6回）。実装は第2弾。
   奪う器官の中核は**主戦の座**（同じ馬に5回乗りその間に1勝すると主戦。他の馬を選んだ週に失う

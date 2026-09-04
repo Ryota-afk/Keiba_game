@@ -1249,3 +1249,99 @@ Playwrightで、道中カードが残り1200m、直線カードが1:52.0（残�
 ②タイトル画面のM+フォント再実装③`domain/dreamDerby.js`の着差/タイム変動/上がり算出拡張
 （⑦・`claude-opus-5`。連続スクロールの可視範囲・カメラ基準位置・芝の速さ・ズームの
 引き金・上端マーカー帯のx写像も⑦で実測に基づき調整する）。
+
+## ⑤の続き——夢のダービー画面：`dream-derby-mock2.html`をReactへ実装（`claude-sonnet-5`）
+
+ユーザーが「では、一旦次に進もうか」と述べ、AskUserQuestionで「夢のダービー画面を実装する」
+ことを明示的に選んだ。Planエージェントに設計レビューを依頼し、実装前に解決すべき矛盾を
+1件発見（下記）。以後は`/root/.claude/plans/`の承認済み計画どおりに、data→view→domain→
+core→engine→screen/css→app配線→build/testの順で実装した。
+
+### ⚠️最重要・実装前に見つけた設計判断：モックのバグを引き継がない
+
+モックの`gapMetersAt`は「残り1200m地点」から最終着差（`finishGap`）へ収束を始めるが、
+`finishGap`は`selfEntry`を常に0（＝自分が常に勝つ前提）で計算していた。しかもその収束の
+開始タイミングは、結果に影響するはずの直線の判断カードが**まだ選ばれていない瞬間**と
+同じだった——モックが「見た目としては動いていた」のは、選択の結果が実は最初から
+固定されていたからにすぎない。
+
+`domain/dreamDerby.js`の`generateDreamHorse`のコメントには「勝つ。ただし選択によっては
+負ける」と書かれているのに、実装をそのまま移植すると**この一文が嘘になる**ところだった。
+
+**採った対応**：確定した結果が必要になる前に結果を要求しない。
+- `domain/dreamDerby.js`の`resolveDreamDerby`（呼び出し元ゼロの死んでいるコードだった）と
+  `drawDreamDerbySituations`を削除し、`assignPostPositions(saveSeed, dreamHorse, rivals)`
+  （馬番のシャッフル割当）と`runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds)`
+  （全18頭ぶんの着順・着差・ゴールタイム・上がり4F/3Fを返す）に置き換えた。
+- `runDreamDerbyRace`は**直線カードで選んだ瞬間**（`screens/dreamDerbyEngine.js`の
+  `pickCardChoice`のstretch分岐）にだけ呼ぶ。それ以前の隊列の見え方は、結果と無関係な
+  演出専用の揺らぎ（`view/dreamDerbyRace.js`の`viewHash01`）だけで動かす——
+  `gapMetersAt(num, t, { marginMeters, confirmedAt })`が`marginMeters`未確定のうちは
+  演出専用の値を返し、確定後は確定時点の値を起点に最終着差へ連続的に収束する（跳ばない）。
+- 副産物として、自分の馬の距離もほかの馬と**同じ式**で扱えるようになった（モックは
+  「自分だけ特別扱いでgapMetersAtが常に0」という不自然な分岐を持っていた）。
+- Playwrightの実機テストで実際に**自分が2着**になるケース（`finishSelfLose`の実況が
+  流れる）を確認した。「勝つ。ただし選択によっては負ける」が文字どおり成立している。
+
+### ファイル構成（新規12・編集4）
+
+`data/dreamDerbyCourse.js`・`data/raceMargins.js`（`marginLabelFor`は新規の逆引き関数）・
+`data/dreamDerbyVisuals.js`・`data/dreamDerbyCommentary.js`（COMMENTARY/WAKE_LINESを
+モックから転記し、Node一発スクリプトでモックの該当部分を`eval`して`assert.deepEqual`で
+**一致を確認**）・`data/judgmentSituations.js`（`dreamMid`/`dreamStretch`を追記。
+`SITUATIONS`配列には入れず、将来の通常レースのランダム抽選に混ざらないようにした）・
+`view/dreamDerbyRace.js`・`view/dreamDerbySprite.js`・`view/dreamDerbyCommentary.js`
+（すべて純関数のみ。DOM・タイマー無し）・`domain/dreamDerby.js`（編集。上記）・
+`core/rng.js`（`createSaveSeed()`を追加）・`screens/dreamDerbyEngine.js`（新規・
+DOM/タイマー駆動のrAFエンジン）・`screens/DreamDerbyScreen.jsx`＋`.css`（新規）・
+`app.jsx`（編集。`createSaveSeed()`→`<DreamDerbyScreen>`へ配線）・`index.html`
+（編集。M PLUS 1p／M PLUS 1 Codeの`<link>`を既存フォントに追加）。
+
+### エンジンとReactの境界（承認済み計画の設計判断どおり）
+
+60fpsで書き換わる要素（馬18頭のスプライト・上端マーカー帯・SVG境界・カメラ/ズームの
+transform・HUDの残り距離/タイム）は`dreamDerbyEngine.js`が`refs`経由でDOM要素へ直接
+書き込む。Reactが持つのは低頻度UI（実況欄の行配列・チュートリアルの文言・判断カードの
+開閉・タブ・結果オーバーレイ・暗転〜目覚めの各段階）のstateだけ——エンジンは
+`callbacks`（Reactのstateセッターの束）を呼ぶだけで、DOMを直接触らせない。
+表示切替（馬名/馬番/非表示）・速度の`--gallop`変数・スプリント演出のクラスは
+Reactのstate/classNameで直接切り替え、エンジン側の関与をゼロにできた（元のモックは
+これらもJSでDOM操作していたが、React化に伴い純粋な宣言的レンダリングへ寄せた）。
+
+可変状態（`raceSeconds`・`cameraMode`・判断カードの選択・`raceResult`等、15個前後）は
+すべて`createDreamDerbyEngine({...})`ファクトリのクロージャ内に閉じ込め、`destroy()`で
+rAF・保留タイマー・手動構築したDOM子要素（スプライト・チップ・距離標識・SVG境界の
+動的要素）を全部破棄する。React 18 StrictModeの開発時二重マウントを想定した設計。
+
+### 実装中に見つけた実装バグ（Playwright実機テストで発見・修正）
+
+暗転〜目覚めの場面で、実況タブ（`.tab-panels`）とタブバーを隠す処理（モックの
+`tabbar.style.display="none"; tabPanels.style.display="none";`）の移植が漏れていた。
+結果、目覚めた部屋の会話の**上に**直前のレース実況が残ったまま表示されていた
+（`wake-panel`と`tab-panels`が別要素として両方表示され続けていたため）。
+`wakeActive`のときは`.tabbar`/`.tab-panels`を`style={{display:"none"}}`にして修正し、
+Playwrightのスクリーンショットで解消を確認した。
+
+### 検証
+
+- `npm run build`成功（単一HTML、209KB）。
+- Node一発スクリプトで`view/`・`domain/dreamDerby.js`の主要関数の出力を個別に確認
+  （`distanceAtTime`/`timeAtDistance`の往復・`gapMetersAt`の連続性・`curveY`の対称性・
+  `assignPostPositions`の決定性・`runDreamDerbyRace`の着順/着差の整合性）。
+- `screens/dreamDerbyEngine.js`は手製の最小DOMスタブ（jsdom無し。このプロジェクトに
+  テストランナーは無い）でスモークテストし、発走→スキップ→直線カード→選択→ゴール→
+  掲示板→暗転→目覚め→卒業式ボタンまで例外ゼロで通ることを確認（うち1回は自分が
+  2着になるケースを実際に踏んだ）。
+- `npm run dev`＋Playwright（実クロミウム）で、タイトル画面から実際にクリックして
+  夢のダービー画面へ遷移し、実況→チュートリアル3種（カメラ／表示／速度）→スキップ→
+  直線の判断カード→ゴール→掲示板→暗転→目覚めの5行→「卒業式へ」まで**実ブラウザで**
+  通し、JSの`pageerror`が0件であることを確認（コンソールに出た2種のエラーは
+  Google Fontsの`fonts.googleapis.com`への接続がサンドボックスのネットワーク制限で
+  失敗したものだけで、アプリのバグではない）。
+- ⚠️**CLAUDE.md §0-4の人間の通しプレイは実施していない**。Playwrightでの自動確認を
+  人間の検証の代わりとして報告しない——`TODO.md` #11に明記した。
+
+### 次
+
+卒業式（キャラ作成）画面の設計（CLAUDE.md §8の手順）が次。`domain/dreamDerby.js`の
+着差/タイム換算式（現状「仮」）を正式化する仕事は⑦（`claude-opus-5`）に残っている。
