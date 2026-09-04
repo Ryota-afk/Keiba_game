@@ -115,13 +115,28 @@ export function growAdaptability(adaptability, raceTrendKey, amount) {
   return { ...adaptability, [raceTrendKey]: adaptability[raceTrendKey] + amount };
 }
 
-// オープン以上（G3・G2・G1）は勝利数だけで上がらない
+// オープン以上（リステッド・G3・G2・G1）は勝利数だけで上がらない
 //（⚠️出走条件は未定・ARCHITECTURE.md §15「オープン以上の出走条件」）。
+// ⚠️2026-09-04にクラスを10段へ広げた際に確認：`open`の直後に`listed`を挿し込んだので
+// `open`の序列上の位置（インデックス）は変わらず、この定数を変更する必要はない。
+// `listed`は`g3`/`g2`/`g1`と同じく「勝利数の自動昇級では到達しない」側に留まる
+// ——これは新しい制約ではなく、g3以上が既に持っていた制約に`listed`が合流しただけ。
+// 到達の条件（任される線・§6）は第4弾（`TODO.md` #24）で設計する。
 const WIN_PROMOTION_CAP = "open";
 
-/** 勝利数で1段上がる。降級なし（J）。オープンで頭打ちにする。 */
+/**
+ * 勝利数で1段上がる。降級なし（J）。オープンで頭打ちにする。
+ * ⚠️新馬（shinba）を勝つと未勝利（maiden）を飛ばして1勝クラスへ進む（史実どおり——
+ * 新馬戦の勝ち馬は未勝利戦を経由しない）。2026-09-04にクラス昇降を`weekResults.js`へ
+ * 繋ぐ際に見つけて直した：`CLASS_LADDER`の並び上、機械的な+1段では新馬の勝ちが
+ * 未勝利へ進んでしまっていた。
+ */
 export function classAfterWin(currentClassId) {
   const capIdx = classIndex(WIN_PROMOTION_CAP);
+  if (currentClassId === "shinba") {
+    const win1Idx = classIndex("win1");
+    return win1Idx <= capIdx ? "win1" : currentClassId;
+  }
   const idx = classIndex(currentClassId);
   if (idx < 0 || idx >= capIdx) return currentClassId;
   return CLASS_LADDER[idx + 1];
@@ -130,6 +145,11 @@ export function classAfterWin(currentClassId) {
 /** 新馬戦を勝てずに終えると未勝利へ移る（勝てば`classAfterWin`で1勝クラスへ）。 */
 export function classAfterDebutLoss(currentClassId) {
   return currentClassId === "shinba" ? "maiden" : currentClassId;
+}
+
+/** レース結果からクラスの昇降先を1つで決める。純関数。 */
+export function nextClassAfterRace(currentClassId, won) {
+  return won ? classAfterWin(currentClassId) : classAfterDebutLoss(currentClassId);
 }
 
 // 1頭あたり年6.3走＝約8週に1回（H・ARCHITECTURE.md §3「出走馬の決定」の実測値）。

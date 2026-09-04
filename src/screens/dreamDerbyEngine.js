@@ -487,6 +487,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       } else {
         choiceIds.stretch = choiceId;
         raceResult = runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds);
+        callbacks.setChoiceIds({ ...choiceIds }); // 卒業式の戦法4の写像に使う（devlog/wave02.md）
         confirmedAt = raceSeconds;
         marginByNum = new Map(raceResult.rows.map((r) => [numByHorseId.get(r.horseId), r.marginMeters]));
       }

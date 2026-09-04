@@ -1,25 +1,43 @@
 import React, { useState } from "react";
 import { TitleScreen } from "./screens/TitleScreen.jsx";
 import { DreamDerbyScreen } from "./screens/DreamDerbyScreen.jsx";
+import { GraduationScreen } from "./screens/GraduationScreen.jsx";
+import { WeekScreen } from "./screens/WeekScreen.jsx";
 import { createSaveSeed } from "./core/rng.js";
 
-// 画面遷移の起点。⚠️卒業式以降の画面はまだ無い（第2弾の続き）。
-// タイトルの選択後は夢のダービーへ進み、「卒業式へ」を押した先は次の画面ができるまで
-// 確認表示に留める。
+// 画面遷移の起点。タイトル→夢のダービー→卒業式→週の進行（1年目の終わりまで）。
+// ⚠️週の進行画面（WeekScreen）は見た目が仮（ARCHITECTURE.md「第2弾の範囲」）。
+// 騎乗依頼を面で見せる本番のUIは第3弾・第4弾へ送った（`TODO.md` #23・#24）。
 export function App() {
   const [career, setCareer] = useState(null); // { saveSeed, year, difficulty }
-  const [graduated, setGraduated] = useState(false);
+  const [dreamResult, setDreamResult] = useState(null); // { dreamHorseId, choiceIds, won }
+  const [gameState, setGameState] = useState(null); // { roster, player }
 
-  if (career && graduated) {
+  if (career && gameState) {
     return (
-      <main style={{ padding: 24, fontFamily: "sans-serif" }}>
-        <p>今日、競馬学校を卒業する。（卒業式の画面は未実装）</p>
-      </main>
+      <WeekScreen
+        saveSeed={career.saveSeed}
+        startYear={career.year}
+        initialRoster={gameState.roster}
+        initialPlayer={gameState.player}
+      />
+    );
+  }
+
+  if (career && dreamResult) {
+    return (
+      <GraduationScreen
+        saveSeed={career.saveSeed}
+        startYear={career.year}
+        difficulty={career.difficulty}
+        dreamChoiceIds={dreamResult.choiceIds}
+        onComplete={(state) => setGameState(state)}
+      />
     );
   }
 
   if (career) {
-    return <DreamDerbyScreen saveSeed={career.saveSeed} onGraduate={() => setGraduated(true)} />;
+    return <DreamDerbyScreen saveSeed={career.saveSeed} onGraduate={(payload) => setDreamResult(payload)} />;
   }
 
   return (

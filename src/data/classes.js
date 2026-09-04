@@ -1,6 +1,8 @@
-// クラス（9段・ARCHITECTURE.md §3「クラス（9段）」）。
-// ⚠️ここは内部の序列のみ。画面に出す言葉はCLAUDE.md §8のUI手順で別に決める
-// （「未勝利」「1勝クラス」は競馬を知らない人に伝わらない開発語彙）。
+// クラス（10段・arch/horse.md §3「クラス（10段）」）。
+// ⚠️ここは内部の序列のみ。画面に出す言葉はCLAUDE.md §7の明示的な例外として
+// JRAの呼び方をそのまま使う（`arch/horse.md`の表が正本）。
+// ⚠️2026-09-04に9段→10段へ修正：`listed`（リステッド）が抜けていた
+// （JRA公式「レースのクラス分け」— GⅠ・GⅡ・GⅢ・リステッド・オープン特別…の順）。
 
 export const CLASS_LADDER = Object.freeze([
   "shinba", // 新馬
@@ -8,7 +10,8 @@ export const CLASS_LADDER = Object.freeze([
   "win1", // 1勝クラス
   "win2", // 2勝クラス
   "win3", // 3勝クラス
-  "open", // オープン
+  "open", // オープン特別
+  "listed", // リステッド
   "g3",
   "g2",
   "g1",

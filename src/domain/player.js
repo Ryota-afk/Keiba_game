@@ -14,12 +14,21 @@ export const STARTING_MONEY = 100000;
 /**
  * 新人騎手のプレイヤー状態を作る。自己完結の純関数。
  * @param {number|string} saveSeed
- * @param {{ stableId?: string|null, startYear?: number, difficulty?: string }} [opts]
+ * @param {{ stableId?: string|null, startYear?: number, difficulty?: string,
+ *           familyName?: string, givenName?: string, aptitudes?: object,
+ *           usedNames?: Set<string> }} [opts] - `familyName`/`givenName`/`aptitudes`は
+ *   卒業式（`domain/graduation.js`の`createGraduatedJockey`）が渡す
+ *   （2026-09-04・`devlog/wave02.md`）。`usedNames`はNPC騎手との同名を避けるための
+ *   集合（`domain/career.js`の`createInitialRoster`が返す`usedJockeyNames`）。
  */
 export function createPlayer(saveSeed, opts = {}) {
   const jockey = generateJockey(saveSeed, "player", {
     rank: RANK_LADDER[0],
     stableId: opts.stableId ?? null,
+    familyName: opts.familyName,
+    givenName: opts.givenName,
+    aptitudes: opts.aptitudes,
+    usedNames: opts.usedNames,
   });
   return {
     jockey,

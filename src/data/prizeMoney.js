@@ -6,6 +6,9 @@
 
 export const JOCKEY_PRIZE_SHARE = 0.05; // 進上金5%
 
+// ⚠️2026-09-04に`listed`を追加。CLASS_LADDER（`data/classes.js`）が10段になった
+// にもかかわらずここへ足し忘れると、`domain/income.js`の`?? 0`が黙って0円を返す
+// （実測で確認済み・`TODO.md` #19）。⚠️**クラスを増減させたら必ずこの表も同じコミットで直す。**
 export const PLACEHOLDER_PURSE_BY_CLASS = Object.freeze({
   shinba: 3000000,
   maiden: 3000000,
@@ -13,6 +16,7 @@ export const PLACEHOLDER_PURSE_BY_CLASS = Object.freeze({
   win2: 7000000,
   win3: 10000000,
   open: 15000000,
+  listed: 20000000, // オープン特別とG3の間（JRA公式：収得賞金の算入額もこの2段の間に位置する）
   g3: 30000000,
   g2: 50000000,
   g1: 100000000,

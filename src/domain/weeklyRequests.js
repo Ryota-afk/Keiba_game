@@ -66,13 +66,20 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
     };
   });
 
-  // 所属厩舎の馬は優先的に回る（断れる、という性質は選択側=呼び出し元が扱う）。
-  const own = candidates.filter((c) => c.isFromOwnStable);
+  const requestCount = RIDABLE_SLOTS_PER_WEEK * REQUEST_COUNT_MULTIPLIER;
+
+  // 所属厩舎の馬は優先的に回る（断れる、という性質は選択側=呼び出し元が扱う）が、
+  // ⚠️上限を付けないと所属頭数（40頭前後）がそのまま依頼件数になり、他厩舎が
+  // 締め出される（2026-09-04・実測で判明。`TODO.md` #16）。所属枠も`requestCount`で
+  // 頭打ちにする——枠を独立に確保するのではなく、質の高い順に他厩舎と同じ上限を共有する。
+  const own = candidates
+    .filter((c) => c.isFromOwnStable)
+    .sort((a, b) => b.quality - a.quality)
+    .slice(0, requestCount);
   const others = candidates
     .filter((c) => !c.isFromOwnStable)
     .sort((a, b) => b.quality - a.quality);
 
-  const requestCount = RIDABLE_SLOTS_PER_WEEK * REQUEST_COUNT_MULTIPLIER;
   const fillCount = Math.max(0, requestCount - own.length);
   return [...own, ...others.slice(0, fillCount)].sort((a, b) => b.quality - a.quality);
 }

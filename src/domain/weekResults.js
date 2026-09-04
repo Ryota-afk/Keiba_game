@@ -8,6 +8,7 @@
 // 自体は流用できるはず。
 
 import { runPlaceholderRace } from "./raceOutcome.js";
+import { nextClassAfterRace } from "./horse.js";
 import { checkFall, applyInjuryToHorse } from "./fall.js";
 import { fatiguePenaltyFactor } from "./fatigue.js";
 import { rideIncome } from "./income.js";
@@ -81,7 +82,13 @@ export function processMountResult(saveSeed, week, player, horse, mount) {
 
   // 開示：プレイヤーが自分で判断した鞍なので、レースプールが進む（§3「能力の開示」）。
   let nextHorse = attemptReveal(saveSeed, week, horse, "race");
-  nextHorse = { ...nextHorse, lastRaceWeek: week };
+  nextHorse = {
+    ...nextHorse,
+    lastRaceWeek: week,
+    // クラスの昇降（J）：勝てば1段（新馬の勝ちは1勝クラスへ）、新馬を負ければ未勝利へ。
+    // ⚠️2026-09-04まで呼び出し元が無く、全馬が新馬のまま固定されていた。
+    classId: nextClassAfterRace(horse.classId, result.won),
+  };
 
   return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result };
 }

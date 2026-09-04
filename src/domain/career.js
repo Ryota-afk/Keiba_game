@@ -21,7 +21,15 @@ export const NPC_JOCKEY_COUNT = 160;
  * @returns {{ stables: object[], owners: object[], horses: object[], npcJockeys: object[] }}
  */
 export function createInitialRoster(saveSeed) {
-  const stables = Array.from({ length: STABLE_COUNT }, (_, i) => generateStable(saveSeed, i));
+  // 人名の重複回避（2026-09-04）：厩舎・馬主・NPC騎手はそれぞれ別集合で使用済み名を
+  // 追跡する（種類をまたいだ重複—例えば調教師と馬主が同姓同名—までは避けない）。
+  const usedTrainerNames = new Set();
+  const usedOwnerNames = new Set();
+  const usedJockeyNames = new Set();
+
+  const stables = Array.from({ length: STABLE_COUNT }, (_, i) =>
+    generateStable(saveSeed, i, { usedNames: usedTrainerNames })
+  );
 
   // 馬主の持ち馬数に偏りを持たせる（§3「馬主を実数の1/20に減らした」＝実態より大口になる設計）。
   // 重みをrand01^2で歪ませ、少数の馬主に多くの馬が集まるようにする。
@@ -59,6 +67,7 @@ export function createInitialRoster(saveSeed) {
   const owners = Array.from({ length: OWNER_COUNT }, (_, i) =>
     generateOwner(saveSeed, i, {
       isMajor: isMajorOwner(ownerHorseCounts[i], averageHorsesPerOwner),
+      usedNames: usedOwnerNames,
     })
   );
 
@@ -90,7 +99,10 @@ export function createInitialRoster(saveSeed) {
   // NPC騎手は各厩舎に1人ずつ紐付ける仮の割り当て（⚠️実際の所属決定はより複雑になりうる。
   // §6「所属厩舎の決まり方」参照。ここでは週の進行を動かすための最小限）。
   const npcJockeys = Array.from({ length: NPC_JOCKEY_COUNT }, (_, i) =>
-    generateJockey(saveSeed, `npc-${i}`, { stableId: stables[i % STABLE_COUNT].id })
+    generateJockey(saveSeed, `npc-${i}`, {
+      stableId: stables[i % STABLE_COUNT].id,
+      usedNames: usedJockeyNames,
+    })
   );
 
   return {
@@ -98,5 +110,8 @@ export function createInitialRoster(saveSeed) {
     owners: [...ownerById.values()],
     horses,
     npcJockeys,
+    // プレイヤーの騎手名がNPC騎手と重ならないよう、卒業式で`createPlayer`に渡す
+    // （2026-09-04）。
+    usedJockeyNames,
   };
 }

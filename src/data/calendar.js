@@ -33,3 +33,13 @@ export function buildCalendarSkeleton() {
   }
   return weeks;
 }
+
+/**
+ * `player.currentWeek`（キャリア開始から折り返さず数え続ける絶対週）を、暦の中の
+ * 1〜52（`buildCalendarSkeleton`の`weekNo`）へ変換する。
+ * ⚠️`currentWeek`自体は折り返さない（`domain/weekLoop.js`のコメント参照）——
+ * 折り返すのはこの関数が返す値だけ。
+ */
+export function weekOfYear(absoluteWeek) {
+  return ((absoluteWeek - 1) % WEEKS_PER_YEAR) + 1;
+}

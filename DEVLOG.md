@@ -88,10 +88,13 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
 
 ※ **ここにある物は「もうある」前提で扱うこと。**
 
-- **`src/data/`**（第2弾①）：`courses.js`（JRA10場・地方10場・海外4）／`classes.js`
-  （クラス9段のラダー。⚠️2026-09-04に10段へ変更すると決定・未実装。`TODO.md` #19）／`names.js`（冠名12語・語幹20語＋`generateHorseName`）／
-  `calendar.js`（52週の雛形`buildCalendarSkeleton`）／`gradedRaces.js`（重賞出走表の
-  スキーマ`GradedRaceEntry`。⚠️中身は空——実データ未取得。詳細`devlog/wave02.md`）。
+- **`src/data/`**（第2弾①、⭐一部は第2弾実装で更新）：`courses.js`（JRA10場・地方10場・海外4）／
+  `classes.js`（**クラス10段**のラダー）／`prizeMoney.js`（クラス別の暫定賞金。10段ぶん揃っている）／
+  `humanNames.js`（姓40×名40の漢字語彙）／`stableSpecialtyLabels.js`・`aptitudeLabels.js`・
+  `graduationText.js`（卒業式の表記・文言。いずれも新設）／`names.js`（冠名12語・語幹20語＋
+  `generateHorseName`）／`calendar.js`（52週の雛形`buildCalendarSkeleton`＋`weekOfYear`）／
+  `gradedRaces.js`（重賞出走表のスキーマ`GradedRaceEntry`。⚠️中身は空——実データ未取得。
+  詳細`devlog/wave02.md`）。
 - **`src/core/rng.js`**（第2弾②）：C4の乱数実装。`streamRandom(saveSeed, stream, ...keyParts)`
   で用途ごとに独立した生成器を作る（「1本の列を順に消費する」方式は採らず、呼び出し順序に
   一切依存しない設計。詳細`devlog/wave02.md`）。
@@ -190,6 +193,20 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
   Playwrightでの通しシナリオ（実況→チュートリアル3種→判断カード2回→ゴール→掲示板→
   暗転→目覚め）をJSエラー0件で確認済み。⚠️**CLAUDE.md §0-4の人間の通しプレイは
   未実施のまま**（詳細`devlog/wave02.md`）。
+- **卒業式画面・週の進行・`controllers/`（第2弾実装完了）**：`domain/graduation.js`
+  （成績表生成・夢の記録2択→戦法適性・厩舎3件の提示）・`domain/humanNaming.js`
+  （人名の独立RNGストリーム＋重複回避）・`screens/GraduationScreen.jsx`＋`.css`
+  （`design/mocks/graduation-mock2.html`を移植）・`src/controllers/careerController.js`
+  （新設。`completeGraduation`）・`src/screens/WeekScreen.jsx`（週の進行の最小画面。
+  ⚠️見た目は仮）を新設し`app.jsx`（タイトル→夢のダービー→卒業式→週の進行）へ配線。
+  `domain/weekLoop.js`（週の絶対カウンタ化・年の繰り上げ・`lastRaceWeek`の毎週更新）・
+  `domain/weekResults.js`（クラス昇降を配線）・`domain/weeklyRequests.js`（所属上限）・
+  `domain/horse.js`（新馬の勝ち→1勝クラス直行のバグ修正）・`domain/jockey.js`
+  （`opts.familyName`/`opts.aptitudes`・新人の度胸体力に下限40）・`data/classes.js`
+  （クラス10段）・`data/prizeMoney.js`（`listed`の賞金）・`domain/stable.js`
+  （得意分野8種類）・`data/humanNames.js`（姓40×名40の漢字）を編集。詳細は
+  `devlog/wave02.md`「第2弾の実装」。Playwrightで通しシナリオをJSエラー0件で確認済み
+  （⚠️人間の通しプレイは未実施）。
 
 ---
 
@@ -216,13 +233,19 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
 ---
 
 ## 7. 実装履歴（弾ごとの索引）
-- **第2弾｜実装——人が1年通せるようにする**（進行中）。やることは`TODO.md` #1の9項目。
-  **実装済み**：`data/`（JRA10場・クラス・名前語彙・52週の暦の雛形・重賞出走表のスキーマ。
-  ⚠️暦と重賞出走表の中身は空——実データ未取得）／`core/rng.js`（キーからハッシュ種を作り直す
-  方式でC4を満たした）／`domain/`（馬・厩舎190・馬主100・NPC騎手160の生成、週の進行の
-  ロジック一式、判断カード、夢のダービーのバックエンド）／タイトル画面／夢のダービー画面。
-  ⚠️**週の進行は書いてあるが画面から一度も呼ばれていない**（`src/controllers/`が無い）。
-  ⚠️**人間の通しプレイは未実施**（`TODO.md` #11）。
+- **第2弾｜実装完了——人が1年通せるようになった**（`claude-sonnet-5`）。詳細`devlog/wave02.md`末尾。
+  `TODO.md` #1の9項目すべて実装：週の絶対カウンタ＋年の繰り上げ（⚠️52で1へ折り返す実装を
+  一度書いて自分で壊し、その場で直した——`isDueForNextRace`の差分計算が年境界で負に転落する
+  ため）／クラス昇降を`weekResults.js`へ配線（新馬の勝ちが未勝利へ進むバグも発見・修正）／
+  騎乗依頼の生成修正（所属上限＋`lastRaceWeek`の毎週更新。実測：20キャリア×52週で
+  依頼件数は常に6）／クラス10段＋`listed`の賞金／厩舎の得意分野8種類／人名の漢字化
+  （姓40×名40・重複回避・独立RNGストリームで能力抽選とのカップリングを解消。実測：
+  厩舎190・馬主100・NPC騎手160、いずれも100%ユニーク）／卒業式画面
+  （`domain/graduation.js`・`screens/GraduationScreen.jsx`）／`app.jsx`配線と
+  `src/controllers/`新設・週の進行の最小画面（`WeekScreen.jsx`・見た目は仮）／計測。
+  ⚠️**計測で判明**：「受け入れる」と「決別する」で1年目の勝ち数が同じ数値になった——
+  仮simが騎手の適性を一切読んでいないため（⑦のレースsim本実装まで動かしようがない）。
+  Playwrightで実機を最後まで操作しJSエラー0件を確認（⚠️人間の通しプレイの代わりにはならない）。
 
 - **第2弾｜2026-09-04の設計と、範囲の切り直し** — 詳細`devlog/wave02.md`末尾。
   卒業式の設計から話が広がり、**番組表・指名・任される線・斤量と減量・得意分野が強さに

@@ -39,6 +39,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   const [wakeActive, setWakeActive] = useState(false);
   const [wakeLines, setWakeLines] = useState([]);
   const [graduateVisible, setGraduateVisible] = useState(false);
+  const [choiceIds, setChoiceIds] = useState(null); // 卒業式の戦法4の写像に使う（devlog/wave02.md）
 
   const engineRef = useRef(null);
   const deviceRef = useRef(null);
@@ -106,6 +107,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
       setWakeActive: (v) => setWakeActive(v),
       appendWakeLine: (text) => setWakeLines((prev) => [...prev, text]),
       setGraduateVisible: (v) => setGraduateVisible(v),
+      setChoiceIds: (v) => setChoiceIds(v),
     };
     const engine = createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, rivals, callbacks });
     engineRef.current = engine;
@@ -403,7 +405,13 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
               type="button"
               className="next-btn"
               style={{ display: graduateVisible ? "" : "none" }}
-              onClick={onGraduate}
+              onClick={() =>
+                onGraduate({
+                  dreamHorseId: dreamHorse.id,
+                  choiceIds,
+                  won: resultData?.position === 1,
+                })
+              }
             >
               卒業式へ
             </button>
