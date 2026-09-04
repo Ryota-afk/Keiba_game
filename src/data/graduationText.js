@@ -42,7 +42,7 @@ export function dreamRecordChoices(strategyLabel) {
   return [
     {
       id: "accept",
-      label: "あの乗り方を信じる",
+      label: "夢の乗り方を信じてみる",
       hint: `${strategyLabel}が武器になる。代わりに、ほかの三つに穴ができる`,
     },
     {

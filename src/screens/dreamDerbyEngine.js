@@ -102,6 +102,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   let activeButtonTutorial = null; // { kind: "camera"|"display", onPress(label) }
   let pendingCard = null; // { kind: "mid"|"stretch", choices }
   const choiceIds = { midRace: null, stretch: null };
+  let finished = false; // ゴール処理（doFinish）が既に走ったか。連打対策（devlog参照）
   let raceResult = null; // runDreamDerbyRaceの出力（直線カード確定後にだけ入る）
   let confirmedAt = null; // 直線カードで選んだ時刻(秒)
   let marginByNum = new Map(); // 馬番 -> 最終着差(m)。raceResult確定後にだけ埋まる
@@ -335,7 +336,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     }
   }
   function updateSkipAvailability() {
-    callbacks.setSkipEnabled(pendingCard === null && !tutorialActive);
+    callbacks.setSkipEnabled(pendingCard === null && !tutorialActive && !finished);
   }
   function checkMilestones() {
     for (const m of milestones) {
@@ -524,6 +525,9 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     }));
   }
   function doFinish() {
+    if (finished) return;
+    finished = true;
+    updateSkipAvailability();
     clockRunning = false;
     raceSeconds = T_FINISH;
     updateHudDom();
@@ -604,6 +608,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     raceTimeout(() => resumeClock(), 550);
   }
   function skip() {
+    if (finished) return;
     clearPendingTimers();
     callbacks.setCard(null);
     pendingCard = null;

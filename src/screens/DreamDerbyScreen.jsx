@@ -89,7 +89,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
       btnSpeed: btnSpeedRef.current,
     };
     const callbacks = {
-      appendMessage: (text, stamp) => setMessages((prev) => [...prev, { text, stamp }]),
+      appendMessage: (text, stamp) => setMessages((prev) => [{ text, stamp }, ...prev]),
       setTutorial: (v) => setTutorial(v),
       setCard: (v) => {
         setCardState(v);
@@ -120,7 +120,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   }, [saveSeed]);
 
   useEffect(() => {
-    if (tabPanelsRef.current) tabPanelsRef.current.scrollTop = tabPanelsRef.current.scrollHeight;
+    if (tabPanelsRef.current) tabPanelsRef.current.scrollTop = 0;
   }, [messages]);
   useEffect(() => {
     if (wakeLinesRef.current) wakeLinesRef.current.scrollTop = wakeLinesRef.current.scrollHeight;
@@ -361,7 +361,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
             </div>
             <div className={`tab-panel${activeTab === "messages" ? " active" : ""}`}>
               {messages.map((m, i) => (
-                <p key={i} className={`msg-line${i === messages.length - 1 ? " is-latest" : ""}`}>
+                <p key={i} className={`msg-line${i === 0 ? " is-latest" : ""}`}>
                   {m.stamp ? <span className="msg-time">{m.stamp}</span> : null}
                   {m.text}
                 </p>

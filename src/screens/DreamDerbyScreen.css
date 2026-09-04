@@ -20,7 +20,7 @@
   --action: #2f7fe6;
   --action-hover: #1f6bcf;
 
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   background: #0f0c0a;
@@ -30,7 +30,9 @@
 
 .dream-derby-screen__frame {
   width: min(430px, 100vw);
-  height: 720px;
+  /* 縦マージン(24px+40px)ぶんを差し引いて、画面が低いときにフレームがビューポート
+     下端からはみ出さないようにする */
+  height: min(720px, calc(100dvh - 64px));
   margin: 24px auto 40px;
   background: var(--panel);
   display: flex;
