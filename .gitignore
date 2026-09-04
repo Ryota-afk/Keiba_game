@@ -11,6 +11,9 @@
 !DEVLOG.md
 !TODO.md
 !ARCHITECTURE.md
+# --- アーキテクチャ（ARCHITECTURE.mdが大きくなりすぎたため2026-09-04に§3/§5を切り出した）---
+!arch/
+!arch/**
 # --- ゲーム開発の指針（外部知見の収蔵庫）。本体は薄い索引、全文はdesign/配下 ---
 !DESIGN_PRINCIPLES.md
 !design/
