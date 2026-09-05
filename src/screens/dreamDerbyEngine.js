@@ -16,9 +16,6 @@
 
 import {
   TOTAL_DISTANCE,
-  T_TUT_CAMERA,
-  T_TUT_DISPLAY,
-  T_TUT_SPEED,
   T_FINAL_STRETCH,
   T_FINISH,
   VIEW_SPAN,
@@ -335,9 +332,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       clockRunning = true;
     }
   }
-  function updateSkipAvailability() {
-    callbacks.setSkipEnabled(pendingCard === null && !tutorialActive && !finished);
-  }
   function checkMilestones() {
     for (const m of milestones) {
       if (!m.fired && raceSeconds >= m.at) {
@@ -394,23 +388,21 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       left,
       arrowX,
     });
-    updateSkipAvailability();
   }
   function hideTutorialInternal() {
     tutorialActive = false;
     callbacks.setTutorial(null);
-    updateSkipAvailability();
   }
   function showJudgmentTutorialOnce() {
     if (judgmentTutorialShown) return;
     judgmentTutorialShown = true;
-    showTutorialInternal({ text: "ここで選んだ行動で、レースの流れが変わります。", atTop: false });
+    showTutorialInternal({ text: "選んだ行動で、レースが変わります", atTop: false });
     tutorialDismissHandler = () => hideTutorialInternal();
   }
   function tutCameraMilestone() {
     callbacks.setRaceStageLabel("道中");
     showTutorialInternal({
-      text: "このボタンで、画面が追いかける馬を切り替えられます。一度押してみてください。",
+      text: "押してみてください",
       atTop: true,
       requireButton: true,
       anchorEl: refs.btnCamera,
@@ -427,6 +419,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
         raceTimeout(() => {
           hideTutorialInternal();
           resumeClock();
+          raceTimeout(tutDisplayMilestone, 1500);
         }, 1400);
       },
     };
@@ -434,7 +427,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   function tutDisplayMilestone() {
     let pressCount = 0;
     showTutorialInternal({
-      text: "このボタンで、馬の上に出す表示を切り替えられます。3回押すと一巡します。",
+      text: "3回押してみてください",
       atTop: true,
       progressText: "0/3",
       requireButton: true,
@@ -452,6 +445,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
           raceTimeout(() => {
             hideTutorialInternal();
             resumeClock();
+            raceTimeout(tutSpeedMilestone, 1500);
           }, 1200);
         }
       },
@@ -459,13 +453,21 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   }
   function tutSpeedMilestone() {
     showTutorialInternal({
-      text: "このボタンで、レースの速さを変えられます。長い道中は右上の「スキップ」で直線まで飛ばせます。",
+      text: "押すと速くなります",
       atTop: true,
+      requireButton: true,
       anchorEl: refs.btnSpeed,
     });
-    tutorialDismissHandler = () => {
-      hideTutorialInternal();
-      resumeClock();
+    activeButtonTutorial = {
+      kind: "speed",
+      onPress: (label) => {
+        const text = `${label}になりました`;
+        callbacks.setTutorial((prev) => (prev ? { ...prev, text } : prev));
+        raceTimeout(() => {
+          hideTutorialInternal();
+          resumeClock();
+        }, 1200);
+      },
     };
   }
 
@@ -474,7 +476,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     pauseClock();
     pendingCard = { kind, choices };
     callbacks.setCard({ label, situation, choices });
-    updateSkipAvailability();
   }
   function pickCardChoice(choiceId) {
     if (!pendingCard) return;
@@ -493,7 +494,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
         marginByNum = new Map(raceResult.rows.map((r) => [numByHorseId.get(r.horseId), r.marginMeters]));
       }
       say(`choiceReact.${choiceId}`, raceSeconds);
-      updateSkipAvailability();
       resumeClock();
     }, 500);
   }
@@ -527,7 +527,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   function doFinish() {
     if (finished) return;
     finished = true;
-    updateSkipAvailability();
     clockRunning = false;
     raceSeconds = T_FINISH;
     updateHudDom();
@@ -581,11 +580,8 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   const milestones = [
     { at: 0.6, fired: false, fn: () => say("start", raceSeconds) },
     { at: 5, fired: false, fn: () => say("earlyOrder", raceSeconds) },
-    { at: T_TUT_CAMERA, fired: false, fn: tutCameraMilestone },
     { at: timeAtDistance(350), fired: false, fn: () => say("corner12", raceSeconds) },
-    { at: T_TUT_DISPLAY, fired: false, fn: tutDisplayMilestone },
     { at: timeAtDistance(700), fired: false, fn: () => say("selfMid", raceSeconds) },
-    { at: T_TUT_SPEED, fired: false, fn: tutSpeedMilestone },
     { at: timeAtDistance(1000), fired: false, fn: () => say("backstretch", raceSeconds) },
     { at: timeAtDistance(1200), fired: false, fn: milestoneCardMid },
     { at: timeAtDistance(1400), fired: false, fn: () => say("earlyOrder", raceSeconds) },
@@ -598,7 +594,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     { at: T_FINISH, fired: false, fn: doFinish },
   ];
 
-  // ===== 発走・スキップ =====
+  // ===== 発走 =====
   function beginRace() {
     if (raceStarted) return;
     raceStarted = true;
@@ -606,30 +602,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     callbacks.setActiveTab("messages");
     callbacks.setIntroActive(false);
     raceTimeout(() => resumeClock(), 550);
-  }
-  function skip() {
-    if (finished) return;
-    clearPendingTimers();
-    callbacks.setCard(null);
-    pendingCard = null;
-    hideTutorialInternal();
-    activeButtonTutorial = null;
-    if (!raceStarted) beginRace();
-    if (raceSeconds < T_FINAL_STRETCH) {
-      milestones.forEach((m) => {
-        if (m.at < T_FINAL_STRETCH) m.fired = true;
-      });
-      raceSeconds = T_FINAL_STRETCH;
-      updateHudDom();
-      snapCamera();
-      renderWorld(raceSeconds);
-      resumeClock();
-    } else {
-      milestones.forEach((m) => {
-        m.fired = true;
-      });
-      doFinish();
-    }
+    raceTimeout(tutCameraMilestone, 3000);
   }
 
   // ===== 左下の丸ボタン3つ（カメラ・表示・速度）。表示切替そのものはReact側のCSSクラスで行い、
@@ -649,8 +622,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       activeButtonTutorial.onPress(label);
     }
   }
-  function setSpeedScale(scale) {
+  function pressSpeedButton(scale, label) {
     speedScale = scale;
+    if (activeButtonTutorial && activeButtonTutorial.kind === "speed") {
+      const cb = activeButtonTutorial.onPress;
+      activeButtonTutorial = null;
+      cb(label);
+    }
   }
   function dismissTutorial() {
     tutorialDismissHandler();
@@ -717,11 +695,10 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     start,
     destroy,
     beginRace,
-    skip,
     pickCardChoice,
     dismissTutorial,
     pressCameraButton,
     pressDisplayButton,
-    setSpeedScale,
+    pressSpeedButton,
   };
 }

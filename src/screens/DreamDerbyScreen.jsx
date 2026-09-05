@@ -26,7 +26,6 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   const [card, setCardState] = useState(null);
   const [pickedChoiceId, setPickedChoiceId] = useState(null);
   const [raceStageLabel, setRaceStageLabel] = useState("スタート");
-  const [skipEnabled, setSkipEnabled] = useState(false);
   const [sprinting, setSprinting] = useState(false);
   const [displayI, setDisplayI] = useState(0);
   const [speedI, setSpeedI] = useState(0);
@@ -96,7 +95,6 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
         setPickedChoiceId(null);
       },
       setRaceStageLabel: (v) => setRaceStageLabel(v),
-      setSkipEnabled: (v) => setSkipEnabled(v),
       setSprinting: (v) => setSprinting(v),
       setActiveTab: (v) => setActiveTab(v),
       setIntroActive: (v) => setIntroActive(v),
@@ -137,7 +135,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   function handleSpeedClick() {
     const next = (speedI + 1) % SPEED_STATES.length;
     setSpeedI(next);
-    engineRef.current?.setSpeedScale(SPEED_SCALES[next]);
+    engineRef.current?.pressSpeedButton(SPEED_SCALES[next], SPEED_STATES[next]);
   }
   function handleCameraClick() {
     const next = (cameraI + 1) % CAMERA_STATES.length;
@@ -340,14 +338,6 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
               onClick={() => setActiveTab("messages")}
             >
               実況
-            </button>
-            <button
-              type="button"
-              className="skip-btn"
-              disabled={!skipEnabled}
-              onClick={() => engineRef.current?.skip()}
-            >
-              スキップ
             </button>
           </div>
           <div className="tab-panels" ref={tabPanelsRef} style={{ display: wakeActive || card ? "none" : "" }}>

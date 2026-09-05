@@ -365,13 +365,6 @@
   border-bottom: 2px solid transparent;
 }
 .tabbar button.active { color: var(--fg); border-bottom-color: var(--accent); }
-.skip-btn {
-  flex: 0 0 auto !important;
-  padding: 10px 12px !important;
-  font-size: var(--fs-caption) !important;
-  color: var(--muted);
-}
-.skip-btn:disabled { color: #4a463d; cursor: default; }
 
 .tab-panels { flex: 1; overflow-y: auto; min-height: 0; }
 .race-bottom.has-card .tabbar,
