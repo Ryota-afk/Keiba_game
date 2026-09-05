@@ -12,6 +12,12 @@ import {
 } from "../domain/graduation.js";
 import { completeGraduation } from "../controllers/careerController.js";
 import { GRADE_SCALE } from "../data/grades.js";
+import {
+  MAX_FAMILY_NAME,
+  MAX_GIVEN_NAME,
+  isAllowedNameChar,
+  sanitizeName,
+} from "../data/nameRules.js";
 import { DISTANCE_BANDS, SURFACES } from "../data/aptitudeCategories.js";
 import { DISTANCE_BAND_LABELS, SURFACE_LABELS, STRATEGY_LABELS } from "../data/aptitudeLabels.js";
 import { specialtyLabel } from "../data/stableSpecialtyLabels.js";
@@ -150,6 +156,8 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
   const [stage, setStage] = useState("name"); // name | ceremony | report | stable
   const [familyName, setFamilyName] = useState("");
   const [givenName, setGivenName] = useState("");
+  const [familyNameHadRejected, setFamilyNameHadRejected] = useState(false);
+  const [givenNameHadRejected, setGivenNameHadRejected] = useState(false);
   const [ceremonyShown, setCeremonyShown] = useState([]);
   const [ceremonyNextVisible, setCeremonyNextVisible] = useState(false);
   const [reportShown, setReportShown] = useState([]);
@@ -179,6 +187,20 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
 
   const fullName = `${familyName}${givenName}`;
   const nameFilled = familyName.trim().length > 0 && givenName.trim().length > 0;
+  const showNameWarning = familyNameHadRejected || givenNameHadRejected;
+
+  // 文字種の判定（漢字・ひらがな・カタカナ以外を弾く）と、文字数上限だけに
+  // 当たったとき（案内を出さない）を区別する。空欄に戻ったら案内もリセットする。
+  function handleNameInput(raw, max, setValue, setHadRejected) {
+    if (raw === "") {
+      setValue("");
+      setHadRejected(false);
+      return;
+    }
+    const hasDisallowedChar = [...raw].some((c) => !isAllowedNameChar(c));
+    if (hasDisallowedChar) setHadRejected(true);
+    setValue(sanitizeName(raw, max));
+  }
 
   function goCeremony() {
     setStage("ceremony");
@@ -265,10 +287,12 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
                 <input
                   id="graduationFamilyName"
                   type="text"
-                  maxLength={10}
+                  maxLength={MAX_FAMILY_NAME}
                   autoComplete="off"
                   value={familyName}
-                  onChange={(e) => setFamilyName(e.target.value)}
+                  onChange={(e) =>
+                    handleNameInput(e.target.value, MAX_FAMILY_NAME, setFamilyName, setFamilyNameHadRejected)
+                  }
                 />
               </div>
               <div className="grad-name-field">
@@ -276,13 +300,16 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
                 <input
                   id="graduationGivenName"
                   type="text"
-                  maxLength={10}
+                  maxLength={MAX_GIVEN_NAME}
                   autoComplete="off"
                   value={givenName}
-                  onChange={(e) => setGivenName(e.target.value)}
+                  onChange={(e) =>
+                    handleNameInput(e.target.value, MAX_GIVEN_NAME, setGivenName, setGivenNameHadRejected)
+                  }
                 />
               </div>
             </div>
+            {showNameWarning && <p className="grad-name-warning">使える文字は、漢字・ひらがな・カタカナです</p>}
             <div className="grad-next-wrap">
               <button type="button" className="grad-next-btn" disabled={!nameFilled} onClick={goCeremony}>
                 次へ
