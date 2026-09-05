@@ -37,6 +37,13 @@
 }
 .grad-top svg { display: block; width: 100%; height: 100%; }
 
+/* ③名前入力→式典：上半分だけのクロスフェード（`styles/motion.css`の--m3-*）。
+   新旧2枚を`.grad-top`の上に重ねて透明度だけを動かす。 */
+.grad-top-layer { position: absolute; inset: 0; opacity: 1; }
+.grad-top-layer--out { opacity: 0; transition: opacity var(--m3-dur) var(--m3-ease); }
+.grad-top-layer--in-start { opacity: 0; }
+.grad-top-layer--in { opacity: 1; transition: opacity var(--m3-dur) var(--m3-ease); }
+
 /* ===== 成績表 ===== */
 .scoreboard {
   position: absolute;
@@ -87,14 +94,31 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
 }
 .grad-panel {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex: 1;
   flex-direction: column;
   min-height: 0;
   padding: 14px 16px 18px;
+  background: var(--panel);
+  transform: translate(0, 0);
 }
+
+/* ④式典→成績表：下半分だけが下から入る（`styles/motion.css`の--m4-*）。
+   ⚠️上半分は動かさない——ここは.grad-panel（下半分）だけのtransform。 */
+.grad-panel--enter-start { transform: translateY(100%); }
+.grad-panel--enter-active { transform: translateY(0); transition: transform var(--m4-dur) var(--m4-ease); }
+
+/* ⑤成績表→厩舎選び：下半分だけの左右スライド（`styles/motion.css`の--m5-*）。
+   出る側（report）は左へ、入る側（stable）は右から。⚠️上半分は動かさない。 */
+.grad-panel--swap-out { transform: translateX(0); }
+.grad-panel--swap-out.is-active { transform: translateX(-100%); transition: transform var(--m5-dur) var(--m5-ease); }
+.grad-panel--swap-in { transform: translateX(100%); }
+.grad-panel--swap-in.is-active { transform: translateX(0); transition: transform var(--m5-dur) var(--m5-ease); }
 .grad-lines { flex: 1; overflow-y: auto; min-height: 0; }
 
 .grad-msg-line {

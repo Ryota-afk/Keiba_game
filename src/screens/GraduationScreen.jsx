@@ -2,7 +2,7 @@
 // 60fpsの描画が要らない画面なので、DreamDerbyScreenの「エンジン」パターンは使わず、
 // 通常のReact state＋setTimeoutで行を1つずつ足していく。
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createInitialRoster } from "../domain/career.js";
 import {
   generateSchoolRecord,
@@ -29,6 +29,7 @@ import {
   stableConfirmedLine,
   STABLE_OFFER_HEADING,
 } from "../data/graduationText.js";
+import { cssMs, scheduleOnce, afterNextPaint } from "./motionTiming.js";
 import "./GraduationScreen.css";
 
 const LINE_INTERVAL_MS = 700;
@@ -136,6 +137,33 @@ function CeremonyScene() {
   );
 }
 
+function Scoreboard({ schoolRecord }) {
+  return (
+    <div className="scoreboard">
+      <div className="score-head">
+        <div className="score-label">成績表</div>
+        <div className="score-scale">
+          <span>G</span>
+          <span className="score-scale-line" />
+          <span>S</span>
+        </div>
+      </div>
+      <div className="score-groups">
+        <div className="score-group">
+          {DISTANCE_BANDS.map((band) => (
+            <ScoreRow key={band} label={DISTANCE_BAND_LABELS[band]} grade={schoolRecord.distances[band]} />
+          ))}
+        </div>
+        <div className="score-group">
+          {SURFACES.map((surface) => (
+            <ScoreRow key={surface} label={SURFACE_LABELS[surface]} grade={schoolRecord.surfaces[surface]} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * @param {{ saveSeed: number|string, startYear: number, difficulty: string,
  *           dreamChoiceIds: { midRace?: string|null, stretch?: string|null },
@@ -165,6 +193,15 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
   const [dreamRecordChoice, setDreamRecordChoice] = useState(null);
   const [pickedStableId, setPickedStableId] = useState(null);
   const timersRef = useRef([]);
+
+  // ③名前入力→式典：上半分だけのクロスフェード。
+  const [topTransition, setTopTransition] = useState(null); // { from: "name" } の間だけ有効
+  const [topFadeActive, setTopFadeActive] = useState(false);
+  // ④式典→成績表：下半分だけが下から入る。
+  const [reportEnterActive, setReportEnterActive] = useState(false);
+  // ⑤成績表→厩舎選び：下半分だけの左右スライド。
+  const [bottomSwap, setBottomSwap] = useState(null); // { from: "report" } の間だけ有効
+  const [bottomSwapActive, setBottomSwapActive] = useState(false);
 
   function clearTimers() {
     timersRef.current.forEach(clearTimeout);
@@ -203,19 +240,122 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
   }
 
   function goCeremony() {
+    setTopTransition({ from: "name" });
+    setTopFadeActive(false);
     setStage("ceremony");
     revealLines(ceremonyLines(fullName), setCeremonyShown, () => setCeremonyNextVisible(true));
   }
 
   function goReport() {
     setStage("report");
+    setReportEnterActive(false);
     revealLines(reportLines(schoolRecord), setReportShown, () => setReportChoicesVisible(true));
   }
 
   function pickDreamRecordChoice(id) {
     if (dreamRecordChoice) return;
     setDreamRecordChoice(id);
-    timersRef.current.push(setTimeout(() => setStage("stable"), 500));
+    timersRef.current.push(
+      setTimeout(() => {
+        setBottomSwap({ from: "report" });
+        setBottomSwapActive(false);
+        setStage("stable");
+      }, 500)
+    );
+  }
+
+  // ③上半分だけのクロスフェード（name→ceremony）の段取り。
+  useEffect(() => {
+    if (!topTransition) return undefined;
+    if (!topFadeActive) return afterNextPaint(() => setTopFadeActive(true));
+    return scheduleOnce(() => {
+      setTopTransition(null);
+      setTopFadeActive(false);
+    }, cssMs("--m3-dur"));
+  }, [topTransition, topFadeActive]);
+
+  // ④下半分だけが下から入る（ceremony→report）の段取り。
+  useEffect(() => {
+    if (stage !== "report" || reportEnterActive) return undefined;
+    return afterNextPaint(() => setReportEnterActive(true));
+  }, [stage, reportEnterActive]);
+
+  // ⑤下半分だけの左右スライド（report→stable）の段取り。
+  useEffect(() => {
+    if (!bottomSwap) return undefined;
+    if (!bottomSwapActive) return afterNextPaint(() => setBottomSwapActive(true));
+    return scheduleOnce(() => {
+      setBottomSwap(null);
+      setBottomSwapActive(false);
+    }, cssMs("--m5-dur"));
+  }, [bottomSwap, bottomSwapActive]);
+
+  /** grad-top内の中身をstageから決める（③のクロスフェードで新旧2枚を同時に呼ぶ）。 */
+  function renderTop(s) {
+    if (s === "name") return <SchoolScene />;
+    if (s === "ceremony") return <CeremonyScene />;
+    return <Scoreboard schoolRecord={schoolRecord} />;
+  }
+
+  /** 「report」段の下半分の中身（④の入場・⑤のスライドで枠だけ差し替えて呼ぶ）。 */
+  function renderReportBottom() {
+    return (
+      <>
+        <div className="grad-lines">
+          {reportShown.map((text, i) => (
+            <p key={i} className="grad-msg-line">
+              {text}
+            </p>
+          ))}
+        </div>
+        {reportChoicesVisible && (
+          <div className="grad-choices">
+            {dreamRecordChoices(STRATEGY_LABELS[derivedStrategy]).map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                className={`grad-card-choice${dreamRecordChoice === choice.id ? " is-picked" : ""}${
+                  dreamRecordChoice && dreamRecordChoice !== choice.id ? " is-disabled" : ""
+                }`}
+                onClick={() => pickDreamRecordChoice(choice.id)}
+              >
+                {choice.label}
+                <span className="grad-card-choice-hint">{choice.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  /** 「stable」段の下半分の中身（⑤のスライドで枠だけ差し替えて呼ぶ）。 */
+  function renderStableBottom() {
+    return (
+      <div className="grad-lines">
+        <div className="grad-section-heading">{STABLE_OFFER_HEADING}</div>
+        <div className="grad-choices">
+          {stableOffers.map((stable) => (
+            <button
+              key={stable.id}
+              type="button"
+              className={`grad-card-choice${pickedStableId === stable.id ? " is-picked" : ""}${
+                pickedStableId && pickedStableId !== stable.id ? " is-disabled" : ""
+              }`}
+              onClick={() => pickStable(stable.id)}
+            >
+              {stable.trainerName}
+              <span className="grad-card-choice-hint">{specialtyLabel(stable.specialty)}</span>
+            </button>
+          ))}
+        </div>
+        {pickedStable && (
+          <p className="grad-msg-line" style={{ marginTop: 10 }}>
+            {stableConfirmedLine(pickedStable.trainerFamilyName)}
+          </p>
+        )}
+      </div>
+    );
   }
 
   function pickStable(stableId) {
@@ -241,39 +381,17 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
   return (
     <div className="graduation-screen">
       <div className="grad-top">
-        {stage === "name" && <SchoolScene />}
-        {stage === "ceremony" && <CeremonyScene />}
-        {(stage === "report" || stage === "stable") && (
-          <div className="scoreboard">
-            <div className="score-head">
-              <div className="score-label">成績表</div>
-              <div className="score-scale">
-                <span>G</span>
-                <span className="score-scale-line" />
-                <span>S</span>
-              </div>
+        {topTransition ? (
+          <>
+            <div className={`grad-top-layer${topFadeActive ? " grad-top-layer--out" : ""}`}>
+              {renderTop(topTransition.from)}
             </div>
-            <div className="score-groups">
-              <div className="score-group">
-                {DISTANCE_BANDS.map((band) => (
-                  <ScoreRow
-                    key={band}
-                    label={DISTANCE_BAND_LABELS[band]}
-                    grade={schoolRecord.distances[band]}
-                  />
-                ))}
-              </div>
-              <div className="score-group">
-                {SURFACES.map((surface) => (
-                  <ScoreRow
-                    key={surface}
-                    label={SURFACE_LABELS[surface]}
-                    grade={schoolRecord.surfaces[surface]}
-                  />
-                ))}
-              </div>
+            <div className={`grad-top-layer${topFadeActive ? " grad-top-layer--in" : " grad-top-layer--in-start"}`}>
+              {renderTop(stage)}
             </div>
-          </div>
+          </>
+        ) : (
+          renderTop(stage)
         )}
       </div>
 
@@ -338,61 +456,23 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
           </div>
         )}
 
-        {stage === "report" && (
-          <div className="grad-panel">
-            <div className="grad-lines">
-              {reportShown.map((text, i) => (
-                <p key={i} className="grad-msg-line">
-                  {text}
-                </p>
-              ))}
-            </div>
-            {reportChoicesVisible && (
-              <div className="grad-choices">
-                {dreamRecordChoices(STRATEGY_LABELS[derivedStrategy]).map((choice) => (
-                  <button
-                    key={choice.id}
-                    type="button"
-                    className={`grad-card-choice${dreamRecordChoice === choice.id ? " is-picked" : ""}${
-                      dreamRecordChoice && dreamRecordChoice !== choice.id ? " is-disabled" : ""
-                    }`}
-                    onClick={() => pickDreamRecordChoice(choice.id)}
-                  >
-                    {choice.label}
-                    <span className="grad-card-choice-hint">{choice.hint}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+        {stage === "report" && !bottomSwap && (
+          <div className={`grad-panel${reportEnterActive ? " grad-panel--enter-active" : " grad-panel--enter-start"}`}>
+            {renderReportBottom()}
           </div>
         )}
 
-        {stage === "stable" && (
-          <div className="grad-panel">
-            <div className="grad-lines">
-              <div className="grad-section-heading">{STABLE_OFFER_HEADING}</div>
-              <div className="grad-choices">
-                {stableOffers.map((stable) => (
-                  <button
-                    key={stable.id}
-                    type="button"
-                    className={`grad-card-choice${pickedStableId === stable.id ? " is-picked" : ""}${
-                      pickedStableId && pickedStableId !== stable.id ? " is-disabled" : ""
-                    }`}
-                    onClick={() => pickStable(stable.id)}
-                  >
-                    {stable.trainerName}
-                    <span className="grad-card-choice-hint">{specialtyLabel(stable.specialty)}</span>
-                  </button>
-                ))}
-              </div>
-              {pickedStable && (
-                <p className="grad-msg-line" style={{ marginTop: 10 }}>
-                  {stableConfirmedLine(pickedStable.trainerFamilyName)}
-                </p>
-              )}
+        {stage === "stable" && !bottomSwap && <div className="grad-panel">{renderStableBottom()}</div>}
+
+        {bottomSwap && (
+          <>
+            <div className={`grad-panel grad-panel--swap-out${bottomSwapActive ? " is-active" : ""}`}>
+              {renderReportBottom()}
             </div>
-          </div>
+            <div className={`grad-panel grad-panel--swap-in${bottomSwapActive ? " is-active" : ""}`}>
+              {renderStableBottom()}
+            </div>
+          </>
         )}
       </div>
     </div>
