@@ -502,7 +502,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   function milestoneCardMid() {
     callbacks.setRaceStageLabel("道中");
     say("selfMid", raceSeconds);
-    showCardInternal("mid", "残り1200m", "馬群の中。前が壁", choicesFor("dreamMid"));
+    showCardInternal("mid", "残り1200m", "前が壁", choicesFor("dreamMid"));
     showJudgmentTutorialOnce();
   }
   function enterFinalStretch() {

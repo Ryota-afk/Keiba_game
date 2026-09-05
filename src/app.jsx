@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import "./styles/type.css";
 import { TitleScreen } from "./screens/TitleScreen.jsx";
 import { DreamDerbyScreen } from "./screens/DreamDerbyScreen.jsx";
 import { GraduationScreen } from "./screens/GraduationScreen.jsx";

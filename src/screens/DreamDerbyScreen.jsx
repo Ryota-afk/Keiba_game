@@ -325,8 +325,8 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
           </div>
         </div>
 
-        <div className="race-bottom">
-          <div className="tabbar" style={{ display: wakeActive ? "none" : "" }}>
+        <div className={`race-bottom${card ? " has-card" : ""}`}>
+          <div className="tabbar" style={{ display: wakeActive || card ? "none" : "" }}>
             <button
               type="button"
               className={activeTab === "entries" ? "active" : ""}
@@ -350,7 +350,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
               スキップ
             </button>
           </div>
-          <div className="tab-panels" ref={tabPanelsRef} style={{ display: wakeActive ? "none" : "" }}>
+          <div className="tab-panels" ref={tabPanelsRef} style={{ display: wakeActive || card ? "none" : "" }}>
             <div className={`tab-panel${activeTab === "entries" ? " active" : ""}`}>
               {entries.map((e) => (
                 <div key={e.num} className={`entry-row${e.isSelf ? " is-self" : ""}`}>
@@ -384,7 +384,6 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
                       onClick={() => handleChoiceClick(c.id)}
                     >
                       {c.label}
-                      {c.hint ? <span className="card-choice-hint">{c.hint}</span> : null}
                     </button>
                   ))}
                 </div>

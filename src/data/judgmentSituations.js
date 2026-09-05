@@ -42,15 +42,15 @@ export const SITUATION_CHOICES = Object.freeze({
   // 追加しない＝将来の通常レースのランダム抽選には混ざらない）。残り1200m地点／
   // 最終直線入りの2箇所に必ず出る。`effect`は他の状況と同じ「仮」の位置づけ。
   dreamMid: [
-    { id: "holdInside", label: "内で我慢して進路を待つ", effect: 0, hint: "脚は溜まる。前が開かなければそのまま終わる" },
-    { id: "takeOutside", label: "外に持ち出す", effect: 1, hint: "進路は確保できる。外を回るぶん距離が長くなる" },
-    { id: "dropBack", label: "一列下げて外へ回す", effect: -1, hint: "自由に動ける。追い出すのが遅くなる" },
-    { id: "splitField", label: "馬群を割って前へ", effect: 3, hint: "位置は取れる。ぶつかれば馬が怯む" },
+    { id: "holdInside", label: "内で待つ", effect: 0, hint: "脚は溜まる。前が開かなければそのまま終わる" },
+    { id: "takeOutside", label: "外へ出す", effect: 1, hint: "進路は確保できる。外を回るぶん距離が長くなる" },
+    { id: "dropBack", label: "下げて外へ", effect: -1, hint: "自由に動ける。追い出すのが遅くなる" },
+    { id: "splitField", label: "間を割る", effect: 3, hint: "位置は取れる。ぶつかれば馬が怯む" },
   ],
   dreamStretch: [
-    { id: "goNow", label: "ここから追い出す", effect: 1, hint: "先に動いて先頭を奪える。ゴール前で脚が止まる" },
-    { id: "waitFurlong", label: "あと1ハロン脚を溜める", effect: 0, hint: "最後まで脚が残る。前が止まらなければ届かない" },
-    { id: "sweepOutside", label: "外へ持ち出して一気に", effect: 2, hint: "進路は開く。外を回るぶん距離が長い" },
-    { id: "railRun", label: "内をすくう", effect: 4, hint: "最短距離。前が開かなければ詰まる" },
+    { id: "goNow", label: "ここで追い出す", effect: 1, hint: "先に動いて先頭を奪える。ゴール前で脚が止まる" },
+    { id: "waitFurlong", label: "もう少し待つ", effect: 0, hint: "最後まで脚が残る。前が止まらなければ届かない" },
+    { id: "sweepOutside", label: "外から一気に", effect: 2, hint: "進路は開く。外を回るぶん距離が長い" },
+    { id: "railRun", label: "内を突く", effect: 4, hint: "最短距離。前が開かなければ詰まる" },
   ],
 });

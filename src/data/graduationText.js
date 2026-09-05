@@ -4,8 +4,6 @@
 // ⚠️`design/mocks/graduation-mock2.html`から一言一句そのまま移植した
 // （CLAUDE.md §7「文言を変えない」）。
 
-import { DISTANCE_BAND_LABELS, SURFACE_LABELS } from "./aptitudeLabels.js";
-
 /** 段1：システムの声（トースト）。 */
 export const NAME_PROMPT_TEXT = "名前を教えてください。";
 
@@ -15,22 +13,23 @@ export function ceremonyLines(fullName) {
     `「卒業証書授与、${fullName}」`,
     "返事をして、壇上に上がる。",
     "両手で受け取る。夢で握っていた手綱と違って、証書は軽い。",
-    "「おめでとう。今日から、君は騎手だ」",
+    "「今日から、君は騎手だ」",
   ];
 }
 
 /**
- * 段3：成績表の読み上げ4行（B-1）。
- * ⚠️「B、A、Sは一つもない」「もう片方はDにも届いていない」は`generateSchoolRecord`の
- * 生成規則（最高値は必ずD・残りは必ずG〜E）に基づき、どの距離帯・馬場が最高であっても
- * 常に成り立つ（`domain/graduation.js`参照）。
+ * 段3：教官のセリフ4行。
+ * ⚠️成績表（`.scoreboard`）は画面に既に出ているため、記号の読み上げはしない
+ * （CLAUDE.md §7「画面に既に出ている情報を、セリフや文章で言い直さない」）。
+ * ⚠️`schoolRecord`は現在このセリフでは使わないが、呼び出し側
+ * （`GraduationScreen.jsx`）を壊さないよう引数はそのまま残す。
  */
 export function reportLines(schoolRecord) {
   return [
-    `「距離は${DISTANCE_BAND_LABELS[schoolRecord.topDistance]}がD。ほかは、それより下だ」`,
-    `「馬場は${SURFACE_LABELS[schoolRecord.topSurface]}がD。もう片方は、Dにも届いていない」`,
-    "「B、A、Sは一つもない。今の君に、得意と呼べるものは、まだない」",
-    "「ただし、この二つのDは君が三年かけて出した数字だ。この表を持って、厩舎へ行け」",
+    "「卒業、おめでとう。」",
+    "「三年前、お前は馬に触るのも怖がっていたな」",
+    "「ここから先は、俺は何も言えん」",
+    "「声をかけてきた厩舎がある。自分で選べ」",
   ];
 }
 
