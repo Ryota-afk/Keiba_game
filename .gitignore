@@ -2,15 +2,18 @@
 # （前作Roadrace_Gameから継承。作業ディレクトリに無関係のファイルが混ざるのを防ぐ）
 *
 !.gitignore
-# --- GitHub Pagesの配信設定。空ファイルだがJekyll処理を丸ごと止める役割がある。
-#     置かないとJekyllが全ての.mdをHTML化しようとし、devlog内のJSXコード（style={{...}}）を
-#     Liquidのテンプレート変数と誤読してデプロイが丸ごと失敗する（前作で9回連続失敗した） ---
-!.nojekyll
+# --- デプロイはGitHub Actionsが行う（第1弾-A §9で確定）。.nojekyllは不要
+#     （Actions方式はJekyllを通らない）が、9回連続失敗した経緯の記録として.github/以下に残す ---
+!.github/
+!.github/**
 # --- ドキュメント4ファイル制（CLAUDE.md §4）---
 !CLAUDE.md
 !DEVLOG.md
 !TODO.md
 !ARCHITECTURE.md
+# --- アーキテクチャ（ARCHITECTURE.mdが大きくなりすぎたため2026-09-04に§3/§5を切り出した）---
+!arch/
+!arch/**
 # --- ゲーム開発の指針（外部知見の収蔵庫）。本体は薄い索引、全文はdesign/配下 ---
 !DESIGN_PRINCIPLES.md
 !design/
@@ -22,9 +25,10 @@
 !package.json
 !package-lock.json
 !vite.config.js
-!index.html
 !src/
 !src/**
+# ⚠️index.htmlはビルド成果物なのでリポジトリに置かない（第1弾-A §9）。
+# GitHub Actionsが`vite build`の出力をそのままPagesへ配信する。
 # --- 開発補助スクリプト（ヘッドレスsim・計測ツール等）---
 !tools/
 !tools/**

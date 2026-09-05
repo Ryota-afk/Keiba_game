@@ -1,0 +1,162 @@
+/*
+ * 画面遷移の動きのトークン（CLAUDE.md §8「ルールで守れなかったものは書けない形にする」）。
+ * ⚠️type.cssと同じ形——ここに秒数・cubic-bezierを集め、app.jsx/screens/GraduationScreen.jsx
+ * 側は`getComputedStyle`でこの値を読んでスケジューリングする（生の数値をJS/JSXに書かない）。
+ * 実際のtransitionのdurationも、各screens/*.cssの中で`var(--m*-dur)`として参照する。
+ *
+ * 番号は「画面と画面のあいだの動き」表の番号に対応する：
+ *   1 タイトル→夢のダービー（黒フェード＋実況1行目）
+ *   2 目覚め→卒業式（縦スライド）
+ *   3 卒業式：名前入力→式典（上半分だけクロスフェード）
+ *   4 卒業式：式典→成績表（下半分だけ下から入る）
+ *   5 卒業式：成績表→厩舎選び（下半分だけ左右スライド）
+ *   6 卒業式（厩舎選択後）→週の画面（白フェード）
+ *
+ * ⚠️値は人間の通しプレイで実際に動くデモを見て確定済み。ここを変えない限り、
+ * app.jsx/GraduationScreen.jsxのスケジューリングも自動的に追従する。
+ */
+:root {
+  /* ①黒 0→1 ②待つ ③文字 0→1 ④保持 ⑤文字 1→0 ⑥レース画面表示＋黒 1→0 */
+  --m1-cover-in-dur: 500ms;
+  --m1-cover-in-ease: cubic-bezier(0.4, 0, 1, 1);
+  --m1-wait-dur: 200ms;
+  --m1-text-in-dur: 500ms;
+  --m1-text-in-ease: linear;
+  --m1-hold-dur: 1600ms;
+  --m1-text-out-dur: 400ms;
+  --m1-text-out-ease: linear;
+  --m1-cover-out-dur: 900ms;
+  --m1-cover-out-ease: cubic-bezier(0, 0, 0.2, 1);
+
+  /* 前の画面が上へ抜け、次の画面が下から入る（同時） */
+  --m2-dur: 500ms;
+  --m2-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 卒業式・上半分だけのクロスフェード */
+  --m3-dur: 600ms;
+  --m3-ease: linear;
+
+  /* 卒業式・下半分だけが下から入る */
+  --m4-dur: 450ms;
+  --m4-ease: cubic-bezier(0.1, 0.8, 0.2, 1);
+
+  /* 卒業式・下半分だけの左右スライド */
+  --m5-dur: 350ms;
+  --m5-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ①白 0→1 ②保持 ③週の画面表示＋白 1→0 */
+  --m6-cover-in-dur: 350ms;
+  --m6-cover-in-ease: cubic-bezier(0.4, 0, 1, 1);
+  --m6-hold-dur: 150ms;
+  --m6-cover-out-dur: 600ms;
+  --m6-cover-out-ease: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* ⚠️動きに弱い人への配慮（CLAUDE.md指示）。durationだけを0msへ落とし、
+   app.jsx/GraduationScreen.jsxのgetComputedStyle経由のスケジューリングも
+   連動してほぼ即時に進むようにする（イージングはduration 0では意味を持たない）。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --m1-cover-in-dur: 0ms;
+    --m1-wait-dur: 0ms;
+    --m1-text-in-dur: 0ms;
+    --m1-hold-dur: 0ms;
+    --m1-text-out-dur: 0ms;
+    --m1-cover-out-dur: 0ms;
+    --m2-dur: 0ms;
+    --m3-dur: 0ms;
+    --m4-dur: 0ms;
+    --m5-dur: 0ms;
+    --m6-cover-in-dur: 0ms;
+    --m6-hold-dur: 0ms;
+    --m6-cover-out-dur: 0ms;
+  }
+}
+
+/* ===== 画面スタック（app.jsxが出し分ける4画面の共通の器） ===== */
+.screen-stack {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #000;
+}
+.screen-pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transform: translateY(0);
+}
+
+/* ----- ①タイトル→夢のダービー：黒フェード＋実況1行目 ----- */
+.m1-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+.m1-cover--in {
+  opacity: 1;
+  transition: opacity var(--m1-cover-in-dur) var(--m1-cover-in-ease);
+}
+.m1-cover--out {
+  opacity: 0;
+  transition: opacity var(--m1-cover-out-dur) var(--m1-cover-out-ease);
+}
+.m1-text {
+  position: absolute;
+  inset: 0;
+  z-index: 101;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 36px;
+  text-align: center;
+  color: #f2ede0;
+  font-size: var(--fs-lead);
+  line-height: 1.9;
+  opacity: 0;
+  pointer-events: none;
+}
+.m1-text--in {
+  opacity: 1;
+  transition: opacity var(--m1-text-in-dur) var(--m1-text-in-ease);
+}
+.m1-text--out {
+  opacity: 0;
+  transition: opacity var(--m1-text-out-dur) var(--m1-text-out-ease);
+}
+
+/* ----- ②目覚め→卒業式：縦スライド ----- */
+.pane-m2-exit {
+  transform: translateY(-100%);
+  transition: transform var(--m2-dur) var(--m2-ease);
+}
+.pane-m2-enter-start {
+  transform: translateY(100%);
+}
+.pane-m2-enter-active {
+  transform: translateY(0);
+  transition: transform var(--m2-dur) var(--m2-ease);
+}
+
+/* ----- ⑥卒業式→週の画面：白フェード ----- */
+.m6-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: #f2ede0;
+  opacity: 0;
+  pointer-events: none;
+}
+.m6-cover--in {
+  opacity: 1;
+  transition: opacity var(--m6-cover-in-dur) var(--m6-cover-in-ease);
+}
+.m6-cover--out {
+  opacity: 0;
+  transition: opacity var(--m6-cover-out-dur) var(--m6-cover-out-ease);
+}
