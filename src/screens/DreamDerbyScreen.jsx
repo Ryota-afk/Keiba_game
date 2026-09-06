@@ -150,7 +150,11 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   const tutorialClass = `tutorial-toast${tutorial ? " active" : ""}${tutorial?.atTop ? " at-top" : ""}`;
   const tutorialStyle =
     tutorial?.atTop && tutorial.left != null
-      ? { "--toast-left": `${tutorial.left}px`, "--arrow-x": `${tutorial.arrowX}px` }
+      ? {
+          "--toast-left": `${tutorial.left}px`,
+          "--arrow-x": `${tutorial.arrowX}px`,
+          "--toast-top": `${tutorial.top}px`,
+        }
       : undefined;
 
   return (

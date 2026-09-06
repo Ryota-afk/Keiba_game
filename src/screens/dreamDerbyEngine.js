@@ -370,13 +370,15 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     pauseClock();
     let left;
     let arrowX;
+    let top;
     if (atTop && anchorEl && refs.device) {
       const dev = refs.device.getBoundingClientRect();
       const b = anchorEl.getBoundingClientRect();
       const cx = b.left + b.width / 2 - dev.left;
       const W = 250;
-      left = Math.max(8, Math.min(TRACK_W - W - 8, cx - 30));
-      arrowX = cx - left - 5;
+      left = Math.max(8, Math.min(dev.width - W - 8, cx - W / 2));
+      arrowX = cx - left;
+      top = b.bottom - dev.top + 8;
     }
     tutorialActive = true;
     tutorialDismissHandler = () => hideTutorialInternal();
@@ -387,6 +389,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       requireButton: !!requireButton,
       left,
       arrowX,
+      top,
     });
   }
   function hideTutorialInternal() {

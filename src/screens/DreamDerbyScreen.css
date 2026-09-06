@@ -474,7 +474,7 @@
   right: auto;
   bottom: auto;
   width: 250px;
-  top: 308px;
+  top: var(--toast-top, 308px);
 }
 .tutorial-toast.at-top::before {
   content: "";
