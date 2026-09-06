@@ -1,18 +1,15 @@
 // 夢のダービー：レース描画に使う純粋計算のみ（JSX・DOM無し。Node単体テスト可能）。
 // dream-derby-mock2.html（合意済みモック）の対応関数を移植。
 //
-// ⚠️`gapMetersAt`はモックから設計を変えてある。モックは「残り1200m地点」から最終着差
-// （finishGap＝レース結果そのもの）へ収束を始めるが、その時刻は直線の判断カード（結果に
-// 影響する選択）がまだ選ばれていない瞬間と同じだった。実装では、確定した結果が必要になる
-// 前に結果を要求しない——最終着差への収束は`confirmedAt`（直線カードで選んだ瞬間）から
-// 始める。それ以前の隊列の見え方は、結果と無関係な演出専用の揺らぎ（`viewHash01`）だけで
-// 動かす。`viewHash01`は着順を決める乱数（`core/rng.js`のストリーム）とは完全に別のハッシュ
-// 源であり、Roadrace_Gameの教訓（演出乱数と結果乱数を共有すると規則性が透けて見える）を
-// 踏まえて分離してある。
+// ⚠️2026-09-06に`distanceAtTime`・`timeAtDistance`・`gapMetersAt`を削除した。
+// 各馬の通過距離はレースsim（`src/sim/raceSim.js`）が返す時系列がただ1つの出どころになり、
+// 「典型的なレースペース＋演出の揺らぎ」という代役は要らなくなった
+// （`gapMetersAt`は80秒以降が横ばいで、馬が所定の位置に止まって見える原因だった）。
+// ⭐ここに残るのは座標変換・カメラ・カーブ・内外の演出だけで、着順に触れるものは無い。
+// `viewHash01`は演出専用のハッシュで、着順を決める`core/rng.js`のストリームとは別系統
+// （前作`Roadrace_Game`は両者を共有して集団が規則的に動いて見えた）。
 
 import {
-  TOTAL_DISTANCE,
-  DIST_CHECKPOINTS,
   VIEW_SPAN,
   ANCHOR_SELF,
   ANCHOR_LEADER,
@@ -22,10 +19,6 @@ import {
   TRACK_W,
   N_SEG,
   CURVE_SECTIONS,
-  T_TUT_CAMERA,
-  T_TUT_DISPLAY,
-  T_TUT_SPEED,
-  T_FINISH,
 } from "../data/dreamDerbyCourse.js";
 
 /** 演出専用の疑似乱数ハッシュ（結果RNGとは別ストリーム。0以上1未満）。 */
@@ -36,65 +29,6 @@ export function viewHash01(seed) {
 
 export function clamp01(v) {
   return Math.max(0.03, Math.min(0.97, v));
-}
-
-/** 経過秒→通過距離(m)。DIST_CHECKPOINTSの区間で線形補間。 */
-export function distanceAtTime(t) {
-  for (let i = 1; i < DIST_CHECKPOINTS.length; i++) {
-    const a = DIST_CHECKPOINTS[i - 1];
-    const b = DIST_CHECKPOINTS[i];
-    if (t <= b.t) return a.d + (b.d - a.d) * ((t - a.t) / (b.t - a.t));
-  }
-  return TOTAL_DISTANCE;
-}
-
-/** 通過距離(m)→経過秒。distanceAtTimeの逆変換（判断カードの発火タイミング算出に使う）。 */
-export function timeAtDistance(dist) {
-  for (let i = 1; i < DIST_CHECKPOINTS.length; i++) {
-    const a = DIST_CHECKPOINTS[i - 1];
-    const b = DIST_CHECKPOINTS[i];
-    if (dist <= b.d) return a.t + (b.t - a.t) * ((dist - a.d) / (b.d - a.d));
-  }
-  return T_FINISH;
-}
-
-const PRE_CONFIRM_T = [0, T_TUT_CAMERA, T_TUT_DISPLAY, T_TUT_SPEED, 72, 80];
-
-/**
- * 「典型的なレースペース」（distanceAtTime）を基準にした、そのレーンのギャップ(m)。
- * 自分の馬も含め全馬に同じ式を使う——⚠️モックは自分の馬のギャップを常に0に固定していた
- * （＝自分は必ず勝つ前提の飾り）。実装では選択次第で自分が負けることもあるため、
- * 「勝ち馬のmarginMetersが0」という一般化された基準に統一し、自分だけを特別扱いしない。
- * 自分の馬がカメラの基準（アンカー）になる場合、画面上の自分の位置は常にアンカー位置
- * そのものになるため、この関数が返す値そのものは自分の画面位置には影響しない
- * （先頭カメラモードや上端マーカー帯での相対位置にのみ影響する）。
- * @param {number} num - 馬番
- * @param {number} t - 経過秒
- * @param {object} opts
- * @param {number|null} [opts.marginMeters] - 直線カード確定後の最終着差(m)。勝ち馬は0。未確定はnull
- * @param {number|null} [opts.confirmedAt] - 直線カードで選んだ時刻(秒)。未確定はnull
- */
-export function gapMetersAt(num, t, { marginMeters = null, confirmedAt = null } = {}) {
-  const mid = (seed) => viewHash01(num * 17 + seed) * 28 - 6;
-  const preVals = [0, mid(2), mid(3), mid(4), mid(5), mid(6)];
-  const cosmeticAt = (time) => {
-    if (time <= PRE_CONFIRM_T[0]) return preVals[0];
-    for (let i = 1; i < PRE_CONFIRM_T.length; i++) {
-      if (time <= PRE_CONFIRM_T[i]) {
-        const a = PRE_CONFIRM_T[i - 1];
-        const b = PRE_CONFIRM_T[i];
-        return preVals[i - 1] + (preVals[i] - preVals[i - 1]) * ((time - a) / (b - a));
-      }
-    }
-    return preVals[preVals.length - 1]; // 直線カードの選択待ちの間は横ばい
-  };
-  if (marginMeters == null || confirmedAt == null || t < confirmedAt) {
-    return cosmeticAt(t);
-  }
-  if (t >= T_FINISH) return -marginMeters;
-  const startVal = cosmeticAt(confirmedAt);
-  const frac = (t - confirmedAt) / (T_FINISH - confirmedAt);
-  return startVal + (-marginMeters - startVal) * frac;
 }
 
 /** 発走前〜直後、ゲート内での縦位置（idx番目の馬、fieldSize頭中）。 */
@@ -127,20 +61,23 @@ export function zoomForSpread(spreadMeters) {
 
 /**
  * カメラの目標（追う対象の距離・画面上のアンカー・基準となるレース進行の距離）。
+ * ⚠️`base`は「レース進行そのもの」を表す共通の物差しで、先頭馬の距離を使う
+ * （2026-09-06にレースsimへ差し替えるまでは全馬共通の仮ペース`distanceAtTime(t)`だった）。
+ * 追う対象を切り替えたときだけ`distance`が跳び`base`が跳ばないので、`stepCamera`が
+ * その差を「跳び」として拾って減衰させられる。
  * @param {"self"|"leader"} mode
  * @param {object} state
  * @param {boolean} state.raceStarted
- * @param {number} state.t - 経過秒
  * @param {number} state.selfDistance - 自分の馬の現在距離(m)
  * @param {number} state.leaderDistance - 先頭馬の現在距離(m)
  */
-export function cameraTargetFor(mode, { raceStarted, t, selfDistance, leaderDistance }) {
+export function cameraTargetFor(mode, { raceStarted, selfDistance, leaderDistance }) {
   const anchor = mode === "leader" ? ANCHOR_LEADER : ANCHOR_SELF;
   if (!raceStarted) {
     return { distance: (anchor - PRESTART_GATE_X) * VIEW_SPAN, anchor, base: 0 };
   }
   const distance = mode === "leader" ? leaderDistance : selfDistance;
-  return { distance, anchor, base: distanceAtTime(t) };
+  return { distance, anchor, base: leaderDistance };
 }
 
 /**

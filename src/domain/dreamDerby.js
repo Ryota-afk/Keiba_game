@@ -1,39 +1,43 @@
 // 夢のダービー（ARCHITECTURE.md §11「導入（最初の3分）」）。
 // 「夢の中でトップジョッキーとして日本ダービーに騎乗→ゴールすると夢から覚めて
 // 競馬学校の卒業式」。勝つ。ただし選択によっては負ける（負けてもすぐ覚めて先へ進む）。
-// 純ロジック（JSX無し。`data/`・`core/`・`domain/`の他ファイルだけに依存）。
+// 純ロジック（JSX無し。`data/`・`core/`・`sim/`・`domain/`の他ファイルだけに依存）。
 //
-// ⚠️「仮」の位置づけ：本物のレースsim（消耗式・レース傾向・判断カードの正式な効果量）は
-// ⑦（`claude-opus-5`）で確定する。ここでは`raceOutcome.js`の仮の強さ指標を流用し、
-// 判断カード2回（`domain/judgmentCard.js`）の選択を仮のボーナスとして加える。
+// ⭐2026-09-06にレースsim（`src/sim/`）へ差し替えた。着順・着差・ゴールタイム・上がりは
+// すべて`runRaceSim`が返す距離の時系列から出す（それ以前の線形換算の仮定数は削除した）。
 
 import { generateHorse } from "./horse.js";
 import { nextGrade } from "../data/grades.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
-import { horseStrengthScore } from "./raceOutcome.js";
-import { resolveChoice } from "./judgmentCard.js";
-import { T_FINISH } from "../data/dreamDerbyCourse.js";
+import { choicesFor } from "./judgmentCard.js";
+import { deriveFavoredStrategy } from "./strategy.js";
+import { TOTAL_DISTANCE, D_FINAL_STRETCH, D_MID_CARD } from "../data/dreamDerbyCourse.js";
+import { runRaceSim, resumeRaceSim, buildPlan } from "../sim/index.js";
 import { DERBY_WINNERS, KENSHO_DERBY_WINNERS } from "../data/derbyWinners.js";
 import { displayJockeyName, displayTrainerName } from "../data/derbyPeopleNames.js";
 
 export const DREAM_FIELD_SIZE = 18; // 実態どおり最大18頭（日本ダービー相当）
 export const DREAM_HORSE_KEY = "dream-horse";
+export const DREAM_RACE_KEY = "dream-derby";
 
-const BOOSTED_GRADE_STEPS = 2; // 記号能力を2段引き上げる（上限S）
-const BOOSTED_NUMERIC_MIN = 70; // 数値能力（速度・スタミナ）の下限（0〜100スケール中）
+// ⭐夢の馬の補正（`devlog/wave04.md`§28-3の勝率の目安に合わせて計測で決めた値）。
+// 強くしすぎると判断カードが飾りになり（何を選んでも勝つ）、弱くすると2回とも合わせても
+// 勝てなくなる。⚠️変えたら必ず勝率を測り直すこと。
+const BOOSTED_GRADE_STEPS = 3; // 記号能力を3段引き上げる（上限S）
+// 相手17頭は史実の日本ダービー優勝馬（`data/derbyWinners.js`）。⚠️能力値は`generateHorse`の
+// 乱数のままだと0〜100が一様に出て、⭐**3着が「大差」になる回が26%**あった（実測）。
+// 史実のダービー馬なので、この下限と1段の底上げを掛けて18頭の力量差を実際のGⅠに近づける。
+// ⚠️戦績から能力を導くのは相手馬を実体にする弾（`TODO.md` #23）。ここは近似。
+const RIVAL_GRADE_STEPS = 1;
+const RIVAL_SPEED_MIN = 52;
+const RIVAL_STAMINA_MIN = 40;
+const BOOSTED_SPEED_MIN = 80; // スピードの下限（0〜100スケール中）
+// ⚠️スタミナの下限は低いままにする。ここを70に上げると夢の馬の持久力の幅が消え、
+// **直線で早く仕掛けるか待つかの正解が全seedで同じ**になり、判断カードが一択に潰れる（実測）。
+const BOOSTED_STAMINA_MIN = 60;
 
-// ⚠️「仮」の換算定数（正式なレースsim実装・⑦・claude-opus-5で消耗式に置き換える）。
-// スコア差→着差(m)・タイムの換算はここでは単純な線形近似にとどめる。
-const PAR_SCORE = 60; // horseStrengthScoreの基準点（仮の「平均的な強さ」）
-const SECONDS_PER_SCORE_POINT = 0.012; // 仮：スコア1点あたりのゴールタイム短縮(秒)
-const METERS_PER_SCORE_POINT = 0.3; // 仮：隣接順位間のスコア差→着差(m)換算
-const MIN_ADJACENT_GAP_M = 0.3; // 「アタマ」未満には縮まらない下限
-const GOAL_TIME_MIN = 141.0; // 2:21.0（実測の良馬場帯より少し速いが「仮」として許容する上下限）
+const GOAL_TIME_MIN = 141.0; // 2:21.0
 const GOAL_TIME_MAX = 148.0; // 2:28.0
-const LAST_3F_BASE = 35.0; // 秒。実測の良馬場帯（34.6〜35.5）の中央値を基準にする
-const LAST_3F_MIN = 33.5;
-const LAST_3F_MAX = 37.0;
-const LAST_4F_OFFSET = 11.8; // 秒。上がり3F・4Fの差はおおむね一定として近似する（仮）
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -56,8 +60,8 @@ export function generateDreamHorse(saveSeed) {
   const base = generateHorse(saveSeed, DREAM_HORSE_KEY);
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "dream-horse-bias");
   const boostedAbilities = { ...base.abilities };
-  boostedAbilities.speed = Math.round(BOOSTED_NUMERIC_MIN + rand01() * (100 - BOOSTED_NUMERIC_MIN));
-  boostedAbilities.stamina = Math.round(BOOSTED_NUMERIC_MIN + rand01() * (100 - BOOSTED_NUMERIC_MIN));
+  boostedAbilities.speed = Math.round(BOOSTED_SPEED_MIN + rand01() * (100 - BOOSTED_SPEED_MIN));
+  boostedAbilities.stamina = Math.round(BOOSTED_STAMINA_MIN + rand01() * (100 - BOOSTED_STAMINA_MIN));
   for (const key of ["sharpness", "grit", "flexibility", "wisdom", "health", "power", "mentalStrength"]) {
     let grade = base.abilities[key];
     for (let i = 0; i < BOOSTED_GRADE_STEPS; i += 1) grade = nextGrade(grade);
@@ -111,8 +115,17 @@ export function generateDreamRivals(saveSeed) {
   const records = pickDreamRivalRecords(saveSeed);
   return records.map((record, i) => {
     const base = generateHorse(saveSeed, `dream-rival-${i}`);
+    const abilities = { ...base.abilities };
+    abilities.speed = Math.max(abilities.speed, RIVAL_SPEED_MIN);
+    abilities.stamina = Math.max(abilities.stamina, RIVAL_STAMINA_MIN);
+    for (const key of ["sharpness", "grit", "flexibility", "wisdom", "health", "power", "mentalStrength"]) {
+      let grade = abilities[key];
+      for (let k = 0; k < RIVAL_GRADE_STEPS; k += 1) grade = nextGrade(grade);
+      abilities[key] = grade;
+    }
     return {
       ...base,
+      abilities,
       name: record.horse,
       jockeyName: displayJockeyName(record.jockey),
       trainerName: displayTrainerName(record.trainer),
@@ -154,67 +167,105 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
 }
 
 /**
- * 夢のダービーの結果を決める。全18頭ぶんの着順・着差(m)・仮のゴールタイム/上がり3F・4Fを
- * 返す。自己完結の純関数。
- * ⚠️呼ぶタイミングに注意：直線の判断カードの選択が最終着差に影響するため、その選択が
- * 確定する前（=`choiceIds.stretch`が決まる前）にこの関数を呼んではならない
- * （screens/dreamDerbyEngine.jsは直線カードの選択が確定した瞬間にだけ呼ぶ）。
+ * 発走時のレースsimを1本走らせる（既定の作戦＝全馬が自分の得意脚質、プレイヤーはカード未選択）。
+ * 判断カードを選んだ瞬間に`forkDreamDerbySim`でその時刻から先を計算し直す。
  * @param {number|string} saveSeed
- * @param {object} dreamHorse - `generateDreamHorse`が返した馬
- * @param {object[]} rivals - `generateDreamRivals`が返した17頭
- * @param {{ midRace: string, midSituationId: string, stretch: string, stretchSituationId: string }} choiceIds
- *   - プレイヤーが選んだ択のIDと、そのとき出ていた状況キー（`data/judgmentSituations.js`の
- *   `dreamMidLead`等。位置によって出る択の組が違うため、択IDだけでは効果量を引けない。
- *   `screens/dreamDerbyEngine.js`が`domain/judgmentCard.js`の`dreamSituationId`で組み立てて詰める）
+ * @param {{num:number,horse:object,isSelf:boolean}[]} entries - `assignPostPositions`の出力
+ * @returns {object} `runRaceSim`の戻り値
+ */
+export function startDreamDerbySim(saveSeed, entries) {
+  const selfNum = entries.find((e) => e.isSelf).num;
+  const plan = buildPlan(entries, (e) => deriveFavoredStrategy(e.horse), selfNum);
+  return runRaceSim({
+    seed: saveSeed,
+    raceKey: DREAM_RACE_KEY,
+    distance: TOTAL_DISTANCE,
+    entries,
+    plan,
+  });
+}
+
+/**
+ * 選んだ択のタグ（`data/judgmentSituations.js`の`forward`/`early`/`effect`）を取り出す。
+ * @param {string} situationId
+ * @param {string} choiceId
+ */
+export function choiceTagsOf(situationId, choiceId) {
+  const choice = choicesFor(situationId).find((c) => c.id === choiceId);
+  return {
+    forward: !!choice?.forward,
+    early: !!choice?.early,
+    effect: choice?.effect ?? 0,
+  };
+}
+
+/**
+ * 判断カードの選択を反映して`tFork`以降を計算し直す。⚠️`tFork`以前の数値は変わらない
+ * （それまでに画面へ見せた隊列と矛盾させないため）。
+ * @param {object} sim - `startDreamDerbySim`または前回の`forkDreamDerbySim`の戻り値
+ * @param {number} tFork - 選んだ時刻(秒)
+ * @param {"mid"|"stretch"} phase
+ * @param {string} situationId
+ * @param {string} choiceId
+ */
+export function forkDreamDerbySim(sim, tFork, phase, situationId, choiceId) {
+  return resumeRaceSim(sim, tFork, { phase, ...choiceTagsOf(situationId, choiceId) });
+}
+
+/**
+ * simの結果を結果掲示板が使う形にまとめる。⚠️戻り値の形は差し替え前と同じ
+ * （`screens/dreamDerbyEngine.js`のdoFinishと`screens/DreamDerbyScreen.jsx`が読む）。
+ * @param {object} sim - `runRaceSim`の戻り値
+ * @param {{num:number,horse:object,isSelf:boolean,name:string}[]} entries
  * @returns {{
  *   fieldSize: number, position: number, won: boolean, marginMeters: number,
  *   goalTimeSeconds: number, goalTimeLabel: string, last3F: string, last4F: string,
  *   rows: { pos: number, horseId: string, name: string, isSelf: boolean, marginMeters: number }[]
  * }}
  */
-export function runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds) {
-  const cardBonus =
-    resolveChoice(choiceIds.midSituationId, choiceIds.midRace) +
-    resolveChoice(choiceIds.stretchSituationId, choiceIds.stretch);
-
-  const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, DREAM_HORSE_KEY, "final");
-  const noise = (rand01() - 0.5) * 10;
-  const selfScore = horseStrengthScore(dreamHorse, null) + cardBonus + noise;
-
-  const ranked = [
-    { horse: dreamHorse, isSelf: true, score: selfScore },
-    ...rivals.map((horse) => ({ horse, isSelf: false, score: horseStrengthScore(horse, null) })),
-  ].sort((a, b) => b.score - a.score);
-
-  let cumMeters = 0;
-  const rows = ranked.map((entry, i) => {
-    if (i > 0) {
-      const gap = Math.max(MIN_ADJACENT_GAP_M, (ranked[i - 1].score - entry.score) * METERS_PER_SCORE_POINT);
-      cumMeters += gap;
-    }
-    return { pos: i + 1, horseId: entry.horse.id, name: entry.horse.name, isSelf: entry.isSelf, marginMeters: cumMeters };
-  });
-
-  const winnerScore = ranked[0].score;
-  const goalTimeSeconds = clamp(
-    T_FINISH - (winnerScore - PAR_SCORE) * SECONDS_PER_SCORE_POINT,
-    GOAL_TIME_MIN,
-    GOAL_TIME_MAX
-  );
-  const last3F = clamp(LAST_3F_BASE - (winnerScore - PAR_SCORE) * 0.02, LAST_3F_MIN, LAST_3F_MAX);
-  const last4F = last3F + LAST_4F_OFFSET;
-
+export function dreamDerbyResult(sim, entries) {
+  const rows = sim.order.map((idx, i) => ({
+    pos: i + 1,
+    horseId: entries[idx].horse.id,
+    name: entries[idx].name,
+    isSelf: entries[idx].isSelf,
+    marginMeters: sim.marginMeters[idx],
+  }));
   const selfRow = rows.find((r) => r.isSelf);
-
+  const goalTimeSeconds = clamp(sim.winnerTime, GOAL_TIME_MIN, GOAL_TIME_MAX);
   return {
-    fieldSize: DREAM_FIELD_SIZE,
+    fieldSize: entries.length,
     position: selfRow.pos,
     won: selfRow.pos === 1,
     marginMeters: selfRow.marginMeters,
     goalTimeSeconds,
     goalTimeLabel: formatGoalTime(goalTimeSeconds),
-    last3F: last3F.toFixed(1),
-    last4F: last4F.toFixed(1),
+    last3F: sim.last3F.toFixed(1),
+    last4F: sim.last4F.toFixed(1),
     rows,
   };
+}
+
+/**
+ * 夢のダービーを頭から最後まで走らせる（画面を通さない一括版。計測とテストで使う）。
+ * 画面（`screens/dreamDerbyEngine.js`）は`startDreamDerbySim`→`forkDreamDerbySim`→
+ * `dreamDerbyResult`の3段に分けて呼ぶ。
+ * @param {number|string} saveSeed
+ * @param {object} dreamHorse - `generateDreamHorse`が返した馬
+ * @param {object[]} rivals - `generateDreamRivals`が返した17頭
+ * @param {{ midRace: string, midSituationId: string, stretch: string, stretchSituationId: string }} choiceIds
+ */
+export function runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds) {
+  const entries = assignPostPositions(saveSeed, dreamHorse, rivals);
+  const selfNum = entries.find((e) => e.isSelf).num;
+  let sim = startDreamDerbySim(saveSeed, entries);
+  if (choiceIds?.midSituationId && choiceIds?.midRace) {
+    const tMid = sim.timeAtDistanceOf(selfNum, D_MID_CARD) ?? 0;
+    sim = forkDreamDerbySim(sim, tMid, "mid", choiceIds.midSituationId, choiceIds.midRace);
+  }
+  if (choiceIds?.stretchSituationId && choiceIds?.stretch) {
+    const tStr = sim.timeAtDistanceOf(selfNum, D_FINAL_STRETCH) ?? 0;
+    sim = forkDreamDerbySim(sim, tStr, "stretch", choiceIds.stretchSituationId, choiceIds.stretch);
+  }
+  return { ...dreamDerbyResult(sim, entries), sim, entries };
 }

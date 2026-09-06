@@ -233,6 +233,12 @@ A/B比較では各アームの直前に共通副シードへ張り直す。固�
 ---
 
 ## 7. 実装履歴（弾ごとの索引）
+- **第4弾①｜レースsimを作った**（`claude-opus-5`）。詳細`devlog/wave04.md`§27〜§31。
+  `src/sim/`新設（`pace.js`／`stamina.js`／`raceSim.js`／`index.js`）。各馬の通過距離を
+  dt=0.25秒で積分し、`domain/dreamDerby.js`と`screens/dreamDerbyEngine.js`をsimの数値を
+  読むだけの形に変えた。⚠️演出で隊列を作っていた`gapMetersAt`・`DIST_CHECKPOINTS`・`GAP_T`は削除。
+  計算式の正本は`arch/race-sim.md`「実装（`src/sim/`）」。計測5本は`devlog/wave04.md`§30。
+
 - **第3弾｜初めての人間の通しプレイ**（進行中）。詳細`devlog/wave03.md`。
   ⚠️CLAUDE.md §0-4が「第3弾までに1回」と定めていた分の1回目を実施し、**9件の指摘**が出た。
   ⭐**うち7件は、ビルドもヘッドレス計測もPlaywrightも検出できない種類**（テンポ・言い回し・

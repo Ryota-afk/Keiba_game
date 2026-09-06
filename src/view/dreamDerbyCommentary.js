@@ -4,12 +4,12 @@
 // ここには「どの行を選び、どう埋めるか」のテキスト決定だけを残す。
 // ⚠️`commentaryVars`のうち、モックが持っていた未使用キー`time`（実際の結果と無関係な
 // 固定文字列"2分24秒0"）は削除した——どのCOMMENTARYテンプレートも参照しておらず、
-// 実装では本物のゴールタイムが`runDreamDerbyRace`から得られるため、無関係な固定値を
+// 実装では本物のゴールタイムがレースsimから得られるため、無関係な固定値を
 // 残すとかえって誤解を招く（CLAUDE.md §5「死んでいるコードは削除」）。
 
 import { COMMENTARY } from "../data/dreamDerbyCommentary.js";
 import { TOTAL_DISTANCE } from "../data/dreamDerbyCourse.js";
-import { viewHash01, distanceAtTime, timeAtDistance } from "./dreamDerbyRace.js";
+import { viewHash01 } from "./dreamDerbyRace.js";
 
 /** 経過秒→「m分s秒」表記（実況の通過タイム表示用）。 */
 export function fmtTime(sec) {
@@ -74,13 +74,18 @@ export function positionLabelFor(band, rank) {
 
 /**
  * 実況テンプレートの{placeholder}を埋めるための変数一式。
+ * ⚠️2026-09-06に`remain`（残り距離）と`split1000`（1000m通過）の出どころを引数へ移した——
+ * それまでは全馬共通の仮ペース（`distanceAtTime`／`timeAtDistance`）から計算していたが、
+ * レースsimを入れたことで実際の通過距離・通過時刻が取れるようになったため。
  * @param {number} t - 経過秒
  * @param {object} ctx
  * @param {Array<{num:number,name:string,isSelf:boolean}>} ctx.entries
  * @param {{num:number,name:string}} ctx.selfEntry
  * @param {(num:number) => number} ctx.distanceOfNum
+ * @param {number} ctx.selfDistance - 自分の馬の現在の通過距離(m)
+ * @param {number|null} ctx.split1000Seconds - 先頭が1000mを通過した時刻(秒)。未通過はnull
  */
-export function commentaryVars(t, { entries, selfEntry, distanceOfNum }) {
+export function commentaryVars(t, { entries, selfEntry, distanceOfNum, selfDistance, split1000Seconds }) {
   const order = fieldOrder(entries, distanceOfNum);
   const rank = order.findIndex((e) => e.isSelf) + 1;
   const name = (i) => (order[i] ? order[i].name : "");
@@ -96,8 +101,8 @@ export function commentaryVars(t, { entries, selfEntry, distanceOfNum }) {
     leader: name(0), second: name(1), third: name(2), fourth: name(3), last: name(order.length - 1),
     order5: order.slice(0, 5).map((e) => e.name).join("、"),
     field: String(entries.length),
-    remain: String(Math.max(0, Math.round(TOTAL_DISTANCE - distanceAtTime(t)))),
-    split1000: fmtTime(timeAtDistance(1000)),
+    remain: String(Math.max(0, Math.round(TOTAL_DISTANCE - (selfDistance ?? 0)))),
+    split1000: fmtTime(split1000Seconds ?? 0),
     gap: gapWord, winner: selfEntry.name,
     chaser: name(1), outsider: name(2), insider: name(3),
     // 発走前の紹介用：馬番順の先頭6頭（「1番〇〇、2番〇〇…」）と大外の馬

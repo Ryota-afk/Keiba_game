@@ -109,7 +109,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
       setGraduateVisible: (v) => setGraduateVisible(v),
       setChoiceIds: (v) => setChoiceIds(v),
     };
-    const engine = createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, rivals, callbacks });
+    const engine = createDreamDerbyEngine({ refs, saveSeed, entries, callbacks });
     engineRef.current = engine;
     engine.start();
     return () => {

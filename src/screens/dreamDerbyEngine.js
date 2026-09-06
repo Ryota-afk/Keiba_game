@@ -7,17 +7,20 @@
 // Reactが持つ低頻度UI（実況欄・チュートリアル文言・判断カードの開閉・結果オーバーレイ・
 // 暗転〜目覚めの各段階・タブ切替・表示/速度モードのラベル）は`callbacks`経由で伝える。
 //
-// ⚠️モックからの設計変更点（承認済み計画の「解決した設計判断」1番）：
-// モックは「残り1200m」から最終着差（finishGapで自分は常に0＝常に勝つ前提）へ収束を
-// 始めていたが、その瞬間はまだ直線の判断カード（結果に影響する）が選ばれていない。
-// この実装では、直線カードの選択が確定した瞬間（`pickCardChoice`のstretch分岐）で
-// 初めて`runDreamDerbyRace`を呼び、以後の隊列収束をその結果に基づかせる。自分が負ける
-// こともある（`domain/dreamDerby.js`のコメントどおり「選択によっては負ける」）。
+// ⭐2026-09-06にレースsim（`src/sim/`）へ差し替えた。エンジンは自分で隊列を作らず、
+// simが返す各馬の通過距離の時系列を読んで描くだけになった。
+//   ・発走時に`startDreamDerbySim`を1回呼び、その結果を`sim`に持つ
+//   ・判断カードを選んだ瞬間に`forkDreamDerbySim`でその時刻から先だけを計算し直す
+//     （⚠️それ以前の数値は変わらない＝既に見せた隊列と矛盾しない）
+//   ・局面の節目は時刻ではなく「自分の馬の通過距離」で判定する
+//     （simのペースはレースごとに変わるので、固定の時刻表はもう使えない）
+// ⚠️以前は`view/dreamDerbyRace.js`の`gapMetersAt`（6つの固定時刻の乱数を直線で結んだ演出）で
+// 隊列を動かしており、80秒以降は横ばい＝馬が所定の位置に止まって見えた。その関数は削除した。
 
 import {
   TOTAL_DISTANCE,
-  T_FINAL_STRETCH,
-  T_FINISH,
+  D_FINAL_STRETCH,
+  D_MID_CARD,
   VIEW_SPAN,
   DRAW_X0,
   DRAW_X1,
@@ -36,8 +39,6 @@ import {
 import { WAKE_LINES } from "../data/dreamDerbyCommentary.js";
 import { marginLabelFor } from "../data/raceMargins.js";
 import {
-  distanceAtTime,
-  timeAtDistance,
   viewHash01,
   clamp01,
   gateY,
@@ -51,7 +52,6 @@ import {
   curveRow,
   bandPath,
   formatPoint,
-  gapMetersAt,
 } from "../view/dreamDerbyRace.js";
 import { horseSvgMarkup, coatFor, silkFor, capColorFor, gaitPhaseFor } from "../view/dreamDerbySprite.js";
 import {
@@ -63,7 +63,7 @@ import {
   positionLabelFor,
 } from "../view/dreamDerbyCommentary.js";
 import { choicesFor, dreamSituationId } from "../domain/judgmentCard.js";
-import { runDreamDerbyRace } from "../domain/dreamDerby.js";
+import { startDreamDerbySim, forkDreamDerbySim, dreamDerbyResult } from "../domain/dreamDerby.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -79,13 +79,13 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  * @param {{num:number,name:string,isSelf:boolean,horse:object,jockeyName:(string|null),trainerName:(string|null)}[]} opts.entries - 馬番昇順（`assignPostPositions`の出力。
  *   ⚠️`jockeyName`/`trainerName`は2026-09-06に相手馬へ追加された（史実の日本ダービー優勝馬の
  *   もじり名。実名ではない）。今はまだどの実況テンプレートも参照していない（持たせるだけ）
- * @param {object} opts.dreamHorse - `generateDreamHorse`の出力
- * @param {object[]} opts.rivals - `generateDreamRivals`の出力
  * @param {object} opts.callbacks - Reactのstateセッターの束（下記参照）
  */
-export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, rivals, callbacks }) {
+export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   const selfEntry = entries.find((e) => e.isSelf);
   const numByHorseId = new Map(entries.map((e) => [e.horse.id, e.num]));
+  // ⭐レースの実体。発走前に1本走らせておき、判断カードのたびにフォークで差し替える。
+  let sim = startDreamDerbySim(saveSeed, entries);
 
   // ===== 可変状態（すべてこのクロージャ内。モジュールスコープには置かない） =====
   let rafId = null;
@@ -121,9 +121,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     stretchEarly: null,
   };
   let finished = false; // ゴール処理（doFinish）が既に走ったか。連打対策（devlog参照）
-  let raceResult = null; // runDreamDerbyRaceの出力（直線カード確定後にだけ入る）
-  let confirmedAt = null; // 直線カードで選んだ時刻(秒)
-  let marginByNum = new Map(); // 馬番 -> 最終着差(m)。raceResult確定後にだけ埋まる
   let lastPositions = {};
   const sprites = new Map(); // 馬番 -> HTMLElement
   const chips = new Map(); // 馬番 -> HTMLElement
@@ -140,9 +137,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   }
 
   // ===== 距離・カメラ =====
+  /** 馬番numのt秒時点の通過距離(m)。⭐出どころはレースsimの時系列ただ1つ。 */
   function distanceOf(num, t) {
-    const margin = marginByNum.has(num) ? marginByNum.get(num) : null;
-    return distanceAtTime(t) + gapMetersAt(num, t, { marginMeters: margin, confirmedAt });
+    return sim.distanceOf(num, t);
+  }
+  /** レースが終わる時刻(秒)＝勝ち馬のゴール時刻。フォークで動くので毎回simから読む。 */
+  function raceEndTime() {
+    return sim.winnerTime;
   }
   function currentLeaderNum(t) {
     let best = selfEntry.num;
@@ -176,7 +177,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     const now = performance.now();
     const target = cameraTargetFor(cameraMode, {
       raceStarted,
-      t,
       selfDistance: distanceOf(selfEntry.num, t),
       leaderDistance: distanceOf(currentLeaderNum(t), t),
     });
@@ -336,7 +336,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     updateBoundary(cameraDistance, anchor);
   }
   function updateHudDom() {
-    const d = distanceAtTime(raceSeconds);
+    const d = distanceOf(selfEntry.num, raceSeconds);
     refs.raceDistance.textContent = `残り${Math.max(0, Math.round(TOTAL_DISTANCE - d))}m`;
     const min = Math.floor(raceSeconds / 60);
     const sec = (raceSeconds % 60).toFixed(1).padStart(4, "0");
@@ -353,19 +353,26 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       clockRunning = true;
     }
   }
+  // 節目は「自分の馬の通過距離」（atD）か「レース時計の秒」（at）のどちらかで発火する。
   function checkMilestones() {
+    const selfDistance = distanceOf(selfEntry.num, raceSeconds);
     for (const m of milestones) {
-      if (!m.fired && raceSeconds >= m.at) {
-        m.fired = true;
-        m.fn();
-        if (!clockRunning) return;
-      }
+      if (m.fired) continue;
+      const reached = m.isFinish
+        ? raceSeconds >= raceEndTime()
+        : m.atD != null
+          ? selfDistance >= m.atD
+          : raceSeconds >= m.at;
+      if (!reached) continue;
+      m.fired = true;
+      m.fn();
+      if (!clockRunning) return;
     }
   }
   function tickClock(now) {
     if (clockRunning) {
       const deltaSec = (now - lastTick) / 1000;
-      raceSeconds = Math.min(T_FINISH, raceSeconds + deltaSec * speedScale);
+      raceSeconds = Math.min(raceEndTime(), raceSeconds + deltaSec * speedScale);
       updateHudDom();
       renderWorld(raceSeconds);
       checkMilestones();
@@ -377,7 +384,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   // ===== 実況 =====
   function say(slot, t, extraVars) {
     const vars = Object.assign(
-      commentaryVars(t, { entries, selfEntry, distanceOfNum: (num) => distanceOf(num, t) }),
+      commentaryVars(t, {
+        entries,
+        selfEntry,
+        distanceOfNum: (num) => distanceOf(num, t),
+        selfDistance: distanceOf(selfEntry.num, t),
+        split1000Seconds: sim.split1000,
+      }),
       extraVars || {}
     );
     const text = pickCommentaryLine(slot, vars, sayCount);
@@ -530,13 +543,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       if (kind === "mid") {
         choiceIds.midRace = choiceId;
         choiceIds.midForward = !!chosen?.forward;
+        // ⭐選んだ瞬間から先だけを計算し直す。この時刻より前の距離は1つも変わらない。
+        sim = forkDreamDerbySim(sim, raceSeconds, "mid", choiceIds.midSituationId, choiceId);
       } else {
         choiceIds.stretch = choiceId;
         choiceIds.stretchEarly = !!chosen?.early;
-        raceResult = runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds);
+        sim = forkDreamDerbySim(sim, raceSeconds, "stretch", choiceIds.stretchSituationId, choiceId);
         callbacks.setChoiceIds({ ...choiceIds }); // 卒業式の戦法4の写像に使う（devlog/wave02.md）
-        confirmedAt = raceSeconds;
-        marginByNum = new Map(raceResult.rows.map((r) => [numByHorseId.get(r.horseId), r.marginMeters]));
       }
       say(`choiceReact.${choiceId}`, raceSeconds);
       resumeClock();
@@ -590,11 +603,12 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     if (finished) return;
     finished = true;
     clockRunning = false;
-    raceSeconds = T_FINISH;
+    raceSeconds = raceEndTime();
     updateHudDom();
     renderWorld(raceSeconds);
     callbacks.setRaceStageLabel("ゴール");
     say("finish", raceSeconds);
+    const raceResult = dreamDerbyResult(sim, entries);
     if (raceResult.won) {
       say(viewHash01(raceSeconds * 3 + 11) < 0.6 ? "homageWin" : "finishSelfWin", raceSeconds);
     } else {
@@ -638,22 +652,24 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     }, 900);
   }
 
-  // ===== 節目の一覧（局面は距離で決め、`timeAtDistance`で時刻に逆算する） =====
+  // ===== 節目の一覧 =====
+  // ⭐`atD`＝自分の馬の通過距離(m)で発火／`at`＝レース時計の秒で発火。
+  // ⚠️距離の節目を時刻に固定し直さないこと——simのペースはレースごとに変わる。
   const milestones = [
     { at: 0.6, fired: false, fn: () => say("start", raceSeconds) },
     { at: 5, fired: false, fn: () => say("earlyOrder", raceSeconds) },
-    { at: timeAtDistance(350), fired: false, fn: () => say("corner12", raceSeconds) },
-    { at: timeAtDistance(700), fired: false, fn: () => say("selfMid", raceSeconds) },
-    { at: timeAtDistance(1000), fired: false, fn: () => say("backstretch", raceSeconds) },
-    { at: timeAtDistance(1200), fired: false, fn: milestoneCardMid },
-    { at: timeAtDistance(1400), fired: false, fn: () => say("earlyOrder", raceSeconds) },
-    { at: timeAtDistance(1500), fired: false, fn: () => say("corner3", raceSeconds) },
-    { at: timeAtDistance(1750), fired: false, fn: () => say("corner4", raceSeconds) },
-    { at: T_FINAL_STRETCH, fired: false, fn: enterFinalStretch },
-    { at: T_FINAL_STRETCH, fired: false, fn: milestoneCardStretch },
-    { at: timeAtDistance(2050), fired: false, fn: () => say("homage", raceSeconds) },
-    { at: timeAtDistance(2200), fired: false, fn: () => say("stretchMid", raceSeconds) },
-    { at: T_FINISH, fired: false, fn: doFinish },
+    { atD: 350, fired: false, fn: () => say("corner12", raceSeconds) },
+    { atD: 700, fired: false, fn: () => say("selfMid", raceSeconds) },
+    { atD: 1000, fired: false, fn: () => say("backstretch", raceSeconds) },
+    { atD: D_MID_CARD, fired: false, fn: milestoneCardMid },
+    { atD: 1400, fired: false, fn: () => say("earlyOrder", raceSeconds) },
+    { atD: 1500, fired: false, fn: () => say("corner3", raceSeconds) },
+    { atD: 1750, fired: false, fn: () => say("corner4", raceSeconds) },
+    { atD: D_FINAL_STRETCH, fired: false, fn: enterFinalStretch },
+    { atD: D_FINAL_STRETCH, fired: false, fn: milestoneCardStretch },
+    { atD: 2050, fired: false, fn: () => say("homage", raceSeconds) },
+    { atD: 2200, fired: false, fn: () => say("stretchMid", raceSeconds) },
+    { at: 0, fired: false, isFinish: true, fn: doFinish },
   ];
 
   // ===== 発走 =====
