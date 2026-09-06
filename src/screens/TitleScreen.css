@@ -1,7 +1,13 @@
 /*
- * タイトル画面（本馬場・CLAUDE.md §8の手順で2026-09-03に確定）。
- * 配色・レイアウトはFable 5.1との候補提示・練り直しを経て合意した仕様どおり。
- * 詳細な経緯は devlog/wave02.md ⑤ を参照。
+ * タイトル画面（案A・CLAUDE.md §8の手順でユーザーが選択・2026-09-06に確定）。
+ * 見本：/tmp/.../scratchpad/title-A.html（未選択）・title-A-sel.html（選択済み）。
+ * このCSSと構造は見本のCSSをそのまま踏襲したもの——変える場合は見本を作り直す
+ * ところからやり直すこと。馬の帯（.title-screen__track以下）は
+ * title-track-block.html / title-track-css.cssをそのまま使っている。
+ *
+ * 色：背景の青は#2f7fe6→#1a5fb4に変更（黄文字#ffd83dとのコントラスト比が
+ * 2.86→4.53になり、WCAG AAの4.5:1を満たす）。「騎手になる」が押せる状態も
+ * 同じ青に白文字（6.29:1）。他の画面の色（--action等）はこの変更の対象外。
  */
 
 .title-screen {
@@ -10,15 +16,18 @@
   --panel: rgba(26, 42, 24, 0.82);
   --muted: #c9e3bf;
   --accent: #ffd83d;
-  --action: #2f7fe6;
-  --action-hover: #1f6bcf;
+  --action: #1a5fb4;
+  --action-hover: #164f99;
+  --tap: 44px;
 
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background: var(--turf);
   color: #fff;
-  font-family: sans-serif;
+  font-family: "Zen Maru Gothic", sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
 .title-screen__field {
@@ -27,136 +36,82 @@
   background-image: repeating-linear-gradient(90deg, var(--turf) 0 40px, var(--turf2) 40px 80px);
 }
 
-.title-screen__rail {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 62%;
-  height: 6px;
-  background: #e9e2c9;
-  opacity: 0.85;
-}
-
-.title-screen__horses {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 66%;
-  height: 40px;
-}
-
-.title-screen__horse {
-  position: absolute;
-  width: 26px;
-  height: 18px;
-  background: #2a1d14;
-  animation: title-screen-run 6s linear infinite;
-}
-
-.title-screen__horse::after {
-  content: "";
-  position: absolute;
-  right: -8px;
-  top: 3px;
-  width: 10px;
-  height: 3px;
-  background: #2a1d14;
-}
-
-.title-screen__horse--2 {
-  top: 20px;
-  animation-delay: -1.4s;
-  background: #5a2a1e;
-}
-.title-screen__horse--3 {
-  top: -6px;
-  animation-delay: -3.1s;
-  background: #3a3a3a;
-}
-.title-screen__horse--4 {
-  top: 12px;
-  animation-delay: -4.5s;
-  background: #1c1c1c;
-}
-
-@keyframes title-screen-run {
-  from {
-    transform: translateX(110vw);
-  }
-  to {
-    transform: translateX(-10vw);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .title-screen__horse {
-    animation: none;
-    left: 40%;
-  }
-}
-
 .title-screen__content {
   position: relative;
   z-index: 2;
-  max-width: 640px;
+  width: min(100%, 480px);
   margin: 0 auto;
-  padding: 64px 24px 40px;
-  text-align: center;
+  padding: var(--s3) var(--s2) var(--s2);
+  box-sizing: border-box;
+  text-align: left;
 }
 
 .title-screen__title {
   font-family: "Rampart One", sans-serif;
-  font-size: clamp(26px, 8vw, 62px);
-  white-space: nowrap;
+  font-size: var(--fs-display);
+  line-height: 1.2;
   color: #fff;
   text-shadow: 2px 2px 0 #1a2a18, 4px 4px 0 rgba(0, 0, 0, 0.25);
-  margin: 0 0 40px;
+  margin: 0 0 var(--s2);
   letter-spacing: 0.02em;
+}
+@media (max-width: 359px) {
+  .title-screen__title {
+    font-size: 40px;
+  }
 }
 
 .title-screen__window {
   background: var(--panel);
-  padding: 26px 26px 30px;
-  text-align: left;
+  padding: var(--s2);
 }
 
 .title-screen__row {
-  margin-bottom: 22px;
+  margin-bottom: var(--s2);
 }
 .title-screen__row:last-child {
   margin-bottom: 0;
 }
 
 .title-screen__row-label {
-  font-family: "Zen Maru Gothic", sans-serif;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--fs-caption);
+  line-height: 16px;
   letter-spacing: 0.1em;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: var(--s1);
 }
 
 .title-screen__opts {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: var(--s1);
+}
+.title-screen__opts--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.title-screen__opts--2 {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .title-screen__opt {
   all: unset;
   cursor: pointer;
   box-sizing: border-box;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: var(--muted);
   font-family: "DotGothic16", monospace;
-  font-size: 20px;
-  padding: 8px 16px;
+  font-size: var(--fs-lead);
   font-variant-numeric: tabular-nums;
 }
 
 .title-screen__opt--text {
   font-family: "Zen Maru Gothic", sans-serif;
-  font-size: 13px;
+  font-size: var(--fs-body);
+  font-weight: 500;
 }
 
 .title-screen__opt:hover {
@@ -171,24 +126,24 @@
 }
 
 .title-screen__foot {
-  text-align: center;
-  margin-top: 26px;
+  margin-top: var(--s2);
 }
 
 .title-screen__start {
   all: unset;
   box-sizing: border-box;
   cursor: not-allowed;
-  width: 60%;
-  display: inline-block;
-  text-align: center;
+  width: 100%;
+  min-height: var(--s6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: "Zen Maru Gothic", sans-serif;
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-body);
   letter-spacing: 0.12em;
   color: #cdd8ea;
   background: #3a4a5e;
-  padding: 14px;
   box-shadow: 0 2px 0 #1a2a18;
 }
 
@@ -206,4 +161,164 @@
 .title-screen__start:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ===== 馬の帯（title-track-block.html / title-track-css.cssをそのまま） ===== */
+
+.title-screen__track {
+  position: relative;
+  margin-top: auto;
+  height: 96px;
+  overflow: hidden;
+}
+.title-screen__rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  background: #e9e2c9;
+  opacity: 0.85;
+}
+.title-horse {
+  --w: 48px;
+  position: absolute;
+  top: 14px;
+  left: 0;
+  width: var(--w);
+  height: calc(var(--w) * 32 / 44);
+  animation: title-horse-run 10s linear infinite;
+}
+.title-horse--2 {
+  top: 24px;
+  animation-delay: 0.25s;
+}
+.title-horse--3 {
+  top: 34px;
+  animation-delay: 0.55s;
+}
+.title-horse__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+.title-horse .coat {
+  fill: var(--coat);
+}
+.title-horse .coat-dark {
+  fill: var(--coat-dark);
+}
+.title-horse .silk {
+  fill: var(--silk);
+}
+.title-horse .hoof {
+  fill: #221a14;
+}
+.title-horse .boot {
+  fill: #222;
+}
+.title-horse .skin {
+  fill: #f0c8a0;
+}
+.title-horse .eye {
+  fill: #111;
+}
+.title-horse__shadow {
+  fill: rgba(6, 60, 6, 0.45);
+}
+.title-horse__body {
+  transform-box: fill-box;
+  transform-origin: 50% 60%;
+  animation: title-horse-bob 0.3s linear infinite;
+}
+@keyframes title-horse-bob {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-1.5px);
+  }
+  70% {
+    transform: translateY(0.3px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.title-horse .f1,
+.title-horse .f2,
+.title-horse .f3 {
+  opacity: 0;
+  animation: 0.3s steps(1, end) infinite;
+}
+.title-horse .f1 {
+  animation-name: th-f1;
+}
+.title-horse .f2 {
+  animation-name: th-f2;
+}
+.title-horse .f3 {
+  animation-name: th-f3;
+}
+@keyframes th-f1 {
+  0%, 33.2% {
+    opacity: 1;
+  }
+  33.3%, 100% {
+    opacity: 0;
+  }
+}
+@keyframes th-f2 {
+  0%, 33.2% {
+    opacity: 0;
+  }
+  33.3%, 66.5% {
+    opacity: 1;
+  }
+  66.6%, 100% {
+    opacity: 0;
+  }
+}
+@keyframes th-f3 {
+  0%, 66.5% {
+    opacity: 0;
+  }
+  66.6%, 100% {
+    opacity: 1;
+  }
+}
+@keyframes title-horse-run {
+  0% {
+    transform: translateX(calc(100vw + 70px));
+  }
+  45%, 100% {
+    transform: translateX(-70px);
+  }
+}
+@media (min-width: 900px) {
+  .title-horse {
+    --w: 60px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-horse,
+  .title-horse__body,
+  .title-horse .f1,
+  .title-horse .f3 {
+    animation: none;
+  }
+  .title-horse .f2 {
+    animation: none;
+    opacity: 1;
+  }
+  .title-horse {
+    left: 12%;
+  }
+  .title-horse--2 {
+    left: 42%;
+  }
+  .title-horse--3 {
+    left: 72%;
+  }
 }

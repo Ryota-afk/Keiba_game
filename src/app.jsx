@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./styles/type.css";
+import "./styles/space.css";
 import "./styles/motion.css";
 import { TitleScreen } from "./screens/TitleScreen.jsx";
 import { DreamDerbyScreen } from "./screens/DreamDerbyScreen.jsx";
