@@ -13,6 +13,8 @@ import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { horseStrengthScore } from "./raceOutcome.js";
 import { resolveChoice } from "./judgmentCard.js";
 import { T_FINISH } from "../data/dreamDerbyCourse.js";
+import { DERBY_WINNERS, KENSHO_DERBY_WINNERS } from "../data/derbyWinners.js";
+import { displayJockeyName, displayTrainerName } from "../data/derbyPeopleNames.js";
 
 export const DREAM_FIELD_SIZE = 18; // 実態どおり最大18頭（日本ダービー相当）
 export const DREAM_HORSE_KEY = "dream-horse";
@@ -64,11 +66,59 @@ export function generateDreamHorse(saveSeed) {
   return { ...base, abilities: boostedAbilities };
 }
 
-/** 夢の中の相手馬17頭を生成する（実際のNPC馬データが無いため通常どおり手続き的に生成）。 */
+/**
+ * 夢の相手馬17頭ぶんの元データ（`data/derbyWinners.js`の行）を決める。自己完結の純関数。
+ * ⭐ユーザー決定：JRA顕彰馬9頭は毎回固定＋残り8頭は保存データ（`saveSeed`）ごとに抽選。
+ * ⚠️抽選では「騎手が既に選ばれた馬（顕彰馬9頭を含む）と重ならない」ことだけを条件にする
+ * （同じ騎手の馬は引かない。騎手の差し替えはしない）。
+ * ⚠️武豊のように顕彰馬の騎手と重なる馬（例：スペシャルウィーク等5頭）は、この条件により
+ * 原理的に一度も引かれない（devlog計測で確認済み）。
+ * @param {number|string} saveSeed
+ * @returns {import("../data/derbyWinners.js").DerbyWinnerRecord[]} 17件（顕彰馬9件＋抽選8件）
+ */
+export function pickDreamRivalRecords(saveSeed) {
+  const recordByHorseName = new Map(DERBY_WINNERS.map((r) => [r.horse, r]));
+  const kenshoRecords = KENSHO_DERBY_WINNERS.map((horseName) => recordByHorseName.get(horseName));
+  const usedJockeys = new Set(kenshoRecords.map((r) => r.jockey));
+  const kenshoHorseNames = new Set(KENSHO_DERBY_WINNERS);
+  const candidates = DERBY_WINNERS.filter((r) => !kenshoHorseNames.has(r.horse));
+
+  const picked = [];
+  const RIVAL_DRAW_COUNT = 8;
+  for (let i = 0; i < RIVAL_DRAW_COUNT; i += 1) {
+    const available = candidates.filter((r) => !usedJockeys.has(r.jockey) && !picked.includes(r));
+    // ⚠️起きないはずだが（候補34頭に対し8頭しか引かないため枯渇しない）、万一available.length===0
+    // なら引けた分で止める（設計どおり。17頭に満たない場合が起き得る）。
+    if (available.length === 0) break;
+    const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "dream-rivals-pick", i);
+    const chosen = available[Math.floor(rand01() * available.length) % available.length];
+    picked.push(chosen);
+    usedJockeys.add(chosen.jockey);
+  }
+  return [...kenshoRecords, ...picked];
+}
+
+/**
+ * 夢の中の相手馬17頭を生成する。⚠️2026-09-06に手続き的な仮名生成から、史実の日本ダービー
+ * 優勝馬（実名）へ差し替えた（顕彰馬9頭固定＋残り8頭抽選、`pickDreamRivalRecords`）。
+ * 能力値は`generateHorse`のまま＝まだ「仮」（本物のレースsimは別の弾で作る。史実馬の能力を
+ * 戦績から導くのもその弾でやる）。名前だけを実名に、騎手・調教師名は実名の人物なので
+ * `derbyPeopleNames.js`のもじり変換を経由した表示名に差し替える。
+ * @param {number|string} saveSeed
+ * @returns {object[]} 17頭（`generateHorse`の形＋`jockeyName`/`trainerName`/`derbyYear`）
+ */
 export function generateDreamRivals(saveSeed) {
-  return Array.from({ length: DREAM_FIELD_SIZE - 1 }, (_, i) =>
-    generateHorse(saveSeed, `dream-rival-${i}`)
-  );
+  const records = pickDreamRivalRecords(saveSeed);
+  return records.map((record, i) => {
+    const base = generateHorse(saveSeed, `dream-rival-${i}`);
+    return {
+      ...base,
+      name: record.horse,
+      jockeyName: displayJockeyName(record.jockey),
+      trainerName: displayTrainerName(record.trainer),
+      derbyYear: record.year,
+    };
+  });
 }
 
 /**
@@ -78,7 +128,10 @@ export function generateDreamRivals(saveSeed) {
  * @param {number|string} saveSeed
  * @param {object} dreamHorse - `generateDreamHorse`が返した馬
  * @param {object[]} rivals - `generateDreamRivals`が返した17頭
- * @returns {{ num: number, name: string, isSelf: boolean, horse: object }[]} 馬番昇順
+ * @returns {{ num: number, name: string, isSelf: boolean, horse: object,
+ *   jockeyName: string|null, trainerName: string|null }[]} 馬番昇順
+ *   ⚠️`jockeyName`/`trainerName`は相手馬（`rivals`）だけが持つ値をそのまま素通しする
+ *   （もじり変換済み。実名ではない）。自分の馬（`isSelf: true`）はどちらも`null`。
  */
 export function assignPostPositions(saveSeed, dreamHorse, rivals) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, DREAM_HORSE_KEY, "post-position");
@@ -90,7 +143,14 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
     const j = Math.floor(rand01() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.map((p, i) => ({ num: i + 1, name: p.horse.name, isSelf: p.isSelf, horse: p.horse }));
+  return pool.map((p, i) => ({
+    num: i + 1,
+    name: p.horse.name,
+    isSelf: p.isSelf,
+    horse: p.horse,
+    jockeyName: p.horse.jockeyName ?? null,
+    trainerName: p.horse.trainerName ?? null,
+  }));
 }
 
 /**

@@ -76,7 +76,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  *     startGate, goalPost, selfTrackMarker, distMarkersWrap, markerStrip,
  *     raceDistance, raceTime, device, btnCamera, btnDisplay, btnSpeed }
  * @param {number|string} opts.saveSeed
- * @param {{num:number,name:string,isSelf:boolean,horse:object}[]} opts.entries - 馬番昇順（`assignPostPositions`の出力）
+ * @param {{num:number,name:string,isSelf:boolean,horse:object,jockeyName:(string|null),trainerName:(string|null)}[]} opts.entries - 馬番昇順（`assignPostPositions`の出力。
+ *   ⚠️`jockeyName`/`trainerName`は2026-09-06に相手馬へ追加された（史実の日本ダービー優勝馬の
+ *   もじり名。実名ではない）。今はまだどの実況テンプレートも参照していない（持たせるだけ）
  * @param {object} opts.dreamHorse - `generateDreamHorse`の出力
  * @param {object[]} opts.rivals - `generateDreamRivals`の出力
  * @param {object} opts.callbacks - Reactのstateセッターの束（下記参照）

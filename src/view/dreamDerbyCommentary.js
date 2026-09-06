@@ -28,7 +28,9 @@ export function fmtStamp(t) {
 
 /**
  * 現在時刻tでの着順（距離降順）。
- * @param {Array<{num:number,name:string,isSelf:boolean}>} entries
+ * @param {Array<{num:number,name:string,isSelf:boolean,jockeyName:(string|null),trainerName:(string|null)}>} entries
+ *   ⚠️`jockeyName`/`trainerName`（2026-09-06追加、もじり名）は今はまだどのテンプレートも
+ *   参照していない（持たせるだけ）
  * @param {(num:number) => number} distanceOfNum - 馬番→現在距離(m)
  */
 export function fieldOrder(entries, distanceOfNum) {
