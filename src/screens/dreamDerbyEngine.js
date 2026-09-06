@@ -366,11 +366,12 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   }
 
   // ===== チュートリアル（ゲーム世界の外側から出るシステムUIの声） =====
-  function showTutorialInternal({ text, atTop, progressText, requireButton, anchorEl }) {
+  function showTutorialInternal({ text, atTop, progressText, requireButton, anchorEl, anchorAbove }) {
     pauseClock();
     let left;
     let arrowX;
     let top;
+    let bottom;
     if (atTop && anchorEl && refs.device) {
       const dev = refs.device.getBoundingClientRect();
       const b = anchorEl.getBoundingClientRect();
@@ -379,6 +380,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       left = Math.max(8, Math.min(dev.width - W - 8, cx - W / 2));
       arrowX = cx - left;
       top = b.bottom - dev.top + 8;
+    }
+    if (anchorAbove && refs.device) {
+      // 高さを問わず「anchorAboveの直上」に置くため、topではなくbottomで指定する
+      // （吹き出しの実測の高さが分からなくても、上へ伸びるだけで済む）。
+      const dev = refs.device.getBoundingClientRect();
+      const b = anchorAbove.getBoundingClientRect();
+      bottom = Math.max(16, dev.bottom - b.top + 8);
     }
     tutorialActive = true;
     tutorialDismissHandler = () => hideTutorialInternal();
@@ -390,6 +398,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       left,
       arrowX,
       top,
+      bottom,
     });
   }
   function hideTutorialInternal() {
@@ -399,7 +408,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   function showJudgmentTutorialOnce() {
     if (judgmentTutorialShown) return;
     judgmentTutorialShown = true;
-    showTutorialInternal({ text: "選んだ行動で、レースが変わります", atTop: false });
+    // カード最下部の選択肢「下げて外へ」に吹き出しがかぶらないよう、判断カードの
+    // 直上（.card-panelの上端）に出す。bottomの値はanchorAbove経由で都度計算する。
+    showTutorialInternal({
+      text: "選んだ行動で、レースが変わります",
+      atTop: false,
+      anchorAbove: refs.cardPanel,
+    });
     tutorialDismissHandler = () => hideTutorialInternal();
   }
   function tutCameraMilestone() {
@@ -506,7 +521,10 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     callbacks.setRaceStageLabel("道中");
     say("selfMid", raceSeconds);
     showCardInternal("mid", "残り1200m", "前が壁", choicesFor("dreamMid"));
-    showJudgmentTutorialOnce();
+    // showCardInternalのsetCard()はReactの状態更新なので、直後だと.card-panelはまだ
+    // display:noneのまま（再描画前）。位置計算（anchorAbove）がその高さ0の矩形を
+    // 拾ってしまわないよう、描画が済む次のフレームまで待ってから吹き出しを出す。
+    requestAnimationFrame(() => requestAnimationFrame(() => showJudgmentTutorialOnce()));
   }
   function enterFinalStretch() {
     callbacks.setRaceStageLabel("直線");

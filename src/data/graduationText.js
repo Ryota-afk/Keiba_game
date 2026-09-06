@@ -11,8 +11,7 @@ export const NAME_PROMPT_TEXT = "名前を教えてください。";
 export function ceremonyLines(fullName) {
   return [
     `「卒業証書授与、${fullName}」`,
-    "返事をして、壇上に上がる。",
-    "両手で受け取る。夢で握っていた手綱と違って、証書は軽い。",
+    "「はい」",
     "「今日から、君は騎手だ」",
   ];
 }

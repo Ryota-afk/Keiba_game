@@ -62,6 +62,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   const btnSpeedRef = useRef(null);
   const tabPanelsRef = useRef(null);
   const wakeLinesRef = useRef(null);
+  const cardPanelRef = useRef(null);
 
   useEffect(() => {
     const refs = {
@@ -86,6 +87,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
       btnCamera: btnCameraRef.current,
       btnDisplay: btnDisplayRef.current,
       btnSpeed: btnSpeedRef.current,
+      cardPanel: cardPanelRef.current,
     };
     const callbacks = {
       appendMessage: (text, stamp) => setMessages((prev) => [{ text, stamp }, ...prev]),
@@ -148,14 +150,16 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
   }
 
   const tutorialClass = `tutorial-toast${tutorial ? " active" : ""}${tutorial?.atTop ? " at-top" : ""}`;
-  const tutorialStyle =
-    tutorial?.atTop && tutorial.left != null
-      ? {
-          "--toast-left": `${tutorial.left}px`,
-          "--arrow-x": `${tutorial.arrowX}px`,
-          "--toast-top": `${tutorial.top}px`,
-        }
-      : undefined;
+  const tutorialStyleVars = {};
+  if (tutorial?.atTop && tutorial.left != null) {
+    tutorialStyleVars["--toast-left"] = `${tutorial.left}px`;
+    tutorialStyleVars["--arrow-x"] = `${tutorial.arrowX}px`;
+    tutorialStyleVars["--toast-top"] = `${tutorial.top}px`;
+  }
+  if (tutorial?.bottom != null) {
+    tutorialStyleVars["--toast-bottom"] = `${tutorial.bottom}px`;
+  }
+  const tutorialStyle = Object.keys(tutorialStyleVars).length ? tutorialStyleVars : undefined;
 
   return (
     <div className="dream-derby-screen">
@@ -363,7 +367,7 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
             </div>
           </div>
 
-          <div className={`card-panel${card ? " active" : ""}`}>
+          <div className={`card-panel${card ? " active" : ""}`} ref={cardPanelRef}>
             {card && (
               <>
                 <div className="card-label">{card.label}</div>

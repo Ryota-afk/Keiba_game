@@ -440,7 +440,9 @@
   position: absolute;
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  /* 判断カードのチュートリアルはbottomをJS側（エンジン）が計算し、`.card-panel`の
+     直上に来るよう都度上書きする（カード最下部の選択肢に吹き出しがかぶるのを防ぐ）。 */
+  bottom: var(--toast-bottom, 16px);
   z-index: 8;
   background: var(--fg);
   color: #1c1712;
@@ -500,7 +502,7 @@
   position: absolute;
   inset: 0;
   z-index: 5;
-  background: rgba(15, 12, 10, 0.86);
+  background: #0f0c0a; /* 不透明。以前はrgba(...,0.86)で下のタブバーの文字が薄く透けていた */
   color: #fff;
   flex-direction: column;
   align-items: center;
