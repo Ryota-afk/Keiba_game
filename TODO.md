@@ -256,9 +256,9 @@
     ⚠️CLAUDE.md §7「その情報は本当に要るか」からやり直す必要がある（全部出す前提にしない）。
 
 32. ⚠️**タイトル画面の書体をM+フォントへ差し替える**（2026-09-03にユーザーが明示・
-    2026-09-04時点で未対応と再確認）。`src/screens/TitleScreen.css`は現状
-    Rampart One／Zen Maru Gothic／DotGothic16のままで、`src/index.html`にM PLUS 1p等の
-    `<link>`も無い。
+    2026-09-06に「フォントは統一されてる？」と再度指摘）。`src/screens/TitleScreen.css`は
+    Rampart One／Zen Maru Gothic／DotGothic16の3書体のままで、他の画面はM PLUS 1p／M PLUS 1 Code
+    の2書体。ゲーム全体で5書体。`src/index.html`のM+の`<link>`は既にある（2026-09-04に追加）。
 
 33. ⚠️**画面と画面の間の遷移アニメーションが未設計**（`ARCHITECTURE.md`§15に記載）。
     `design/sakurai-specification.md`§17「画面遷移は素早く」が唯一の関連指針で、
