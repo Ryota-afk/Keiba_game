@@ -183,7 +183,7 @@ export function App() {
       )}
 
       {weekMounted && career && gameState && (
-        <div className="screen-pane">
+        <div className="screen-pane screen-pane--week">
           <WeekScreen
             saveSeed={career.saveSeed}
             startYear={career.year}

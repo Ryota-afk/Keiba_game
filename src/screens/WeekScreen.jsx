@@ -70,7 +70,22 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: "sans-serif", maxWidth: 520, margin: "0 auto" }}>
+    <main
+      style={{
+        // ⚠️外枠`.screen-stack`（styles/motion.css）は黒地。ここが透明だと黒地に黒文字になる
+        // （2026-09-06に人間の通しプレイで「週メニューが真っ黒」と報告された）。
+        // 暗転の覆い（`.m6-cover`）と同じクリーム色を敷き、縦にあふれた分はこの画面の中でスクロールさせる。
+        background: "#f2ede0",
+        color: "#1c1712",
+        minHeight: "100dvh",
+        boxSizing: "border-box",
+        overflowY: "auto",
+        padding: 24,
+        fontFamily: "\"M PLUS 1p\", sans-serif",
+        maxWidth: 520,
+        margin: "0 auto",
+      }}
+    >
       <h1 style={{ fontSize: 20 }}>
         {player.currentYear}年 {weekOfYear(week)}週目
       </h1>

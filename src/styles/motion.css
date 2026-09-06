@@ -88,6 +88,11 @@
   overflow-x: hidden;
   transform: translateY(0);
 }
+/* 週の画面の器だけクリーム色（`.m6-cover`と同じ）。⚠️`.screen-stack`は黒地なので、
+   自分の背景を持たない画面をここに置くと黒地に黒文字になる（2026-09-06の通しプレイで発覚）。 */
+.screen-pane--week {
+  background: #f2ede0;
+}
 
 /* ----- ①タイトル→夢のダービー：黒フェード＋実況1行目 ----- */
 .m1-cover {
