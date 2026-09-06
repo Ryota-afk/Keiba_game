@@ -475,7 +475,7 @@
   left: var(--toast-left, 16px);
   right: auto;
   bottom: auto;
-  width: 250px;
+  width: 220px; /* ⚠️エンジン側の`W`と同じ値にする */
   top: var(--toast-top, 308px);
 }
 .tutorial-toast.at-top::before {

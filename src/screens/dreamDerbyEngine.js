@@ -376,8 +376,11 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
       const dev = refs.device.getBoundingClientRect();
       const b = anchorEl.getBoundingClientRect();
       const cx = b.left + b.width / 2 - dev.left;
-      const W = 250;
-      left = Math.max(8, Math.min(dev.width - W - 8, cx - W / 2));
+      // 吹き出しの左端をボタンの左端に揃える（2026-09-06にユーザーが「細くしてボタンの真上に」と決定）。
+      // 中央合わせにすると、左端のボタン（中心x=25〜105px）では必ず枠の左端に張り付くため。
+      // ⚠️幅Wは`.tutorial-toast.at-top`の`width`と同じ値にすること。
+      const W = 220;
+      left = Math.max(8, Math.min(dev.width - W - 8, b.left - dev.left));
       arrowX = cx - left;
       top = b.bottom - dev.top + 8;
     }
