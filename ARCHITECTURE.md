@@ -578,19 +578,38 @@ MAGIシステムでの検討は`devlog/wave02.md`）：
 
 → **`DEVLOG.md`§1・§2**が正本。
 
-### 判断カードは位置で分ける（2026-09-04にユーザー合意・詳細は`devlog/wave03.md`§10）
+### 判断カードは位置で分ける（2026-09-04にユーザー合意・2026-09-06に実装・詳細は`devlog/wave03.md`§10）
 
 **位置の区切り（頭数Nに対する順位）**：先頭＝1番手／前＝2〜4番手／
 中団＝5番手〜後ろから5頭目／後方＝それより後ろ。
 ⚠️**10頭未満は狭める**——前＝2〜3番手、後方＝最後の2頭。
-⚠️**状況の文は書かない。「7番手 内」のように順位と内外の事実だけを出す。**
+判定は`view/dreamDerbyCommentary.js`の`positionBandOf(rank, fieldSize)`（純関数・戻り値
+`"lead"|"front"|"mid"|"rear"`）。
+⚠️**状況の文は書かない。事実（順位）だけを出す。** 表示文言は同ファイルの
+`positionLabelFor(band, rank)`——先頭は「先頭」、それ以外は「N番手」。
+⚠️**内外は出していない**——`view/dreamDerbyRace.js`の`laneY`は着順と無関係な演出専用の
+乱数で、自分の馬は常に画面中央固定（0.47）のため、内外を区別する材料が無い
+（レーン値に意味付けするための情報源が実装時点で無かった。捏造していない）。
 
-**脚質の決め方**：残り1200m時点の位置を基準段（先頭0＝逃げ／前1＝先行／中団2＝差し／
-後方3＝追込）とし、道中の選択が「前へ行く」なら−1・「動かない」なら+1、
-直線の選択が「早く仕掛ける」なら−0.5・「溜める」なら+0.5して四捨五入し、0〜3にクランプする
+**択の組**：位置4×局面2（道中・直線）＝8組。`data/judgmentSituations.js`に
+`dreamMidLead`/`dreamMidFront`/`dreamMidPack`/`dreamMidRear`／
+`dreamStretchLead`/`dreamStretchFront`/`dreamStretchPack`/`dreamStretchRear`として持つ
+（中団は状況キー内でのみ"Pack"と表記——"dreamMidMid"のような重複を避けるため。位置区分
+そのものの値は"mid"のまま）。`screens/dreamDerbyEngine.js`が`domain/judgmentCard.js`の
+`dreamSituationId(phase, band)`でキーを組み立て、`choicesFor(situationId)`で択を引く。
+どちらも道中カードは`SITUATIONS`（通常レースの抽選プール）には含めない。
+
+**脚質の決め方**（`domain/graduation.js`の`strategyFromDreamChoices`）：残り1200m時点の
+位置（`choiceIds.midBand`）を基準段（先頭0＝逃げ／前1＝先行／中団2＝差し／後方3＝追込）とし、
+道中の選択の`forward`タグがtrueなら−1・falseなら+1、直線の選択の`early`タグがtrueなら
+−0.5・falseなら+0.5して`Math.round`で四捨五入し、0〜3にクランプする
 （⚠️2026-09-06にユーザーが「直線は±0.5」と決定。道中の選択が脚質を決め、直線は境目でだけ効く）。
-⚠️**選択肢のデータに`forward`/`early`の2軸タグを持たせること。**
+⚠️**選択肢のデータ（`data/judgmentSituations.js`）に`forward`/`early`の2軸タグを持たせている。**
 持たせないと、どの状況のカードが出たかに関わらず脚質を決められない。
+`screens/dreamDerbyEngine.js`の`pickCardChoice`が選んだ択から`choiceIds.midForward`/
+`choiceIds.stretchEarly`を詰め、`choiceIds.midSituationId`/`stretchSituationId`は
+`domain/dreamDerby.js`の`runDreamDerbyRace`が`resolveChoice`で効果量を引くのに使う
+（位置によって択の組が違うため、択IDだけでは効果量を引けない）。
 
 ### ⚠️ 触ると壊れる：夢のダービーのエンジン（`screens/dreamDerbyEngine.js`）
 

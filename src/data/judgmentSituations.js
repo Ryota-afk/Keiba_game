@@ -38,19 +38,70 @@ export const SITUATION_CHOICES = Object.freeze({
     { id: "pickUpPace", label: "早めにペースを上げる", effect: 2 },
     { id: "saveForLater", label: "直線に脚を残す", effect: 0 },
   ],
-  // ⚠️`dreamMid`/`dreamStretch`は「夢のダービー」専用の固定演出（`SITUATIONS`には
-  // 追加しない＝将来の通常レースのランダム抽選には混ざらない）。残り1200m地点／
-  // 最終直線入りの2箇所に必ず出る。`effect`は他の状況と同じ「仮」の位置づけ。
-  dreamMid: [
-    { id: "holdInside", label: "内で待つ", effect: 0, hint: "脚は溜まる。前が開かなければそのまま終わる" },
-    { id: "takeOutside", label: "外へ出す", effect: 1, hint: "進路は確保できる。外を回るぶん距離が長くなる" },
-    { id: "dropBack", label: "下げて外へ", effect: -1, hint: "自由に動ける。追い出すのが遅くなる" },
-    { id: "splitField", label: "間を割る", effect: 3, hint: "位置は取れる。ぶつかれば馬が怯む" },
+  // ⚠️夢のダービー専用の固定演出（`SITUATIONS`には追加しない＝将来の通常レースの
+  // ランダム抽選には混ざらない）。残り1200m地点（"dreamMid*"）／最終直線入り
+  // （"dreamStretch*"）の2箇所に必ず出るが、そのとき自分の馬がどこを走っているか
+  // （`view/dreamDerbyCommentary.js`の`positionBandOf`）で択の組が変わる
+  // （ARCHITECTURE.md §12「判断カードは位置で分ける」。2026-09-06にユーザー合意）。
+  // `effect`は他の状況と同じ「仮」の位置づけ。
+  // ⚠️`forward`（道中）／`early`（直線）はプレイヤーの択から戦法（脚質）を導く2軸タグ
+  // （`domain/graduation.js`の`strategyFromDreamChoices`が使う）。持たせないと、
+  // どの状況のカードが出たかに関わらず脚質を決められない。
+  dreamMidLead: [
+    // 先頭（1番手）。前へ出るのは「ペースを上げる」だけ、残りは今の位置を動かさない。
+    { id: "keepGoing", label: "このまま行く", effect: 0, forward: false },
+    { id: "easeOff", label: "少し緩める", effect: -1, forward: false },
+    { id: "pickUpPace", label: "ペースを上げる", effect: 2, forward: true },
+    { id: "lookBack", label: "後ろを見る", effect: 0, forward: false },
   ],
-  dreamStretch: [
-    { id: "goNow", label: "ここで追い出す", effect: 1, hint: "先に動いて先頭を奪える。ゴール前で脚が止まる" },
-    { id: "waitFurlong", label: "もう少し待つ", effect: 0, hint: "最後まで脚が残る。前が止まらなければ届かない" },
-    { id: "sweepOutside", label: "外から一気に", effect: 2, hint: "進路は開く。外を回るぶん距離が長い" },
-    { id: "railRun", label: "内を突く", effect: 4, hint: "最短距離。前が開かなければ詰まる" },
+  dreamMidFront: [
+    // 前（2〜4番手）。
+    { id: "stayAsIs", label: "このまま", effect: 0, forward: false },
+    { id: "drawLevel", label: "並びかける", effect: 1, forward: true },
+    { id: "moveOutside", label: "外に出す", effect: 1, forward: true },
+    { id: "waitInside", label: "内で待つ", effect: 0, forward: false },
+  ],
+  dreamMidPack: [
+    // 中団。⚠️IDは元の（位置分岐を導入する前の）`dreamMid`と同じ4つを再利用している——
+    // `data/dreamDerbyCommentary.js`の`choiceReact.holdInside`等（選択直後の反応実況）が
+    // このIDで引かれるため、IDを変えると中団の反応実況だけ静かに消える
+    // （実況の文言そのものは変えない、という依頼の範囲を守るため）。
+    { id: "holdInside", label: "内で待つ", effect: 0, forward: false },
+    { id: "takeOutside", label: "外へ出す", effect: 1, forward: true },
+    { id: "dropBack", label: "下げて外へ", effect: -1, forward: true },
+    { id: "splitField", label: "間を割る", effect: 3, forward: true },
+  ],
+  dreamMidRear: [
+    // 後方（最後方寄り）。
+    { id: "moveUpOutside", label: "外から上がる", effect: 2, forward: true },
+    { id: "waitInsideRear", label: "内で待つ", effect: 0, forward: false },
+    { id: "moveEarly", label: "早めに動く", effect: 1, forward: true },
+    { id: "waitToEnd", label: "最後まで待つ", effect: -1, forward: false },
+  ],
+  dreamStretchLead: [
+    // 先頭のまま直線へ。
+    { id: "pushNow", label: "すぐ追い出す", effect: 1, early: true },
+    { id: "holdABit", label: "もう少し持つ", effect: 0, early: false },
+    { id: "moveToRail", label: "内に寄せる", effect: 0, early: false },
+    { id: "driftOut", label: "外に出す", effect: 0, early: false },
+  ],
+  dreamStretchFront: [
+    { id: "drawLevelNow", label: "今並びかける", effect: 1, early: true },
+    { id: "swingOutside", label: "外へ出す", effect: 2, early: false },
+    { id: "passInside", label: "内から抜く", effect: 3, early: true },
+    { id: "waitMore", label: "もう少し待つ", effect: 0, early: false },
+  ],
+  dreamStretchPack: [
+    // ⚠️中団はIDも元の`dreamStretch`と同じ4つを再利用（理由は上のdreamMidPackと同じ）。
+    { id: "goNow", label: "ここで追い出す", effect: 1, early: true },
+    { id: "waitFurlong", label: "もう少し待つ", effect: 0, early: false },
+    { id: "sweepOutside", label: "外から一気に", effect: 2, early: true },
+    { id: "railRun", label: "内を突く", effect: 4, early: true },
+  ],
+  dreamStretchRear: [
+    { id: "wideSweepRear", label: "大外から", effect: 2, early: true },
+    { id: "splitRailRear", label: "内を突く", effect: 4, early: true },
+    { id: "pushNowRear", label: "今すぐ追い出す", effect: 1, early: true },
+    { id: "saveToEnd", label: "最後まで脚を残す", effect: 0, early: false },
   ],
 });

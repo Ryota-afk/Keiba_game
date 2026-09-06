@@ -102,8 +102,10 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
  * @param {number|string} saveSeed
  * @param {object} dreamHorse - `generateDreamHorse`が返した馬
  * @param {object[]} rivals - `generateDreamRivals`が返した17頭
- * @param {{ midRace: string, stretch: string }} choiceIds - プレイヤーが選んだ択のID
- *   （`data/judgmentSituations.js`の`dreamMid`/`dreamStretch`の択ID）
+ * @param {{ midRace: string, midSituationId: string, stretch: string, stretchSituationId: string }} choiceIds
+ *   - プレイヤーが選んだ択のIDと、そのとき出ていた状況キー（`data/judgmentSituations.js`の
+ *   `dreamMidLead`等。位置によって出る択の組が違うため、択IDだけでは効果量を引けない。
+ *   `screens/dreamDerbyEngine.js`が`domain/judgmentCard.js`の`dreamSituationId`で組み立てて詰める）
  * @returns {{
  *   fieldSize: number, position: number, won: boolean, marginMeters: number,
  *   goalTimeSeconds: number, goalTimeLabel: string, last3F: string, last4F: string,
@@ -112,7 +114,8 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
  */
 export function runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds) {
   const cardBonus =
-    resolveChoice("dreamMid", choiceIds.midRace) + resolveChoice("dreamStretch", choiceIds.stretch);
+    resolveChoice(choiceIds.midSituationId, choiceIds.midRace) +
+    resolveChoice(choiceIds.stretchSituationId, choiceIds.stretch);
 
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, DREAM_HORSE_KEY, "final");
   const noise = (rand01() - 0.5) * 10;

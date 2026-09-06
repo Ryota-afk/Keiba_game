@@ -54,8 +54,15 @@ import {
   gapMetersAt,
 } from "../view/dreamDerbyRace.js";
 import { horseSvgMarkup, coatFor, silkFor, capColorFor, gaitPhaseFor } from "../view/dreamDerbySprite.js";
-import { fieldOrder, commentaryVars, pickCommentaryLine, fmtStamp } from "../view/dreamDerbyCommentary.js";
-import { choicesFor } from "../domain/judgmentCard.js";
+import {
+  fieldOrder,
+  commentaryVars,
+  pickCommentaryLine,
+  fmtStamp,
+  positionBandOf,
+  positionLabelFor,
+} from "../view/dreamDerbyCommentary.js";
+import { choicesFor, dreamSituationId } from "../domain/judgmentCard.js";
 import { runDreamDerbyRace } from "../domain/dreamDerby.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -98,7 +105,19 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   let tutorialDismissHandler = () => hideTutorialInternal();
   let activeButtonTutorial = null; // { kind: "camera"|"display", onPress(label) }
   let pendingCard = null; // { kind: "mid"|"stretch", choices }
-  const choiceIds = { midRace: null, stretch: null };
+  // ⚠️`midBand`/`midForward`/`stretchEarly`は戦法4の写像に使う（`domain/graduation.js`の
+  // `strategyFromDreamChoices`）。`midSituationId`/`stretchSituationId`は最終着差の計算
+  // （`domain/dreamDerby.js`の`resolveChoice`）に使う——位置によって択の組が違うため、
+  // 択IDだけでは効果量を引けない。
+  const choiceIds = {
+    midRace: null,
+    midSituationId: null,
+    midBand: null,
+    midForward: null,
+    stretch: null,
+    stretchSituationId: null,
+    stretchEarly: null,
+  };
   let finished = false; // ゴール処理（doFinish）が既に走ったか。連打対策（devlog参照）
   let raceResult = null; // runDreamDerbyRaceの出力（直線カード確定後にだけ入る）
   let confirmedAt = null; // 直線カードで選んだ時刻(秒)
@@ -501,14 +520,17 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   function pickCardChoice(choiceId) {
     if (!pendingCard) return;
     const kind = pendingCard.kind;
+    const chosen = pendingCard.choices.find((c) => c.id === choiceId);
     hideTutorialInternal();
     raceTimeout(() => {
       callbacks.setCard(null);
       pendingCard = null;
       if (kind === "mid") {
         choiceIds.midRace = choiceId;
+        choiceIds.midForward = !!chosen?.forward;
       } else {
         choiceIds.stretch = choiceId;
+        choiceIds.stretchEarly = !!chosen?.early;
         raceResult = runDreamDerbyRace(saveSeed, dreamHorse, rivals, choiceIds);
         callbacks.setChoiceIds({ ...choiceIds }); // 卒業式の戦法4の写像に使う（devlog/wave02.md）
         confirmedAt = raceSeconds;
@@ -520,10 +542,20 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
   }
 
   // ===== 節目（残り1200m＝道中の判断カード、最終直線入り＝直線の判断カード） =====
+  // 今の自分の順位（距離降順の何番目か）を、その時刻の隊列から出す。
+  function currentSelfRank(t) {
+    const order = fieldOrder(entries, (num) => distanceOf(num, t));
+    return order.findIndex((e) => e.isSelf) + 1;
+  }
   function milestoneCardMid() {
     callbacks.setRaceStageLabel("道中");
     say("selfMid", raceSeconds);
-    showCardInternal("mid", "残り1200m", "前が壁", choicesFor("dreamMid"));
+    const rank = currentSelfRank(raceSeconds);
+    const band = positionBandOf(rank, entries.length);
+    choiceIds.midBand = band;
+    const situationId = dreamSituationId("mid", band);
+    choiceIds.midSituationId = situationId;
+    showCardInternal("mid", "残り1200m", positionLabelFor(band, rank), choicesFor(situationId));
     // showCardInternalのsetCard()はReactの状態更新なので、直後だと.card-panelはまだ
     // display:noneのまま（再描画前）。位置計算（anchorAbove）がその高さ0の矩形を
     // 拾ってしまわないよう、描画が済む次のフレームまで待ってから吹き出しを出す。
@@ -535,7 +567,11 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, dreamHorse, ri
     say("stretchEntry", raceSeconds);
   }
   function milestoneCardStretch() {
-    showCardInternal("stretch", "直線に入った", "どこで追い出すか", choicesFor("dreamStretch"));
+    const rank = currentSelfRank(raceSeconds);
+    const band = positionBandOf(rank, entries.length);
+    const situationId = dreamSituationId("stretch", band);
+    choiceIds.stretchSituationId = situationId;
+    showCardInternal("stretch", "直線に入った", positionLabelFor(band, rank), choicesFor(situationId));
   }
 
   // ===== 掲示板・ゴール =====

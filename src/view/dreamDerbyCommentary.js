@@ -39,6 +39,38 @@ export function fieldOrder(entries, distanceOfNum) {
 }
 
 /**
+ * 現在順位から判断カードの位置区分を決める（ARCHITECTURE.md §12「判断カードは位置で分ける」）。
+ * 頭数固定（18頭）にせず、そのレースの頭数に対する相対順位で区切る。
+ * 10頭未満（このレースでは起きないが将来の再利用に備える）は区切りを狭める。
+ * @param {number} rank - 1始まりの現在順位
+ * @param {number} fieldSize - 出走頭数
+ * @returns {"lead"|"front"|"mid"|"rear"}
+ */
+export function positionBandOf(rank, fieldSize) {
+  if (rank <= 1) return "lead";
+  if (fieldSize < 10) {
+    if (rank <= 3) return "front";
+    if (rank > fieldSize - 2) return "rear";
+    return "mid";
+  }
+  if (rank <= 4) return "front";
+  if (rank > fieldSize - 4) return "rear";
+  return "mid";
+}
+
+/**
+ * 判断カードの状況欄に出す事実だけの文言（ARCHITECTURE.md §12「状況の文は書かない」）。
+ * 形容・推測は付けない。先頭のときだけ「先頭」、それ以外は「N番手」。
+ * ⚠️内外（レーン）は出さない——`view/dreamDerbyRace.js`の`laneY`は着順と無関係な
+ * 演出専用の乱数で、自分の馬は常に画面中央固定（0.47）のため、内外を区別する材料が無い。
+ * @param {"lead"|"front"|"mid"|"rear"} band
+ * @param {number} rank - 1始まりの現在順位
+ */
+export function positionLabelFor(band, rank) {
+  return band === "lead" ? "先頭" : `${rank}番手`;
+}
+
+/**
  * 実況テンプレートの{placeholder}を埋めるための変数一式。
  * @param {number} t - 経過秒
  * @param {object} ctx

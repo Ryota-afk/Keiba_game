@@ -37,45 +37,29 @@ export function generateSchoolRecord(saveSeed) {
   return { distances, surfaces, topDistance, topSurface };
 }
 
-// 夢のダービーの道中カード（`data/judgmentSituations.js`の`dreamMid`）を
-// 「前へ行く」／「動かない」の2軸に分ける（戦法4の写像・1軸目）。
-// ⚠️正本に明示の対応表は無く、実装時に決めた解釈（`devlog/wave02.md`に記録）。
-const MID_CHOICE_AXIS = Object.freeze({
-  splitField: "forward", // 馬群を割って前へ
-  takeOutside: "forward", // 外に持ち出す
-  holdInside: "hold", // 内で我慢して進路を待つ
-  dropBack: "hold", // 一列下げて外へ回す
-});
-
-// 夢のダービーの直線カード（`dreamStretch`）を「早く仕掛ける」／「溜める」の2軸に分ける
-// （戦法4の写像・2軸目）。
-const STRETCH_CHOICE_AXIS = Object.freeze({
-  goNow: "early", // ここから追い出す
-  sweepOutside: "early", // 外へ持ち出して一気に
-  waitFurlong: "hold", // あと1ハロン脚を溜める
-  railRun: "hold", // 内をすくう
-});
-
-// 2軸×2軸→戦法4（`devlog/wave02.md`「道中×直線の2×2」）。
-// forward+early=逃げ（前へ出て早く動く＝先頭を守り続ける）／
-// forward+hold=先行（前めの位置を取り、動くタイミングは待つ）／
-// hold+early=差し（下げた位置から早めに動く）／hold+hold=追込（下げて最後まで溜める）。
-const STRATEGY_BY_AXES = Object.freeze({
-  "forward:early": "nige",
-  "forward:hold": "senko",
-  "hold:early": "sashi",
-  "hold:hold": "oikomi",
-});
+// 夢のダービーの判断カードは残り1200m時点の自分の位置（`view/dreamDerbyCommentary.js`の
+// `positionBandOf`）で択の組が変わる（ARCHITECTURE.md §12「判断カードは位置で分ける」・
+// 2026-09-06にユーザー合意）。位置区分をそのまま脚質の基準段にする——
+// 先頭0＝逃げ／前1＝先行／中団2＝差し／後方3＝追込（`data/aptitudeCategories.js`の
+// `STRATEGIES`と同じ並び）。
+const DREAM_BAND_BASE = Object.freeze({ lead: 0, front: 1, mid: 2, rear: 3 });
 
 /**
  * 夢のダービーの道中・直線の選択から戦法を導く。
- * @param {{ midRace?: string|null, stretch?: string|null }} choiceIds
+ * 残り1200m時点の位置を基準段にし、道中の選択（前へ行く/動かない）で±1、
+ * 直線の選択（早く仕掛ける/溜める）で±0.5して四捨五入、0〜3にクランプする。
+ * @param {{ midBand?: "lead"|"front"|"mid"|"rear"|null, midForward?: boolean,
+ *   stretchEarly?: boolean }} choiceIds - `screens/dreamDerbyEngine.js`が
+ *   選んだ択のタグ（`data/judgmentSituations.js`の各択が持つ`forward`/`early`）から詰める。
+ *   位置区分が取れない場合（想定外の呼び出し）は後方＝追込を基準にする。
  * @returns {"nige"|"senko"|"sashi"|"oikomi"}
  */
 export function strategyFromDreamChoices(choiceIds) {
-  const midAxis = MID_CHOICE_AXIS[choiceIds?.midRace] ?? "hold";
-  const stretchAxis = STRETCH_CHOICE_AXIS[choiceIds?.stretch] ?? "hold";
-  return STRATEGY_BY_AXES[`${midAxis}:${stretchAxis}`];
+  const base = DREAM_BAND_BASE[choiceIds?.midBand] ?? DREAM_BAND_BASE.rear;
+  const midDelta = choiceIds?.midForward ? -1 : 1;
+  const stretchDelta = choiceIds?.stretchEarly ? -0.5 : 0.5;
+  const idx = Math.min(3, Math.max(0, Math.round(base + midDelta + stretchDelta)));
+  return STRATEGIES[idx];
 }
 
 export const DREAM_RECORD_CHOICES = Object.freeze(["accept", "reject"]); // 受け入れる／決別する
