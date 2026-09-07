@@ -143,9 +143,9 @@ function Scoreboard({ schoolRecord }) {
       <div className="score-head">
         <div className="score-label">成績表</div>
         <div className="score-scale">
-          <span>G</span>
+          <span>{GRADE_SCALE[0]}</span>
           <span className="score-scale-line" />
-          <span>S</span>
+          <span>{GRADE_SCALE[GRADE_SCALE.length - 1]}</span>
         </div>
       </div>
       <div className="score-groups">
