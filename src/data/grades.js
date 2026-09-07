@@ -20,6 +20,24 @@ export function pickGrade(rand01) {
   return GRADE_SCALE[Math.floor(rand01() * GRADE_SCALE.length)];
 }
 
+/** 一様乱数を3回引いて平均する（釣鐘型の分布になる）。 */
+function avg3(rand01) {
+  return (rand01() + rand01() + rand01()) / 3;
+}
+
+/**
+ * ⭐**架空馬（`domain/horse.js`の`generateHorse`）の記号7軸専用**。`pickGrade`の一様分布
+ * ではなく釣鐘型で引く。⚠️2026-09-07にユーザー決定：架空馬は史実馬より弱くあるべき
+ * （`devlog/wave04.md`§40）。一様16段だと1軸あたりS以上が12.5%出るが、ダービー馬51頭×7軸
+ * の実測ではS以上が5.9%・S+は0個だった——**架空馬のほうが高い割合で最高評価を持って
+ * 生まれていた**。1000個の実測：平均7.38（D+〜C）・S以上0.7%・S+0.2%。
+ * ⚠️騎手の適性（`domain/jockey.js`）・厩舎の能力（`domain/stable.js`）はこの決定の対象外
+ * ——`pickGrade`のまま。
+ */
+export function pickGradeBellCurve(rand01) {
+  return GRADE_SCALE[Math.min(GRADE_SCALE.length - 1, Math.floor(GRADE_SCALE.length * avg3(rand01)))];
+}
+
 /** 等級を1段上げる。既に最高評価（S+）なら変わらない。自己完結の純関数。 */
 export function nextGrade(grade) {
   const idx = GRADE_SCALE.indexOf(grade);

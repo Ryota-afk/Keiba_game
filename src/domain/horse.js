@@ -5,7 +5,13 @@
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 import { CLASS_LADDER, classIndex } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
-import { pickGrade } from "../data/grades.js";
+import { pickGradeBellCurve } from "../data/grades.js";
+
+// ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
+// ダービー馬51頭は65〜92なので、この上限（理論上の最大に近い値で71〜72）なら
+// 架空馬が史実馬を上回ることはない。一様乱数ではなく3回引いて平均する（釣鐘型）。
+const FICTIONAL_SPEED_BASE = 6;
+const FICTIONAL_SPEED_SPAN = 66;
 
 export { GRADE_SCALE } from "../data/grades.js";
 
@@ -52,16 +58,19 @@ export function generateHorse(saveSeed, key, opts = {}) {
   const growthType = pick(rand01, GROWTH_TYPES);
   const bloodlineFamily = opts.bloodlineFamily ?? pick(rand01, Object.values(BLOODLINE_FAMILIES));
   const abilities = {
-    // スピード・スタミナのみ数値（0〜100）。⚠️スタミナは後天的に伸びない軸（§3「能力の成長」）。
-    speed: Math.floor(rand01() * 100),
+    // スピードは釣鐘型（3回引いて平均）で、史実馬（65〜92）を上回らない上限にする
+    // （下のFICTIONAL_SPEED_BASE/SPANの説明を参照）。⚠️スタミナはこの対象外——強さの軸
+    // ではなく距離の位置を決める軸なので、上限を切ると長距離適性の架空馬が生まれなくなる
+    // （`devlog/wave04.md`§40）。スタミナは後天的に伸びない軸でもある（§3「能力の成長」）。
+    speed: Math.round(FICTIONAL_SPEED_BASE + FICTIONAL_SPEED_SPAN * ((rand01() + rand01() + rand01()) / 3)),
     stamina: Math.floor(rand01() * 100),
-    sharpness: pickGrade(rand01), // 瞬発力
-    grit: pickGrade(rand01), // 勝負根性
-    flexibility: pickGrade(rand01), // 柔軟性
-    wisdom: pickGrade(rand01), // 賢さ
-    health: pickGrade(rand01), // 健康
-    power: pickGrade(rand01), // パワー
-    mentalStrength: pickGrade(rand01), // 精神力
+    sharpness: pickGradeBellCurve(rand01), // 瞬発力
+    grit: pickGradeBellCurve(rand01), // 勝負根性
+    flexibility: pickGradeBellCurve(rand01), // 柔軟性
+    wisdom: pickGradeBellCurve(rand01), // 賢さ
+    health: pickGradeBellCurve(rand01), // 健康
+    power: pickGradeBellCurve(rand01), // パワー
+    mentalStrength: pickGradeBellCurve(rand01), // 精神力
   };
   const name = opts.ownerPrefix
     ? generateHorseName(rand01, { ownerPrefix: opts.ownerPrefix })

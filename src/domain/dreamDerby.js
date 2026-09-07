@@ -14,6 +14,7 @@ import { deriveFavoredStrategy } from "./strategy.js";
 import { TOTAL_DISTANCE, D_FINAL_STRETCH, D_MID_CARD } from "../data/dreamDerbyCourse.js";
 import { runRaceSim, resumeRaceSim, buildPlan } from "../sim/index.js";
 import { DERBY_WINNERS, KENSHO_DERBY_WINNERS } from "../data/derbyWinners.js";
+import { DERBY_HORSE_ABILITIES } from "../data/derbyHorseAbilities.js";
 import { displayJockeyName, displayTrainerName } from "../data/derbyPeopleNames.js";
 
 export const DREAM_FIELD_SIZE = 18; // 実態どおり最大18頭（日本ダービー相当）
@@ -27,16 +28,18 @@ export const DREAM_RACE_KEY = "dream-derby";
 // 3/7=42.9%→3/15=20%に半減し、夢の馬が弱くなってしまう。1段の重みが半分になった分だけ
 // 段数を約2.14倍（15/7）して同じ引き上げ幅を保つ：3→6段（6/15=40%、元は3/7=42.9%）。
 const BOOSTED_GRADE_STEPS = 6; // 記号能力を6段引き上げる（上限S+）
-// 相手17頭は史実の日本ダービー優勝馬（`data/derbyWinners.js`）。⚠️能力値は`generateHorse`の
-// 乱数のままだと0〜100が一様に出て、⭐**3着が「大差」になる回が26%**あった（実測）。
-// 史実のダービー馬なので、この下限と1段の底上げを掛けて18頭の力量差を実際のGⅠに近づける。
-// ⚠️戦績から能力を導くのは相手馬を実体にする弾（`TODO.md` #23）。ここは近似。
-// ⚠️同じ理由でBOOSTED_GRADE_STEPSと同様に段数を約2.14倍（15/7）した：1→2段
-// （2/15=13.3%、元は1/7=14.3%）。
-const RIVAL_GRADE_STEPS = 2;
-const RIVAL_SPEED_MIN = 52;
-const RIVAL_STAMINA_MIN = 40;
-const BOOSTED_SPEED_MIN = 80; // スピードの下限（0〜100スケール中）
+// ⭐2026-09-07：相手17頭の能力値は`data/derbyHorseAbilities.js`の実データに差し替えた
+// （ウイニングポストの値を戦績で補正したもの。ユーザー確認済み・CLAUDE.md §17・
+// `devlog/wave05.md`§47）。それ以前の`RIVAL_GRADE_STEPS`/`RIVAL_SPEED_MIN`/
+// `RIVAL_STAMINA_MIN`（手続き的な底上げ）は不要になったため削除した。
+// ⚠️2026-09-07に相手データの実装後に測り直した（`devlog/wave05.md`§48）。旧80は
+// 「旧式でのディープインパクトと同値」で決めた値で、実データの相手（65〜92）に対しては
+// 弱すぎた。「型に合わせる／外す」（devlog §28-3と同じ方法。持久力が18頭の中央値以上なら
+// 前で運んで早く仕掛ける）で測ると、80では両方合わせて69.7%・両方外して14.3%。
+// 85にすると74.3%／14.0%——目安（7〜8割／2〜3割）の上側にほぼ届く。
+// ⚠️外したときの下限（14%前後）は80〜92のどの値でもほぼ動かず、目安の2〜3割までは
+// 上げられなかった（相手が実データの強豪ぞろいになったため。`devlog/wave05.md`§48）。
+const BOOSTED_SPEED_MIN = 85; // スピードの下限（0〜100スケール中）
 // ⚠️スタミナの下限は低いままにする。ここを70に上げると夢の馬の持久力の幅が消え、
 // **直線で早く仕掛けるか待つかの正解が全seedで同じ**になり、判断カードが一択に潰れる（実測）。
 const BOOSTED_STAMINA_MIN = 60;
@@ -110,9 +113,10 @@ export function pickDreamRivalRecords(saveSeed) {
 /**
  * 夢の中の相手馬17頭を生成する。⚠️2026-09-06に手続き的な仮名生成から、史実の日本ダービー
  * 優勝馬（実名）へ差し替えた（顕彰馬9頭固定＋残り8頭抽選、`pickDreamRivalRecords`）。
- * 能力値は`generateHorse`のまま＝まだ「仮」（本物のレースsimは別の弾で作る。史実馬の能力を
- * 戦績から導くのもその弾でやる）。名前だけを実名に、騎手・調教師名は実名の人物なので
- * `derbyPeopleNames.js`のもじり変換を経由した表示名に差し替える。
+ * ⭐2026-09-07：能力値は`data/derbyHorseAbilities.js`の実データ（ウイニングポストの値を
+ * 戦績で補正したもの）に差し替えた。ユーザー確認済み（CLAUDE.md §17）。
+ * 名前は実名、騎手・調教師名は実名の人物なので`derbyPeopleNames.js`のもじり変換を
+ * 経由した表示名に差し替える。
  * @param {number|string} saveSeed
  * @returns {object[]} 17頭（`generateHorse`の形＋`jockeyName`/`trainerName`/`derbyYear`）
  */
@@ -120,14 +124,20 @@ export function generateDreamRivals(saveSeed) {
   const records = pickDreamRivalRecords(saveSeed);
   return records.map((record, i) => {
     const base = generateHorse(saveSeed, `dream-rival-${i}`);
-    const abilities = { ...base.abilities };
-    abilities.speed = Math.max(abilities.speed, RIVAL_SPEED_MIN);
-    abilities.stamina = Math.max(abilities.stamina, RIVAL_STAMINA_MIN);
-    for (const key of ["sharpness", "grit", "flexibility", "wisdom", "health", "power", "mentalStrength"]) {
-      let grade = abilities[key];
-      for (let k = 0; k < RIVAL_GRADE_STEPS; k += 1) grade = nextGrade(grade);
-      abilities[key] = grade;
-    }
+    const real = DERBY_HORSE_ABILITIES[record.horse];
+    // ⚠️`data/derbyHorseAbilities.js`は`data/derbyWinners.js`の51頭全員を必ず含む
+    // （名前キーの一致は`tools/check-historical.mjs`の検査対象外。作成時に突き合わせ済み）。
+    const abilities = {
+      speed: real.speed,
+      stamina: real.stamina,
+      sharpness: real.sharpness,
+      grit: real.grit,
+      flexibility: real.flexibility,
+      wisdom: real.wisdom,
+      health: real.health,
+      power: real.power,
+      mentalStrength: real.mentalStrength,
+    };
     return {
       ...base,
       abilities,
