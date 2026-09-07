@@ -24,6 +24,11 @@ export {
 } from "./pace.js";
 export {
   distanceAptitude,
+  staminaAptitude,
+  optimalDistance,
+  aptitudeWidth,
+  aptitudeBand,
+  shortfallOf,
   staminaCapacity,
   drainPerSecond,
   normalizedAbilities,

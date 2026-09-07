@@ -16,13 +16,22 @@ import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { decideRaceTrend, paceMultiplierAt, trendAdaptationOf, DERBY_TREND_BASE } from "./pace.js";
 import {
   normalizedAbilities,
-  distanceAptitude,
+  staminaAptitude,
   staminaCapacity,
   weightFactor,
   positionFactor,
   drainPerSecond,
+  shortfallOf,
   REFERENCE_WEIGHT_KG,
 } from "./stamina.js";
+
+/** 適正距離を下回るレースで、道中の目標位置を後ろへずらす量(m)。`shortfall`1.0のときの値
+ * （`devlog/wave04.md`§40-2）。 */
+const SHORT_LAG_METERS = 12;
+/** 上のずれが最大になるまでの秒数（発走から数えて）。 */
+const SHORT_LAG_SECONDS = 25;
+/** 適正距離を下回るレースで、直線の最高速度から引く量。`shortfall`1.0のときの値。 */
+const SHORT_VMAX_LOSS = 0.02;
 
 /** サンプル間隔(秒)。2400mなら約600ステップ。 */
 export const SIM_DT = 0.25;
@@ -107,11 +116,12 @@ export function runRaceSim(input) {
   const traits = entries.map((e, i) => {
     const rand01 = streamRandom(seed, RNG_STREAMS.SIM, raceKey, "horse", e.num);
     const ab = normalizedAbilities(e.horse);
-    const distApt = distanceAptitude(e.horse, distance);
+    const staminaApt = staminaAptitude(e.horse, distance);
+    const shortfall = shortfallOf(e.horse, distance);
     const adapt = trendAdaptationOf(e.horse, trend);
     const capacity = staminaCapacity({
       staminaNorm: ab.stamina,
-      distanceApt: distApt,
+      distanceApt: staminaApt,
       trendAdaptation: adapt,
     });
     const strategy = strategyList[i];
@@ -120,7 +130,8 @@ export function runRaceSim(input) {
       num: e.num,
       isSelf: !!e.isSelf,
       ab,
-      distApt,
+      staminaApt,
+      shortfall,
       adapt,
       capacity,
       strategy,
@@ -158,6 +169,9 @@ export function runRaceSim(input) {
   const stretchEnterT = new Array(n).fill(null);
   const energyAtStretch = new Float64Array(n);
   const finishTime = new Array(n).fill(null);
+  // 適正距離を下回るレースで道中に後ろへずれた量(m)。道中でのみ更新し、直線に入ってからは
+  // 最後の値を保持する（`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。
+  const lagNow = new Float64Array(n);
   let dRef = 0;
   let lastStep = steps - 1;
 
@@ -207,6 +221,8 @@ export function runRaceSim(input) {
         // ⭐脚が0.25を切ると落ち方が急になる（垂れる）。⚠️ここが線形だと「早く仕掛ける」の
         // 損得が全ての馬で同じになり、直線の択が馬の状態と無関係な一択に潰れる（実測）。
         const gassed = Math.max(0, 0.25 - e);
+        // ⚠️適正距離を下回るレースでは、道中ついていけないだけでなく直線の伸びそのものが
+        // 足りない（`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。
         const vMaxMul =
           0.805 +
           0.075 * tr.ab.sharpness +
@@ -215,7 +231,8 @@ export function runRaceSim(input) {
           0.30 * gassed +
           0.03 * tr.ab.grit +
           0.05 * tr.ab.power +
-          0.02 * swing;
+          0.02 * swing -
+          SHORT_VMAX_LOSS * tr.shortfall;
         vWant = vCruise + effort * (vPar * vMaxMul - vCruise);
         // ⚠️早く仕掛けるほど脚の減りが跳ね上がる（1.2倍の係数）。ここを小さくすると
         // 「早く仕掛ける」が全部の位置で最善になり、直線の択が選択でなくなる（実測）。
@@ -227,7 +244,15 @@ export function runRaceSim(input) {
         const swing = (aggression - NEUTRAL_MID_AGGRESSION) * (isSelf ? tr.cardScale : 1);
         const wander =
           2.5 * Math.sin(2 * Math.PI * (t / tr.wanderPeriod + tr.wanderPhase));
-        const targetGap = tr.baseGap + tr.gapJitter + wander - swing * 62;
+        // 適正距離を下回るレースでは、道中のペースについていけず後ろへ下がる
+        // （`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。⚠️速度のクランプ
+        // （0.86〜1.13倍）にも`POSITION_GAIN`にも触らない——触ると隊列が固まる（下のコメント参照）。
+        const lag =
+          tr.shortfall > 0
+            ? SHORT_LAG_METERS * tr.shortfall * clamp((t - DASH_SECONDS) / SHORT_LAG_SECONDS, 0, 1)
+            : 0;
+        lagNow[i] = lag;
+        const targetGap = tr.baseGap + tr.gapJitter + wander + lag - swing * 62;
         // ⚠️目標差を0で頭打ちにしないこと。0にすると**逃げ馬が全頭まったく同じ位置に重なり、
         // 画面上で1頭も動かなくなる**（実測：7頭が50秒間ぴったり0.00m差）。前に出る余地を残す。
         const err = dRef - Math.max(-8, targetGap) - d[i];
@@ -257,7 +282,9 @@ export function runRaceSim(input) {
 
       energy[i] -= drainPerSecond({
         paceRatio: v[i] / vPar,
-        positionFactor: positionFactor(leaderD - prevD),
+        // 適正距離を下回るレースで下がったぶんは、風よけの得として打ち消す
+        // （そのままだと下がったことで脚が温存され、不利が21%目減りする。`devlog/wave04.md`§40-2）。
+        positionFactor: positionFactor(leaderD - prevD - lagNow[i]),
         weightFactor: tr.weight,
         capacity: tr.capacity,
         effortMultiplier: effortMul,

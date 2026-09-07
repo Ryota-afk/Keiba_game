@@ -42,22 +42,94 @@ export function normalizedAbilities(horse) {
   };
 }
 
+/** 距離適性の式`1/(1+APT_A×x²)`の係数。⚠️`devlog/wave04.md`§40-2：0.35や0.25にしても
+ * 3200mでの着順差は0.7着しか動かない一方、0.5は「適正帯が0.9になる距離」を
+ * ディープインパクトで2000〜3200mに一致させる値として選んでいる（そちらが本体）。 */
+const APT_A = 0.5;
+/** 適正距離より短い方向の幅の倍率。⚠️旧`width*1.6`を置き換えた。1.1は「ディープインパクトの
+ * 適正帯の下端がちょうど2000mになる」値（`devlog/wave04.md`§40-2）。 */
+const APT_UNDER_SCALE = 1.1;
+/** 適性が0.9になるxの値（`1/(1+APT_A×x²)=0.9`を解いたもの）。適正帯の表示にも使う。 */
+const APT_X90 = Math.sqrt((1 / 0.9 - 1) / APT_A);
+/** `shortfallOf`が1に達するのに必要な、幅に対する外れ幅の割合（スピード0のとき）。 */
+const SHORTFALL_FULL_BASE = 0.45;
+/** スピード1.0のとき、上の割合がどれだけ小さくなるか（＝速い馬ほど1に達しやすい）。 */
+const SHORTFALL_FULL_SPEED = 0.45;
+/** `shortfallOf`の上限。1.0で頭打ちにすると1000m級で複数の馬が同値に張り付く
+ * （`devlog/wave04.md`§40-2）。 */
+const SHORTFALL_MAX = 1.5;
+
+/** その馬の適正距離の中央値（m）。⭐スタミナが決める（`design/winning-post-race-model.md`）。 */
+export function optimalDistance(horse) {
+  return 1000 + normalizedAbilities(horse).stamina * 2000; // 1000〜3000m
+}
+
+/** その馬の適正距離の「幅」（m）。⭐柔軟性が決める。 */
+export function aptitudeWidth(horse) {
+  return 400 + normalizedAbilities(horse).flexibility * 900; // 400〜1300m
+}
+
+/** 適正帯の下端（丸める前・m）。短距離側の不利がここから立ち上がる（`shortfallOf`と共有）。 */
+function aptitudeLowerBound(horse) {
+  return optimalDistance(horse) - APT_X90 * APT_UNDER_SCALE * aptitudeWidth(horse);
+}
+
 /**
  * その馬の距離適性（1.0が完全に噛み合った状態）。
- * ⭐スタミナが最適距離を、柔軟性がその「幅」を決める（`design/winning-post-race-model.md`）。
- * ⭐**非対称**：最適より短い方向には寛容、長い方向には厳しい（同資料の「上限を超えると
- * 途端に厳しくなり、直線辺りで垂れてしまう」）。
+ * ⭐スタミナが最適距離を、柔軟性がその「幅」を決める。
+ * ⭐**非対称**：短い方向は`APT_UNDER_SCALE`倍の幅で緩やかに、長い方向はそのまま厳しく。
+ * ⚠️2026-09-07に下限0.7のクランプを撤廃した（`devlog/wave04.md`§40-2：16段のうち
+ * 下から12段が0.700に潰れ、3200mで柔軟性G〜S+の着順差が0.00着になっていた）。
  * @param {object} horse
  * @param {number} raceDistance - m
- * @returns {number} 0.55〜1.0
+ * @returns {number} 0超〜1.0
  */
 export function distanceAptitude(horse, raceDistance) {
-  const n = normalizedAbilities(horse);
-  const optimal = 1000 + n.stamina * 2000; // 1000〜3000m
-  const width = 400 + n.flexibility * 900; // ±400〜1300m
+  const optimal = optimalDistance(horse);
+  const width = aptitudeWidth(horse);
   const over = raceDistance > optimal;
-  const x = Math.min(1.5, Math.abs(raceDistance - optimal) / (over ? width : width * 1.6));
-  return Math.max(0.7, Math.min(1, 1 - 0.5 * x * x));
+  const x = over
+    ? (raceDistance - optimal) / width
+    : (optimal - raceDistance) / (width * APT_UNDER_SCALE);
+  return 1 / (1 + APT_A * x * x);
+}
+
+/**
+ * 消耗（脚の総量）に使う適性。⚠️2026-09-07：短い側では1.0固定にする
+ * （`devlog/wave04.md`§40-2）。短い距離での不利は`shortfallOf`が道中の位置取りと
+ * 直線の最高速度に反映する担当で、脚の総量まで削ると「短距離なのに息が上がる」逆の絵になる。
+ * @returns {number} 0超〜1.0
+ */
+export function staminaAptitude(horse, raceDistance) {
+  return raceDistance <= optimalDistance(horse) ? 1 : distanceAptitude(horse, raceDistance);
+}
+
+/**
+ * 適正帯（表示用・100m単位）。⚠️丸めは表示のときだけ行う——最適距離自体を丸めると
+ * スタミナ28種類が距離8種類に潰れる（`devlog/wave04.md`§40-2）。
+ * @returns {[number, number]} [下限, 上限]（m）
+ */
+export function aptitudeBand(horse) {
+  const optimal = optimalDistance(horse);
+  const width = aptitudeWidth(horse);
+  const lo = aptitudeLowerBound(horse);
+  const hi = optimal + APT_X90 * width;
+  return [Math.round(lo / 100) * 100, Math.round(hi / 100) * 100];
+}
+
+/**
+ * 適正帯の下限をどれだけ下回るか（0＝下回っていない）。道中の位置取りと直線の
+ * 最高速度に効かせる（`sim/raceSim.js`）。⚠️丸める前の下限を使う——表示の丸めが
+ * 不利の発生距離とずれないようにするため。
+ * @returns {number} 0〜`SHORT_MAX`
+ */
+export function shortfallOf(horse, raceDistance) {
+  const lo = aptitudeLowerBound(horse);
+  if (raceDistance >= lo) return 0;
+  const width = aptitudeWidth(horse);
+  const speedNorm = normalizedAbilities(horse).speed;
+  const raw = (lo - raceDistance) / width / (SHORTFALL_FULL_BASE + SHORTFALL_FULL_SPEED * speedNorm);
+  return Math.min(SHORTFALL_MAX, raw);
 }
 
 /**
