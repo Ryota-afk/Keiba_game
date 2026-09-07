@@ -26,7 +26,7 @@ export function checkFall(saveSeed, week, horseId, horseHealth, playerFatigue) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.FALL, week, horseId);
   const roll = rand01(); // ⚠️目はここで1回だけ固定する
 
-  const healthRelief = gradeToNumber(horseHealth) / 14; // 0（G）〜0.5（S）。健康なほど下がる
+  const healthRelief = gradeToNumber(horseHealth) / 30; // 0（G）〜0.5（S+）。健康なほど下がる
   const fatigueRisk = playerFatigue / 200; // 0〜0.5。疲労が高いほど上がる
   const threshold = BASE_FALL_P * (1 + fatigueRisk) * (1 - healthRelief);
 

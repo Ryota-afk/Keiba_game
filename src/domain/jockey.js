@@ -4,7 +4,7 @@
 // 純ロジック（JSX無し。`data/`・`core/`だけに依存）。
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
-import { pickGrade, nextGrade } from "../data/grades.js";
+import { pickGrade, nextGrade, MAX_GRADE } from "../data/grades.js";
 import { APTITUDE_KEYS } from "../data/aptitudeCategories.js";
 import { pickHumanName } from "./humanNaming.js";
 import { RANK_LADDER, rankIndex, rankSpec } from "../data/ranks.js";
@@ -70,15 +70,18 @@ export function learnSkill(jockey, skillId) {
 
 /**
  * 適性を1段伸ばす（§4「適性の成長」：乗った分だけ伸びるが総量に上限。上限はランクで上がる）。
- * 純関数——Sへ上げようとしてランクの上限（aptitudeSCap）に達していれば据え置く。
+ * 純関数——最高評価（`MAX_GRADE`＝S+）へ上げようとしてランクの上限（aptitudeSCap）に
+ * 達していれば据え置く。
+ * ⚠️2026-09-07の記号16段化前は最高評価が「S」固定だったため`"S"`を直書きしていたが、
+ * 今の最高評価は「S+」。`MAX_GRADE`で参照し、スケールが変わっても壊れないようにする。
  */
 export function growAptitude(jockey, aptitudeKey, cap = rankSpec(jockey.rank)?.aptitudeSCap ?? 0) {
   const current = jockey.aptitudes[aptitudeKey];
   const next = nextGrade(current);
-  if (next === current) return jockey; // 既に上限（S）
-  if (next === "S") {
-    const sCount = Object.values(jockey.aptitudes).filter((g) => g === "S").length;
-    if (sCount >= cap) return jockey; // ⚠️Sにできる数の上限に達している
+  if (next === current) return jockey; // 既に上限（S+）
+  if (next === MAX_GRADE) {
+    const sCount = Object.values(jockey.aptitudes).filter((g) => g === MAX_GRADE).length;
+    if (sCount >= cap) return jockey; // ⚠️最高評価にできる数の上限に達している
   }
   return { ...jockey, aptitudes: { ...jockey.aptitudes, [aptitudeKey]: next } };
 }

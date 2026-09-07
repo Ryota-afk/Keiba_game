@@ -4,7 +4,7 @@
 // 純ロジック（JSX無し。`core/`・`domain/strategy.js`だけに依存）。
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
-import { gradeToNumber } from "../data/grades.js";
+import { gradeToNumber, GRADE_SCALE } from "../data/grades.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 
 // 出走頭数の幅（実態どおり最大18頭。ARCHITECTURE.md §5「コースと出走頭数」）。
@@ -16,7 +16,7 @@ export function horseStrengthScore(horse, declaredStrategy) {
   const a = horse.abilities;
   const gradeSum = [a.sharpness, a.grit, a.flexibility, a.power]
     .map(gradeToNumber)
-    .reduce((sum, v) => sum + v, 0); // 0〜28
+    .reduce((sum, v) => sum + v, 0); // 0〜60（記号4軸×0〜15）
   let score = a.speed * 0.5 + a.stamina * 0.3 + gradeSum * 2;
   if (declaredStrategy && declaredStrategy === deriveFavoredStrategy(horse)) {
     score += 5; // 得意脚質どおりに乗ったときの仮ボーナス
@@ -28,7 +28,10 @@ export function horseStrengthScore(horse, declaredStrategy) {
 function syntheticRivalScore(rand01) {
   const speed = rand01() * 100;
   const stamina = rand01() * 100;
-  const gradeSum = Array.from({ length: 4 }, () => Math.floor(rand01() * 8)).reduce(
+  // ⚠️実際の馬の記号4軸と同じ0〜(GRADE_SCALE.length-1)のレンジで引く。8決め打ちのまま
+  // 残すと、実馬のgradeSumが8段→16段の拡張で2倍近くに伸びたのにここだけ据え置かれ、
+  // プレイヤー側だけが強く／弱く出る（2026-09-07・記号16段化で確認）。
+  const gradeSum = Array.from({ length: 4 }, () => Math.floor(rand01() * GRADE_SCALE.length)).reduce(
     (sum, v) => sum + v,
     0
   );

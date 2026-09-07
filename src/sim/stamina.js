@@ -21,9 +21,9 @@ export const WEIGHT_DRAIN_PER_KG = 0.012;
 /** 消耗の基準量（1秒あたり・係数がすべて1.0のとき）。 */
 export const DRAIN_BASE = 0.0030;
 
-/** 記号評価（G〜S）を0..1へ。 */
+/** 記号評価（G〜S+・16段）を0..1へ。 */
 export function gradeNorm(grade) {
-  return gradeToNumber(grade) / 7;
+  return gradeToNumber(grade) / 15;
 }
 
 /** 馬の9軸を0..1の数値へ揃える（simの計算式が使う形）。 */
