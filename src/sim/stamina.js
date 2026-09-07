@@ -59,19 +59,34 @@ const SHORTFALL_FULL_SPEED = 0.45;
  * （`devlog/wave04.md`§40-2）。 */
 const SHORTFALL_MAX = 1.5;
 
-/** その馬の適正距離の中央値（m）。⭐スタミナが決める（`design/winning-post-race-model.md`）。 */
+/**
+ * その馬の適正距離の中央値（m・**100m単位**）。⭐スタミナが決める
+ * （`design/winning-post-race-model.md`）。
+ * ⚠️2026-09-07にユーザー指示で100m単位へ丸めた。⭐**丸めてもスタミナ1点の効きは消えない**
+ * ——スタミナは`staminaCapacity`（消耗の分母）にも直接入っており、そちらは1点ごとに
+ * 0.0042動く。丸めで止まるのは適正距離の側だけ（`devlog/wave04.md`§42）。
+ */
 export function optimalDistance(horse) {
-  return 1000 + normalizedAbilities(horse).stamina * 2000; // 1000〜3000m
+  const raw = 1000 + normalizedAbilities(horse).stamina * 2000; // 1000〜3000m
+  return Math.round(raw / 100) * 100;
 }
 
-/** その馬の適正距離の「幅」（m）。⭐柔軟性が決める。 */
+/** 適正距離が取りうる下限（m）。JRAの最短が1000m。 */
+const APT_MIN_DISTANCE = 1000;
+/** 適正距離が取りうる上限（m）。 */
+const APT_MAX_DISTANCE = 4000;
+
+/** その馬の適正距離の「幅」（m）。⭐柔軟性が決める。
+ * ⚠️2026-09-07にユーザー指示で上限を1300m→1600mへ広げた。 */
 export function aptitudeWidth(horse) {
-  return 400 + normalizedAbilities(horse).flexibility * 900; // 400〜1300m
+  return 400 + normalizedAbilities(horse).flexibility * 1200; // 400〜1600m
 }
 
-/** 適正帯の下端（丸める前・m）。短距離側の不利がここから立ち上がる（`shortfallOf`と共有）。 */
+/** 適正帯の下端（丸める前・m）。短距離側の不利がここから立ち上がる（`shortfallOf`と共有）。
+ * ⚠️`APT_MIN_DISTANCE`で頭打ちにする——表示と、不利が始まる距離を同じ数字から出すため。 */
 function aptitudeLowerBound(horse) {
-  return optimalDistance(horse) - APT_X90 * APT_UNDER_SCALE * aptitudeWidth(horse);
+  const raw = optimalDistance(horse) - APT_X90 * APT_UNDER_SCALE * aptitudeWidth(horse);
+  return Math.max(APT_MIN_DISTANCE, raw);
 }
 
 /**
@@ -113,7 +128,7 @@ export function aptitudeBand(horse) {
   const optimal = optimalDistance(horse);
   const width = aptitudeWidth(horse);
   const lo = aptitudeLowerBound(horse);
-  const hi = optimal + APT_X90 * width;
+  const hi = Math.min(APT_MAX_DISTANCE, optimal + APT_X90 * width);
   return [Math.round(lo / 100) * 100, Math.round(hi / 100) * 100];
 }
 
