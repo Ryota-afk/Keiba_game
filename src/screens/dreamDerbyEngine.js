@@ -58,6 +58,7 @@ import {
   fieldOrder,
   commentaryVars,
   pickCommentaryLine,
+  resetCommentaryHistory,
   fmtStamp,
   positionBandOf,
   positionLabelFor,
@@ -388,6 +389,10 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
         entries,
         selfEntry,
         distanceOfNum: (num) => distanceOf(num, t),
+        // ⭐`moverName`検出用（直近5秒前の隊列を求める。devlog/wave04.md §32）。
+        // `distanceOf(num, t)`はsimの時系列をそのまま引くだけなので、tを変えて呼べば
+        // 任意時刻の距離が取れる。
+        distanceOfNumAt: distanceOf,
         selfDistance: distanceOf(selfEntry.num, t),
         split1000Seconds: sim.split1000,
       }),
@@ -714,6 +719,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
 
   // ===== 起動・破棄 =====
   function start() {
+    resetCommentaryHistory(); // 前のレースの「直前に出した行」の記憶を持ち越さない
     entries.forEach((e) => {
       const el = document.createElement("div");
       el.className = `horse-sprite${e.isSelf ? " is-self" : ""}`;

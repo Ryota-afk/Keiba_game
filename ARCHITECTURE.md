@@ -627,6 +627,27 @@ MAGIシステムでの検討は`devlog/wave02.md`）：
 `domain/dreamDerby.js`の`runDreamDerbyRace`が`resolveChoice`で効果量を引くのに使う
 （位置によって択の組が違うため、択IDだけでは効果量を引けない）。
 
+### 実況は条件（`when`）付きで選ぶ（2026-09-07・devlog/wave04.md §32）
+
+`data/dreamDerbyCommentary.js`の`COMMENTARY`の各行は`{ text, when? }`。`when`が無ければ常に候補。
+`view/dreamDerbyCommentary.js`の`pickCommentaryLine(slot, vars, sayCount)`は`when(vars)`が
+true（またはwhen無し）の行だけの中から選ぶ。**条件を満たす行が1つも無ければ`null`を返し、
+呼び出し元（`screens/dreamDerbyEngine.js`の`say()`）は実況欄に何も足さない**（`sayCount`も
+増やさない）。同じスロットで直前と同じ文言が続かないよう、当たったら次の候補へずらす仕組みを
+`pickCommentaryLine`内に持つ（`resetCommentaryHistory()`をレース開始のたびに呼んで記憶を消す）。
+
+`when(vars)`が見る主な変数（`commentaryVars`が返す。すべて`vars`という1つのオブジェクトの中）：
+- **`selfBand`**：`positionBandOf(selfRank, fieldSize)`の結果（"lead"|"front"|"mid"|"rear"）。
+- **`moverName`/`moverNum`/`moverJockey`/`moverIsSelf`**：直近5秒（`t`から`t-5`まで）で
+  順位を3つ以上上げた馬（無ければ最も上げた馬。閾値未満なら全部null）。simの時系列
+  （`sim.distanceOf(num, t)`をtを変えて2回呼ぶ）から出す——フレームごとの差分ではない。
+  `screens/dreamDerbyEngine.js`の`say()`が`ctx.distanceOfNumAt`として`distanceOf`関数
+  そのものを渡している。⚠️**これを渡し忘れるとmover系は常にnullになる**（エラーにはならない）。
+- **`leaderJockey`**：現在の先頭馬の`jockeyName`（先頭が自分の馬ならnull）。
+- **`leadGap2nd`**：先頭と2番手の距離差(m)。`homage`の「独走」判定（3馬身＝7.2m以上）に使う。
+- **`split1000Seconds`**：先頭が1000mを通過した時刻(秒)。未通過はnull（フォーマット済み文字列の
+  `split1000`とは別に、条件判定用の生の値をそのまま持たせている）。
+
 ### ⚠️ 触ると壊れる：夢のダービーのエンジン（`screens/dreamDerbyEngine.js`）
 
 - **スキップは無い。** 2026-09-04にユーザーが「外す」と決めて`skip()`ごと削除した。
