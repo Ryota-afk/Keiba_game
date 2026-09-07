@@ -8,6 +8,11 @@ import { aptitudeBand, optimalDistance, aptitudeWidth, distanceAptitude }
 const P = process.env.HORSE_DATA_DIR || './data-src/';
 const rows=JSON.parse(fs.readFileSync(P+'final-abilities.json','utf8'));
 const rr=JSON.parse(fs.readFileSync(P+'race-records.json','utf8'));
+// ⚠️適性の証拠に2歳戦を使わない。51頭の1400m以下の勝ち鞍13鞍は全部2歳時（12鞍が新馬・
+// 未勝利）で、当時のデビュー戦が短かっただけ。能力値は完成時の値なので対応しない。
+// ageが無いデータでは全レースを対象にする（その旨を検査結果に出す）。
+const HAS_AGE = Object.values(rr).some(a => a.some(x => x.age != null));
+const mature = x => !HAS_AGE || x.age >= 3;
 const mk=r=>({abilities:{speed:r.speed,stamina:r.stamina,sharpness:r.g[0],grit:r.g[1],
   power:r.g[2],flexibility:r.g[3],health:r.g[4],mentalStrength:r.g[5],wisdom:r.g[6]}});
 const sc=k=>{const n=+k; if(!Number.isInteger(n))return null;
@@ -38,7 +43,7 @@ ok('2 全頭の勝ち距離が帯に', outside.length === 0,
 // 3 勝ち鞍が適正帯に入る割合
 let wi=0,wt=0;
 for(const r of rows){const [lo,hi]=aptitudeBand(mk(r));
-  for(const x of rr[r.name]){ if(x.surface!=='T'||+x.rank!==1)continue; wt++; if(x.dist>=lo&&x.dist<=hi)wi++; }}
+  for(const x of rr[r.name]){ if(x.surface!=='T'||+x.rank!==1||!mature(x))continue; wt++; if(x.dist>=lo&&x.dist<=hi)wi++; }}
 ok('3 勝ち鞍が適正帯に', wi/wt>=0.95, `${wi}/${wt} = ${(wi/wt*100).toFixed(1)}%（合格は95%以上）`);
 
 // 4 長い側の相関
@@ -67,4 +72,17 @@ ok('6 記号の並び', !!s6, `照合用: ${s6.name} パワー=${s6.g[2]} 柔軟
 // 7 外挿の検出
 const st=rows.map(r=>r.stamina), out=rows.filter(r=>r.stamina<47||r.stamina>81);
 ok('7 較正範囲', true, `スタミナ ${Math.min(...st)}〜${Math.max(...st)}／範囲外 ${out.length}頭`);
+
+// 8 抽出の取りこぼし（ページ記載の戦数と抽出本数の照合）
+// ⚠️2026-09-07に11/51頭で取りこぼしが見つかった（主に海外遠征。行の書式が違う）。
+// raceCount（ページ記載の総戦数）が入力にあるときだけ判定する。
+const counted = rows.filter(r => r.raceCount != null);
+if (counted.length) {
+  const short = counted.filter(r => rr[r.name].length !== r.raceCount);
+  ok('8 抽出の取りこぼし', short.length === 0,
+    `${short.length}/${counted.length}頭で戦数が不一致${short.length ? '（' + short.slice(0,5).map(r=>`${r.name} ${rr[r.name].length}/${r.raceCount}`).join('・') + '）' : ''}`);
+} else {
+  ok('8 抽出の取りこぼし', true, 'raceCountが入力に無いので判定を飛ばした');
+}
+
 console.log(fail===0?'\n⭐7項目すべて合格':`\n⚠️${fail}項目が不合格`);
