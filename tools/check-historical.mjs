@@ -12,7 +12,6 @@ const mk=r=>({abilities:{speed:r.speed,stamina:r.stamina,sharpness:r.g[0],grit:r
   power:r.g[2],flexibility:r.g[3],health:r.g[4],mentalStrength:r.g[5],wisdom:r.g[6]}});
 const sc=k=>{const n=+k; if(!Number.isInteger(n))return null;
   return n===1?1:n===2?.75:n===3?.55:n===4?.4:n<=6?.25:n<=9?.1:0;};
-const med=a=>{const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
 let fail=0; const ok=(n,c,m)=>{console.log(`${c?'  合格':'⚠️不合格'}  ${n}: ${m}`); if(!c)fail++;};
 
 // 1 スピードの単調性
@@ -20,19 +19,27 @@ let inv=0;
 for(const a of rows) for(const b of rows) if(a.wp_sp<b.wp_sp && a.speed>b.speed) inv++;
 ok('1 スピードの単調性', inv===0, `逆転 ${inv}組`);
 
-// 2 最適距離の較正のずれ
-const diffs=rows.map(r=>{
-  const recs=rr[r.name].filter(x=>x.surface==='T'&&sc(x.rank)!==null);
-  const wd=recs.reduce((s,x)=>s+sc(x.rank)*x.dist,0)/recs.reduce((s,x)=>s+sc(x.rank),0);
-  return optimalDistance(mk(r))-wd;});
-const md=med(diffs);
-ok('2 最適距離のずれ', Math.abs(md)<=50, `中央値 ${md>0?'+':''}${md.toFixed(0)}m（合格は±50m以内）`);
+// 2 全頭が勝っているレースが適正帯に入るか
+// ⚠️「最適距離 − 全レースの重み付き平均距離」を目標にしてはいけない。2026-09-07に
+// それで較正したところ、51頭全員が勝っている2400mが10頭で適正帯の外に出た。
+// 平均距離は2〜3歳時の短距離戦の本数に引っ張られるだけで、適性を測っていない。
+const COMMON_WIN_DIST = Number(process.env.COMMON_WIN_DIST || 2400);
+const everyoneWon = rows.every(r =>
+  rr[r.name].some(x => x.surface === 'T' && +x.rank === 1 && x.dist === COMMON_WIN_DIST));
+const outside = everyoneWon
+  ? rows.filter(r => { const [lo, hi] = aptitudeBand(mk(r));
+      return COMMON_WIN_DIST < lo || COMMON_WIN_DIST > hi; })
+  : [];
+ok('2 全頭の勝ち距離が帯に', outside.length === 0,
+  everyoneWon
+    ? `${COMMON_WIN_DIST}mが帯の外 ${outside.length}頭${outside.length ? '（' + outside.slice(0,5).map(r=>r.name).join('・') + '）' : ''}`
+    : `全頭が勝っている距離が無いので判定を飛ばした（COMMON_WIN_DISTで指定できる）`);
 
 // 3 勝ち鞍が適正帯に入る割合
 let wi=0,wt=0;
 for(const r of rows){const [lo,hi]=aptitudeBand(mk(r));
   for(const x of rr[r.name]){ if(x.surface!=='T'||+x.rank!==1)continue; wt++; if(x.dist>=lo&&x.dist<=hi)wi++; }}
-ok('3 勝ち鞍が適正帯に', wi/wt>=0.85, `${wi}/${wt} = ${(wi/wt*100).toFixed(1)}%（合格は85%以上）`);
+ok('3 勝ち鞍が適正帯に', wi/wt>=0.95, `${wi}/${wt} = ${(wi/wt*100).toFixed(1)}%（合格は95%以上）`);
 
 // 4 長い側の相関
 const xs=[],ys=[];
