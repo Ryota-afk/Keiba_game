@@ -40,11 +40,25 @@ ok('2 全頭の勝ち距離が帯に', outside.length === 0,
     ? `${COMMON_WIN_DIST}mが帯の外 ${outside.length}頭${outside.length ? '（' + outside.slice(0,5).map(r=>r.name).join('・') + '）' : ''}`
     : `全頭が勝っている距離が無いので判定を飛ばした（COMMON_WIN_DISTで指定できる）`);
 
-// 3 勝ち鞍が適正帯に入る割合
-let wi=0,wt=0;
-for(const r of rows){const [lo,hi]=aptitudeBand(mk(r));
-  for(const x of rr[r.name]){ if(x.surface!=='T'||+x.rank!==1||!mature(x))continue; wt++; if(x.dist>=lo&&x.dist<=hi)wi++; }}
-ok('3 勝ち鞍が適正帯に', wi/wt>=0.95, `${wi}/${wt} = ${(wi/wt*100).toFixed(1)}%（合格は95%以上）`);
+// 3 勝ち鞍での距離適性（⚠️「帯の中に入るか」で測らない。帯を実際の勝ち鞍の幅に
+// 合わせて狭めると、適性0.85で勝った鞍が外に出て不合格になる）
+let ok8=0, wt=0, minApt=1;
+for(const r of rows){const h=mk(r);
+  for(const x of rr[r.name]){ if(x.surface!=='T'||+x.rank!==1||!mature(x))continue;
+    wt++; const a=distanceAptitude(h,x.dist); minApt=Math.min(minApt,a); if(a>=0.8)ok8++; }}
+ok('3 勝ち鞍での距離適性', ok8/wt>=0.95,
+  `0.8以上が ${ok8}/${wt} = ${(ok8/wt*100).toFixed(1)}%・最小 ${minApt.toFixed(3)}（合格は95%以上・${HAS_AGE?'3歳以上':'⚠️全年齢'}）`);
+
+// 3-b 帯が実際の勝ち鞍の幅を超える量（4鞍以上の馬）
+const exc=[];
+for(const r of rows){const h=mk(r);
+  const w=rr[r.name].filter(x=>x.surface==='T'&&+x.rank===1&&mature(x)).map(x=>x.dist);
+  if(w.length<4)continue; const[lo,hi]=aptitudeBand(h);
+  exc.push((hi-lo)-(Math.max(...w)-Math.min(...w)));}
+exc.sort((a,b)=>a-b);
+const medE=exc[Math.floor(exc.length/2)], maxE=exc[exc.length-1];
+ok('3-b 帯が実際の幅を超える量', medE<=300&&maxE<=500,
+  `中央 ${medE>=0?'+':''}${medE}m ・最大 ${maxE>=0?'+':''}${maxE}m（n=${exc.length}・合格は中央+300m以内かつ最大+500m以内）`);
 
 // 4 長い側の相関
 const xs=[],ys=[];
@@ -66,8 +80,10 @@ const bad5=rows.filter(r=>{const[lo,hi]=aptitudeBand(mk(r));
 ok('5 値の範囲', bad5.length===0, `範囲外 ${bad5.length}頭`);
 
 // 6 記号の並び（柔軟とパワーが違う馬を1頭）
-const s6=rows.find(r=>r.g[2]!==r.g[3]);
-ok('6 記号の並び', !!s6, `照合用: ${s6.name} パワー=${s6.g[2]} 柔軟=${s6.g[3]}（アホヌラの表と目視で照合すること）`);
+// ⚠️照合はウイポの元の値で行う。柔軟性は戦績で補正しているので、補正前の flex_wp を使う。
+const s6=rows.find(r=>r.g[2]!==(r.flex_wp??r.g[3]));
+ok('6 記号の並び', !!s6,
+  `照合用: ${s6.name} パワー=${s6.g[2]} 柔軟=${s6.flex_wp??s6.g[3]}${s6.flex_wp?`（補正後は${s6.g[3]}）`:''}（アホヌラの表と目視で照合すること）`);
 
 // 7 外挿の検出
 const st=rows.map(r=>r.stamina), out=rows.filter(r=>r.stamina<47||r.stamina>81);
