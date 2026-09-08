@@ -251,7 +251,16 @@
 .title-horse .f2,
 .title-horse .f3 {
   opacity: 0;
-  animation: 0.3s steps(1, end) infinite;
+  /* ⚠️⚠️一括指定（animation: 0.3s steps(1,end) infinite）で書かないこと。
+     名前を持たない一括指定は仕様上`animation-name: none`と同じ意味なので、
+     ビルドのCSS圧縮が`animation: none`へ畳む。するとanimation-durationが0秒に戻り、
+     後続の`animation-name: th-f1`だけでは戻せず、⭐3コマとも opacity:0 のまま＝
+     **馬の足が消える**。⚠️開発サーバーでは動き、ビルドしたときだけ壊れる。
+     ユーザーから3回指摘された（2026-09-07に原因特定。`devlog/wave05.md`§50）。
+     ⭐個別指定で書けばこの畳み込みは起きない。 */
+  animation-duration: 0.3s;
+  animation-timing-function: steps(1, end);
+  animation-iteration-count: infinite;
 }
 .title-horse .f1 {
   animation-name: th-f1;
