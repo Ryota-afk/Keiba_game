@@ -86,8 +86,11 @@ const KICK_RAMP_SECONDS = 3.0; // 直線で追い出してから全開になる�
 // （実測：逃げ7.6頭が前後5.5m・差し10.0頭が5.9mの中に入っていた）。
 // ⚠️同時に全体を圧縮した（ユーザー決定の案(c)）——⭐画面に映るのは`VIEW_SPAN = 32`mなので、
 // 旧29mでは追込が画面の外に出ていた。帯の上端24mなら収まる。
+// ⚠️2026-09-08に3倍へ広げた（`devlog/wave05.md`§63）。旧0〜24mでは**18頭が20mに収まり、
+// 画面（`VIEW_SPAN` 32m）にレース中ずっと全頭が入って迫力が無く、馬名も重なっていた**
+// （ユーザーの2回目の通しプレイ）。0〜72mなら道中の幅は約56mで画面の1.8倍になる。
 const TARGET_GAP_BAND = Object.freeze({
-  nige: [0, 4], senko: [4, 10], sashi: [10, 17], oikomi: [17, 24],
+  nige: [0, 12], senko: [12, 30], sashi: [30, 51], oikomi: [51, 72],
 });
 /** 帯の中のどこに入るかを決めるときの、精神力の重み（残りは馬ごとに1回引く値）。 */
 const BAND_MENTAL_WEIGHT = 0.4;
@@ -111,6 +114,16 @@ const MOVE_ZONE_TO = 1700; //  この距離までの間で仕掛ける
 const MOVE_RAMP_SECONDS = 15; // 仕掛けてから動ききるまで
 const MAX_MOVES = 2; // 1頭が道中に仕掛ける回数の上限
 
+/** 直線で出せる速さのうち、能力（瞬発力・スピード・勝負根性・パワー）の部分に掛ける倍率。
+ * ⚠️2026-09-08に1→0.30へ下げた（`devlog/wave05.md`§63）。⭐**能力4項だけで18頭の間に
+ * 5.9%＝1.99秒の差が付いていた**のに対し、JRAの日本ダービー10年ぶんの実データでは
+ * **上り3F上位5頭の中の差は0.3秒**（34秒に対し0.9%）。6.6倍広く、上位が僅差にならなかった。 */
+const STRETCH_ABILITY_SCALE = 0.30;
+/** 直線で出せる速さの下限（`vPar`に対する倍率）。⚠️これが無いと、脚が尽きた馬が
+ * 直線でほぼ止まり、上り3Fが55秒などになる（`MAX_SIM_SECONDS`で打ち切られる）。
+ * 0.825は実データの最遅の上り42.1秒（2016年）＝`vPar`の0.867倍を下回る値として置いた。 */
+const STRETCH_VMAX_FLOOR = 0.825;
+
 /** 直線で「脚が尽きて垂れる」境目。⚠️⚠️**0.25のまま動かさないこと**（2026-09-08に掃引して確定）。
  * ⭐ユーザーは案(a)「この境目を上げて前で行った馬を垂れさせる」を選んだが、実測すると
  * **判断カードが意味を失った**：0.25→0.70で「型に合わせる」68.3%→18.3%・「型を外す」も18.3%
@@ -118,7 +131,7 @@ const MAX_MOVES = 2; // 1頭が道中に仕掛ける回数の上限
  * 0.2→0.5になり、瞬発力(0.075)・スピード(0.045)・パワー(0.05)を飲み込むため。
  * ⭐**そして(a)は不要だった**——部品1〜5と目標差の圧縮(c)だけで、道中の位置と着順の関係は
  * ほぼ消えた（道中1〜3番手10.08着・16〜18番手10.42着）。詳細は`devlog/wave05.md`§56。 */
-const GASSED_THRESHOLD = 0.25;
+const GASSED_THRESHOLD = 0.49;
 // 直線で追い出すまでの待ち時間(秒)。逃げほど早く、追込ほど遅い。
 const KICK_DELAY_BY_STRATEGY = Object.freeze({ nige: 0.5, senko: 1.2, sashi: 2.0, oikomi: 2.8 });
 
@@ -325,15 +338,13 @@ export function runRaceSim(input) {
         // 足りない（`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。
         const vMaxMul =
           0.805 +
-          0.075 * tr.ab.sharpness +
-          0.045 * tr.ab.speed +
-          0.2 * e -
-          0.30 * gassed +
-          0.03 * tr.ab.grit +
-          0.05 * tr.ab.power +
+          STRETCH_ABILITY_SCALE *
+            (0.075 * tr.ab.sharpness + 0.045 * tr.ab.speed + 0.03 * tr.ab.grit + 0.05 * tr.ab.power) +
+          0.10 * e -
+          0.55 * gassed +
           0.02 * swing -
           SHORT_VMAX_LOSS * tr.shortfall;
-        vWant = vCruise + effort * (vPar * vMaxMul - vCruise);
+        vWant = vCruise + effort * (vPar * Math.max(STRETCH_VMAX_FLOOR, vMaxMul) - vCruise);
         // ⚠️早く仕掛けるほど脚の減りが跳ね上がる（1.2倍の係数）。ここを小さくすると
         // 「早く仕掛ける」が全部の位置で最善になり、直線の択が選択でなくなる（実測）。
         if (aggression != null) effortMul = 1 + 0.7 * swing;
