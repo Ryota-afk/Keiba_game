@@ -229,9 +229,9 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
             className={`intro-overlay${introActive ? " active" : ""}`}
             onClick={() => engineRef.current?.beginRace()}
           >
-            <div className="intro-eyebrow">東京競馬場　第10レース</div>
+            <div className="intro-eyebrow">東京競馬場　第11レース</div>
             <p className="intro-line">
-              第92回 日本ダービー。
+              日本ダービー。
               <br />
               芝2400メートル、3歳馬18頭。
             </p>
