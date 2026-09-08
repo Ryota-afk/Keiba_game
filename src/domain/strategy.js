@@ -4,23 +4,36 @@
 import { STRATEGIES } from "../data/aptitudeCategories.js";
 import { gradeToNumber } from "../data/grades.js";
 
+// ⭐脚質を決める点数の係数と境目（2026-09-08・`devlog/wave05.md`§56）。
+// 実在のダービー馬51頭の`legStyle`と9軸の相関を測って形を決めた：
+// **瞬発力 +0.625／勝負根性 −0.606**（後ろで走る度合いとの相関）が突出しており、
+// スピード−スタミナは−0.223と従。よって主軸は「瞬発力 − 勝負根性」。
+// ⚠️境目は**架空馬の内訳が実在51頭の割合に近づく**ように決めた（4000頭で
+// 逃げ9.5/先行32.9/差し46.1/追込11.6%。実在51頭は9.8/33.3/45.1/11.8%）。
+// ⚠️スピードとスタミナの生の値は集団ごとに散らばりが違う（実在馬はスピード65〜92・
+// 架空馬は6〜72）ので、主軸には使わず0.1倍の傾きとしてだけ効かせる。
+const LEG_SPEED_TILT = 10; // (スピード−スタミナ)÷100 に掛ける
+const LEG_CUTS = Object.freeze([-5.5, 0, 7]); // 未満で 逃げ／先行／差し、以上で追込
+
 /**
- * 馬の得意脚質を導く。⚠️暫定のヒューリスティック（ARCHITECTURE.md §3は
- * 「瞬発力と勝負根性の大小が脚質を決める」とだけ述べ、4区分への具体的な変換式は
- * 書いていない）。瞬発力(sharpness)と勝負根性(grit)の差で「差し寄り／追込寄り」を、
- * スピード(speed)とスタミナ(stamina)の差で「逃げ寄り／先行寄り」を決める簡易版。
- * 実装が進んだら計測（Q11：9軸それぞれが着順を何着ぶん動かしたか）で見直す。
+ * 馬の得意脚質を導く。⭐**架空馬のための式**——史実馬は`data/derbyHorseAbilities.js`の
+ * `legStyle`（実際に使っていた脚質）を直接使う（`domain/dreamDerby.js`）。
+ * ⚠️2026-09-08に書き直した。それ以前は「スピード≧スタミナなら前へ行く」＋
+ * 「瞬発力＞勝負根性なら差し寄り」の2分岐で、⭐**夢のダービーの18頭が逃げ42.1%・
+ * 先行2.1%・差し55.4%・追込0.4%に偏り、隊列が2つの塊にしかならなかった**
+ * （`devlog/wave05.md`§54）。実在51頭への的中も56.9%（新式は64.7%）。
  * @param {object} horse - `domain/horse.js`の`generateHorse`が返す馬
  * @returns {"nige"|"senko"|"sashi"|"oikomi"}
  */
 export function deriveFavoredStrategy(horse) {
-  const sharpness = gradeToNumber(horse.abilities.sharpness);
-  const grit = gradeToNumber(horse.abilities.grit);
-  const frontRunning = horse.abilities.speed >= horse.abilities.stamina; // 前に行きたいか
-  const closingType = sharpness > grit; // 瞬発力が勝つなら差し・追込寄り
-
-  if (!closingType) return frontRunning ? "nige" : "senko";
-  return frontRunning ? "sashi" : "oikomi";
+  const a = horse.abilities;
+  // 大きいほど後ろで走る
+  const score =
+    gradeToNumber(a.sharpness) - gradeToNumber(a.grit) - (LEG_SPEED_TILT * (a.speed - a.stamina)) / 100;
+  if (score < LEG_CUTS[0]) return "nige";
+  if (score < LEG_CUTS[1]) return "senko";
+  if (score < LEG_CUTS[2]) return "sashi";
+  return "oikomi";
 }
 
 /**

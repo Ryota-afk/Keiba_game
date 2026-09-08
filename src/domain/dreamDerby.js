@@ -27,7 +27,11 @@ export const DREAM_RACE_KEY = "dream-derby";
 // ⚠️2026-09-07の記号8段→16段化で、元の「3段」を単純に据え置くと引き上げ幅が
 // 3/7=42.9%→3/15=20%に半減し、夢の馬が弱くなってしまう。1段の重みが半分になった分だけ
 // 段数を約2.14倍（15/7）して同じ引き上げ幅を保つ：3→6段（6/15=40%、元は3/7=42.9%）。
-const BOOSTED_GRADE_STEPS = 6; // 記号能力を6段引き上げる（上限S+）
+// ⚠️2026-09-08に6→7へ上げた（`devlog/wave05.md`§56）。道中の動きを作り直した結果、
+// レースの結果が道中の位置だけで決まらなくなり、⭐**判断カードを型に合わせたときの1着率が
+// 72.5%→60.0%に落ちた**（目安は7〜8割）。7段にすると70.8%／外したとき10.0%で目安の内側。
+// ⚠️8段にすると記号7軸の62.9%がS+になり、seedごとの違いが消える（7段では49.6%）。
+const BOOSTED_GRADE_STEPS = 7; // 記号能力を7段引き上げる（上限S+）
 // ⭐2026-09-07：相手17頭の能力値は`data/derbyHorseAbilities.js`の実データに差し替えた
 // （ウイニングポストの値を戦績で補正したもの。ユーザー確認済み・CLAUDE.md §17・
 // `devlog/wave05.md`§47）。それ以前の`RIVAL_GRADE_STEPS`/`RIVAL_SPEED_MIN`/
@@ -142,6 +146,10 @@ export function generateDreamRivals(saveSeed) {
       ...base,
       abilities,
       name: record.horse,
+      // ⭐実際に使っていた脚質。`startDreamDerbySim`がこれを最優先で読む（2026-09-08・
+      // `devlog/wave05.md`§56）。⚠️能力値から導く`deriveFavoredStrategy`は架空馬用で、
+      // 実在51頭に当てても的中64.7%にしかならない。持っているデータを使う。
+      legStyle: real.legStyle,
       jockeyName: displayJockeyName(record.jockey),
       trainerName: displayTrainerName(record.trainer),
       derbyYear: record.year,
@@ -190,7 +198,8 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
  */
 export function startDreamDerbySim(saveSeed, entries) {
   const selfNum = entries.find((e) => e.isSelf).num;
-  const plan = buildPlan(entries, (e) => deriveFavoredStrategy(e.horse), selfNum);
+  // ⭐史実馬は実際に使っていた脚質（`legStyle`）を使い、無い馬（＝夢の馬）だけ能力値から導く。
+  const plan = buildPlan(entries, (e) => e.horse.legStyle ?? deriveFavoredStrategy(e.horse), selfNum);
   return runRaceSim({
     seed: saveSeed,
     raceKey: DREAM_RACE_KEY,

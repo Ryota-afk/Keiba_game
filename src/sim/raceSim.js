@@ -62,7 +62,6 @@ export const NORMALIZED_TIME_MAX = 147.5;
 
 const DASH_SECONDS = 3.6; // 発走の加速区間（一番遅い馬が走行速度に届くまで）
 const STRETCH_METERS = 600; // 最終直線として扱う残り距離
-const POSITION_GAIN = 0.3; // 目標位置へ寄る強さ(1/秒)
 const ACCEL_LIMIT = 1.2; // m/s^2（レース中の加速。位置を上げる・追い出すときの上限）
 // ⚠️発走の加速だけは別（実測で7m/s²前後。ゲートから2〜3秒で走行速度に達する）。
 // レース中と同じ1.2m/s²にすると走行速度に達するまで14秒かかり、⭐**全馬が基準ペースより
@@ -71,8 +70,45 @@ const START_ACCEL_LIMIT = 8;
 const DECEL_LIMIT = 1.6; // m/s^2
 const KICK_RAMP_SECONDS = 3.0; // 直線で追い出してから全開になるまで
 
-// 宣言脚質ごとの「先頭からの目標差(m)」（`data/aptitudeCategories.js`のSTRATEGIESと同じ並び）。
-const TARGET_GAP_BY_STRATEGY = Object.freeze({ nige: 3, senko: 9, sashi: 19, oikomi: 29 });
+// 宣言脚質ごとの「先頭からの目標差(m)」の**帯**（`data/aptitudeCategories.js`のSTRATEGIESと同じ並び）。
+// ⭐2026-09-08に1点（逃げ3／先行9／差し19／追込29）から帯へ変えた（`devlog/wave05.md`§56）。
+// ⚠️**1点だと同じ脚質の馬が全部同じ場所を目標にし、隊列が脚質の数だけの塊になる**
+// （実測：逃げ7.6頭が前後5.5m・差し10.0頭が5.9mの中に入っていた）。
+// ⚠️同時に全体を圧縮した（ユーザー決定の案(c)）——⭐画面に映るのは`VIEW_SPAN = 32`mなので、
+// 旧29mでは追込が画面の外に出ていた。帯の上端24mなら収まる。
+const TARGET_GAP_BAND = Object.freeze({
+  nige: [0, 4], senko: [4, 10], sashi: [10, 17], oikomi: [17, 24],
+});
+/** 帯の中のどこに入るかを決めるときの、精神力の重み（残りは馬ごとに1回引く値）。 */
+const BAND_MENTAL_WEIGHT = 0.4;
+
+/** 位置を守る強さ（`POSITION_GAIN`）の下限と幅。賢い馬ほどぴたりと位置を守る。
+ * ⚠️2026-09-08まで全馬0.3の固定値だった＝**ずれたときの戻り方が18頭とも同一**で、
+ * 動きの形に馬ごとの違いが出なかった（`devlog/wave05.md`§54）。 */
+const POSITION_GAIN_MIN = 0.15;
+const POSITION_GAIN_SPAN = 0.3;
+
+/** 道中の揺れ。⚠️2026-09-08まで`2.5 × sin(2π(t/周期 + 位相))`の**正弦波1本**だった
+ * ＝画面上で30px幅の往復運動になり、ユーザーから「楕円状の動き」と指摘された。
+ * ⭐0.25秒ごとに前の値を`WANDER_KEEP`だけ残す形に変えた（向きが変わるまで約3秒）。 */
+const WANDER_KEEP = 0.92;
+const WANDER_KICK = 1.4; // 一様乱数3つの和−1.5（ばらつき0.5）に掛ける。定常のばらつきは約1.8m
+
+/** 道中に馬が自分から位置を変える（仕掛け）。⚠️2026-09-08まで**無かった**——
+ * 道中80秒で順位が1頭あたり1.33番しか動かず、その場で震えているだけに見えていた。 */
+const MOVE_ZONE_FROM = 1000; // この距離を過ぎてから
+const MOVE_ZONE_TO = 1700; //  この距離までの間で仕掛ける
+const MOVE_RAMP_SECONDS = 15; // 仕掛けてから動ききるまで
+const MAX_MOVES = 2; // 1頭が道中に仕掛ける回数の上限
+
+/** 直線で「脚が尽きて垂れる」境目。⚠️⚠️**0.25のまま動かさないこと**（2026-09-08に掃引して確定）。
+ * ⭐ユーザーは案(a)「この境目を上げて前で行った馬を垂れさせる」を選んだが、実測すると
+ * **判断カードが意味を失った**：0.25→0.70で「型に合わせる」68.3%→18.3%・「型を外す」も18.3%
+ * ＝どちらを選んでも同じになる。理由は、境目を上げると`vMaxMul`の中で残りの脚の傾きが
+ * 0.2→0.5になり、瞬発力(0.075)・スピード(0.045)・パワー(0.05)を飲み込むため。
+ * ⭐**そして(a)は不要だった**——部品1〜5と目標差の圧縮(c)だけで、道中の位置と着順の関係は
+ * ほぼ消えた（道中1〜3番手10.08着・16〜18番手10.42着）。詳細は`devlog/wave05.md`§56。 */
+const GASSED_THRESHOLD = 0.25;
 // 直線で追い出すまでの待ち時間(秒)。逃げほど早く、追込ほど遅い。
 const KICK_DELAY_BY_STRATEGY = Object.freeze({ nige: 0.5, senko: 1.2, sashi: 2.0, oikomi: 2.8 });
 
@@ -160,10 +196,34 @@ export function runRaceSim(input) {
       // 判断カードで覆せる量の倍率。`arch/race-sim.md`「覆せる量＝基準幅×馬の賢さ×騎手の度胸×疲労」。
       // ⚠️夢のダービーは騎手＝トップジョッキー・疲労なしなので、今は賢さだけが効く。
       cardScale: 0.7 + 0.6 * ab.wisdom,
-      baseGap: TARGET_GAP_BY_STRATEGY[strategy] ?? 18,
-      gapJitter: (rand01() - 0.5) * 6,
-      wanderPhase: rand01(),
-      wanderPeriod: 11 + rand01() * 6,
+      // 部品2：脚質の帯の中の1点。精神力が高いほど帯の前寄りに付ける。
+      baseGap: (() => {
+        const [lo, hi] = TARGET_GAP_BAND[strategy] ?? TARGET_GAP_BAND.sashi;
+        const frac = (1 - BAND_MENTAL_WEIGHT) * rand01() + BAND_MENTAL_WEIGHT * (1 - ab.mentalStrength);
+        return lo + (hi - lo) * frac;
+      })(),
+      // 部品3：位置を守る強さ。
+      posGain: POSITION_GAIN_MIN + POSITION_GAIN_SPAN * ab.wisdom,
+      // 部品4：揺れを引く乱数（積分の中で毎ステップ消費する。⚠️消費の順番が変わると
+      // `resumeRaceSim`のフォーク前が一致しなくなるので、位相に関わらず必ず引くこと）。
+      wanderRand: streamRandom(seed, RNG_STREAMS.SIM, raceKey, "wander", e.num),
+      // 部品5：道中の仕掛け。回数は0/1/2、地点はMOVE_ZONE_FROM〜TOの間。
+      moves: (() => {
+        const r = rand01();
+        const count = r < 0.3 ? 0 : r < 0.8 ? 1 : 2;
+        const front = strategy === "nige" || strategy === "senko";
+        const out = [];
+        for (let k = 0; k < count; k += 1) {
+          const at = MOVE_ZONE_FROM + (MOVE_ZONE_TO - MOVE_ZONE_FROM) * rand01();
+          // 前で運ぶ馬はまれに下げるだけ。後ろの馬は前へ上がる（負＝目標差が縮む＝前へ）。
+          const size = 0.7 + 0.6 * ab.mentalStrength;
+          const delta = front
+            ? (rand01() < 0.2 ? (2 + 3 * rand01()) * size : -(1 + 2 * rand01()) * size)
+            : -(3 + 6 * rand01()) * size;
+          out.push({ at, delta });
+        }
+        return out.sort((a, b) => a.at - b.at);
+      })(),
       kickDelay: (KICK_DELAY_BY_STRATEGY[strategy] ?? 2) + (rand01() - 0.5) * 0.8,
       weight: weightFactor(REFERENCE_WEIGHT_KG, distance),
     };
@@ -189,6 +249,9 @@ export function runRaceSim(input) {
   // 適正距離を下回るレースで道中に後ろへずれた量(m)。道中でのみ更新し、直線に入ってからは
   // 最後の値を保持する（`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。
   const lagNow = new Float64Array(n);
+  // 部品4の揺れの現在値と、部品5の仕掛けが始まった時刻（-1＝まだ始まっていない）。
+  const wanderNow = new Float64Array(n);
+  const moveStartT = new Float64Array(n * MAX_MOVES).fill(-1);
   let dRef = 0;
   let lastStep = steps - 1;
 
@@ -215,6 +278,10 @@ export function runRaceSim(input) {
     for (let i = 0; i < n; i += 1) {
       const tr = traits[i];
       const isSelf = i === selfIndex;
+      // ⚠️位相に関わらず毎ステップ必ず引く（乱数の消費順を固定してフォークを一致させる）。
+      wanderNow[i] =
+        WANDER_KEEP * wanderNow[i] +
+        WANDER_KICK * (tr.wanderRand() + tr.wanderRand() + tr.wanderRand() - 1.5);
       let effortMul = 1;
       let vWant;
 
@@ -237,7 +304,7 @@ export function runRaceSim(input) {
         const e = clamp(energy[i], 0, 1);
         // ⭐脚が0.25を切ると落ち方が急になる（垂れる）。⚠️ここが線形だと「早く仕掛ける」の
         // 損得が全ての馬で同じになり、直線の択が馬の状態と無関係な一択に潰れる（実測）。
-        const gassed = Math.max(0, 0.25 - e);
+        const gassed = Math.max(0, GASSED_THRESHOLD - e);
         // ⚠️適正距離を下回るレースでは、道中ついていけないだけでなく直線の伸びそのものが
         // 足りない（`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。
         const vMaxMul =
@@ -263,21 +330,28 @@ export function runRaceSim(input) {
           isSelf && t >= midMoveAt ? clamp((t - midMoveAt) / CARD_RAMP_SECONDS, 0, 1) : 1;
         const swing =
           (aggression - NEUTRAL_MID_AGGRESSION) * (isSelf ? tr.cardScale : 1) * cardRamp;
-        const wander =
-          2.5 * Math.sin(2 * Math.PI * (t / tr.wanderPeriod + tr.wanderPhase));
         // 適正距離を下回るレースでは、道中のペースについていけず後ろへ下がる
         // （`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。⚠️速度のクランプ
-        // （0.86〜1.13倍）にも`POSITION_GAIN`にも触らない——触ると隊列が固まる（下のコメント参照）。
+        // （0.86〜1.13倍）には触らない——触ると隊列が固まる（下のコメント参照）。
         const lag =
           tr.shortfall > 0
             ? SHORT_LAG_METERS * tr.shortfall * clamp((t - DASH_SECONDS) / SHORT_LAG_SECONDS, 0, 1)
             : 0;
         lagNow[i] = lag;
-        const targetGap = tr.baseGap + tr.gapJitter + wander + lag - swing * 62;
+        // 部品5：仕掛けた地点を通過したら、そこからMOVE_RAMP_SECONDSかけて目標を動かす。
+        let moveOffset = 0;
+        for (let k = 0; k < tr.moves.length; k += 1) {
+          const key = i * MAX_MOVES + k;
+          if (moveStartT[key] < 0 && d[i] >= tr.moves[k].at) moveStartT[key] = t;
+          if (moveStartT[key] >= 0) {
+            moveOffset += tr.moves[k].delta * clamp((t - moveStartT[key]) / MOVE_RAMP_SECONDS, 0, 1);
+          }
+        }
+        const targetGap = tr.baseGap + wanderNow[i] + lag + moveOffset - swing * 62;
         // ⚠️目標差を0で頭打ちにしないこと。0にすると**逃げ馬が全頭まったく同じ位置に重なり、
         // 画面上で1頭も動かなくなる**（実測：7頭が50秒間ぴったり0.00m差）。前に出る余地を残す。
         const err = dRef - Math.max(-8, targetGap) - d[i];
-        vWant = clamp(vField + POSITION_GAIN * err, vField * 0.86, vField * 1.13);
+        vWant = clamp(vField + tr.posGain * err, vField * 0.86, vField * 1.13);
         if (isSelf) effortMul = 1 + 1.2 * swing;
       }
 
