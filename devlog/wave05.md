@@ -922,3 +922,29 @@ C（競馬の言葉28語）を`tools/check-words.mjs`・`arch/report-check.md`�
 700ms＝0.86／0.57px、2500ms＝**1.00／0px**であることを実測。⚠️`filter: blur(0)`はビルドの
 圧縮で`blur()`になるが、実測で0pxになることを確認した（`blur()`は0と同じ）。
 スクリーンショットで、記号だけが出て続きの文字がぼやけている絵を目視した。JSエラー0件。
+
+## §60 2回目の通しプレイ用に公開した（2026-09-08）
+
+`https://claude.ai/code/artifact/f7721298-1fd2-4566-bbff-1c517bd4161d`
+
+### 渡す前に確かめたこと
+
+- `npm run build`が通る。`dist/index.html`から`<title>`／`<link>`／`<style>`／`<body>`の中身／
+  `<script>`を取り出して組み直した（`scratchpad/mkartifact.mjs`）。267KB
+- ⚠️⚠️**手元の検査用ファイルには`viewport`の`<meta>`が無く、`dist`と寸法が食い違っていた**
+  （タイトル画面の高さ1668px 対 664px）。アーティファクトの外枠は`charset`と`viewport`の
+  `<meta>`を必ず付けるので、検査時は`page.evaluate`で同じものを入れてから測る。
+  ⭐入れると664/568/664で`dist`と完全に一致した（`scratchpad/cmp-title.mjs`）。
+- Playwrightで最後まで通した（タイトル→夢のダービー→判断カード2回→掲示板→目覚め→卒業式→
+  名前入力→選択肢→週の画面）。**JSエラー0件。**
+- タイトル画面の馬の足：3コマとも`animation-duration: .3s`／名前`th-f1`〜`th-f3`が生きており、
+  ある瞬間に3頭ぶん3コマが見えていることを確認（⚠️`devlog/wave05.md`§50の再発防止）。
+- 公開後のHTMLを取得して、`viewport`の`<meta>`・`<title>`・`.lead-body`の動き・
+  `.title-horse .f1`の個別指定が全部入っていることを確認した。
+- スクリーンショットを目視（タイトル画面・夢の入り・道中・週の画面）。
+
+### ⚠️今回のプレイで目に入るが、直していないもの
+
+- **週の画面が仮のまま**（`rookie`／`dirtintermediate`／`turflong`など開発の言葉がそのまま）。
+  `TODO.md` #65・本筋3の範囲。
+- **発走前に18頭の馬名が重なる**（`TODO.md` #66）。
