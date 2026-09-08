@@ -50,6 +50,16 @@ const SHORT_VMAX_LOSS = 0.02;
  * 68.5%／17.0%になるが、まだ速く走っていない馬に満額の消耗を課すことになる。 */
 const CARD_RAMP_SECONDS = 20;
 
+/** 道中の判断カードが目標の位置を動かす量(m)＝`積極性の中立値からの差 × この値`。
+ * ⚠️2026-09-08に62→18へ下げた（`devlog/wave05.md`§57）。62は目標差が逃げ3〜追込29mだった
+ * ころの値で、⭐**帯を0〜24mへ圧縮したあとは「まくっていく」も「外に出す」もどちらも
+ * 1番手まで行ってしまい、2つの択の結果が同じになっていた**（実測：両方とも中央値で
+ * 5番手ぶん前・直線入口1.0番手）。18頭が24mに並ぶので1番手あたり約1.3m。
+ * ⭐**22mは16通り（道中4×直線4）を全部試して決めた値**——一番良い選び方70.0%／
+ * 適当に選ぶ50.5%／一番悪い選び方21.0%で、目安（7〜8割／2〜3割）の内側に入る。
+ * ⚠️18mだと66.0%／21.0%（上が足りない）、26mだと75.0%／17.0%（下が足りない）。 */
+const CARD_MOVE_METERS = 22;
+
 /** サンプル間隔(秒)。2400mなら約600ステップ。 */
 export const SIM_DT = 0.25;
 /** 打ち切り時間(秒)。全馬がゴールしたらそこで止める。 */
@@ -117,10 +127,16 @@ export const NEUTRAL_MID_AGGRESSION = 0.35;
 export const NEUTRAL_STRETCH_AGGRESSION = 0.4;
 
 /**
- * 道中の択の積極性。`forward`（前へ行く）が主、`effect`（`data/judgmentSituations.js`）が従。
- * @param {{forward?:boolean, effect?:number}} move
+ * 道中の択の積極性（0〜1）。⭐**`data/judgmentSituations.js`の`aggression`をそのまま読む。**
+ * ⚠️2026-09-08にこの形へ変えた（`devlog/wave05.md`§57）。それ以前は`forward`（前へ行く）を
+ * 主・`effect`を従とする式で、`forward: false`の択が一律0.15になっていた。
+ * ⭐中立値（カード未選択）は0.35なので、**位置を動かさないはずの択が中立値を下回り、
+ * 中団で「内で待つ」を選ぶと8.1番手ぶん下がっていた**（71回中71回・最大11番手）。
+ * ⚠️`aggression`を持たない択（通常レースの`SITUATIONS`）は従来の式で計算する。
+ * @param {{aggression?:number, forward?:boolean, effect?:number}} move
  */
 export function midAggressionOf(move) {
+  if (typeof move?.aggression === "number") return Math.max(0, Math.min(1, move.aggression));
   const base = move?.forward ? 0.55 : 0.15;
   return Math.max(0, Math.min(1, base + (move?.effect ?? 0) * 0.08));
 }
@@ -347,7 +363,7 @@ export function runRaceSim(input) {
             moveOffset += tr.moves[k].delta * clamp((t - moveStartT[key]) / MOVE_RAMP_SECONDS, 0, 1);
           }
         }
-        const targetGap = tr.baseGap + wanderNow[i] + lag + moveOffset - swing * 62;
+        const targetGap = tr.baseGap + wanderNow[i] + lag + moveOffset - swing * CARD_MOVE_METERS;
         // ⚠️目標差を0で頭打ちにしないこと。0にすると**逃げ馬が全頭まったく同じ位置に重なり、
         // 画面上で1頭も動かなくなる**（実測：7頭が50秒間ぴったり0.00m差）。前に出る余地を残す。
         const err = dRef - Math.max(-8, targetGap) - d[i];

@@ -285,7 +285,7 @@ SVGマークアップ）・`src/view/dreamDerbyCommentary.js`（実況の文組�
 | 寄る強さ | ⭐**馬ごとに違う**。賢いほどぴたりと守る | `POSITION_GAIN_MIN` 0.15 ＋ `POSITION_GAIN_SPAN` 0.3 × 賢さ |
 | 揺れ | 0.25秒ごとに前の値を`WANDER_KEEP`残す。⚠️**正弦波にしないこと**——往復運動に見える | `WANDER_KEEP` 0.92・`WANDER_KICK` 1.4（定常のばらつき約1.8m） |
 | 仕掛け | 各馬0〜2回。残り1400〜700mの固定地点から15秒かけて目標を動かす。後ろの馬は前へ、前の馬はまれに下げる | `MOVE_ZONE_FROM` 1000・`MOVE_ZONE_TO` 1700・`MOVE_RAMP_SECONDS` 15・`MAX_MOVES` 2 |
-| 判断カード | 目標差を`積極性 × 62m`ぶん動かす。`CARD_RAMP_SECONDS`（20秒）かけて | `CARD_RAMP_SECONDS` 20 |
+| 判断カード | 目標差を`(積極性 − 0.35) × 賢さ倍率 × 22m`ぶん動かす。`CARD_RAMP_SECONDS`かけて | `CARD_MOVE_METERS` 22・`CARD_RAMP_SECONDS` 20 |
 
 ⚠️**帯の上端24mは`VIEW_SPAN`（画面に映る32m）に収めるための値**。旧29mでは追込が画面外だった。
 ⚠️**脚質は史実馬なら`data/derbyHorseAbilities.js`の`legStyle`を使う**（`domain/dreamDerby.js`）。
@@ -343,7 +343,7 @@ patchを`tFork`以降にだけ効かせる**。⭐**フォーク前の距離は1
 
 | 局面 | 効くもの |
 |---|---|
-| 道中 | 目標差を`積極性 × 62m`ぶん前へ／後ろへ。消耗は`1 + 1.2 × 積極性`倍 |
+| 道中 | 目標差を`積極性 × CARD_MOVE_METERS(22m)`ぶん前へ／後ろへ。消耗は`1 + 1.2 × 積極性`倍。⭐**積極性は`data/judgmentSituations.js`の`aggression`をそのまま読む**（中立値0.35。位置を動かさない択はこの値ちょうど） |
 | 直線 | 追い出しを`3.0 − 9.0 × 積極性`秒後にする（0秒未満は0）。消耗は`1 + 0.7 × 積極性`倍。出せる速度に`0.02 × 積極性` |
 
 「積極性」は択の`forward`／`early`（`data/judgmentSituations.js`）を主、`effect`を従として

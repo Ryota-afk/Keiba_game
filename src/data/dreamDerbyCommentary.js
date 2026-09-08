@@ -194,32 +194,51 @@ export const COMMENTARY = {
     { text: "どんなもんだい、{self}！" }, // 元ネタ5
   ],
   choiceReact: {
-    // ===== 中団（Pack）。`domain/judgmentCard.js`の`dreamMidPack`/`dreamStretchPack`が
-    // 元の（位置分岐導入前の）ID をそのまま使うため、このIDだけ道中・直線の両方から引かれる。
-    holdInside: [
-      { text: "{self}、内で待つ構え。進路が開くのを待ちます。" },
-      { text: "{self}は動きません。{selfRank}番手の内で、じっと我慢。" },
-      { text: "{self}、内に潜ったまま。脚を溜める判断です。" },
-      { text: "内で我慢する{self}。前が開くかどうかは、前の馬次第です。" },
+    // ===== 道中の8択（2026-09-08にユーザーと合意。`devlog/wave05.md`§57）。
+    // 前・中団・後方は同じ4択なので、この4キーが3つの位置から引かれる。
+    makuru: [
+      { text: "{self}、まくって上がる。" },
+      { text: "動いた。{self}、外から一気に。" },
+      { text: "{self}が{selfRank}番手から前へ。まくりです。" },
+      { text: "{self}、大きく位置を上げにいく。" },
     ],
-    takeOutside: [
-      { text: "{self}、外に持ち出しました。進路を確保します。" },
-      { text: "{self}が外へ。{selfRank}番手から、外に出して進路を取りました。" },
-      { text: "外に出した{self}。外を回るぶん距離は長くなりますが、前は開いています。" },
-      { text: "{self}、馬群の外へ。もう前をふさがれる心配はありません。" },
+    moveOutside: [
+      { text: "{self}、外へ。" },
+      { text: "{self}が外に持ち出した。" },
+      { text: "外に出した{self}。" },
+      { text: "{self}、馬群の外。少しずつ前へ。" },
+    ],
+    holdInside: [
+      { text: "{self}、動かない。" },
+      { text: "{self}は内で我慢。{selfRank}番手のまま。" },
+      { text: "内に潜ったままの{self}。脚を溜めます。" },
+      { text: "{self}、じっとしている。前が開くのを待つ。" },
     ],
     dropBack: [
-      { text: "{self}、一列下げて外へ回します。" },
-      { text: "{self}が下げました。{selfRank}番手まで下がって、外に持ち出す構え。" },
-      { text: "位置を下げた{self}。外から自由に動ける形を取りました。" },
-      { text: "{self}、後ろに下げて外へ。追い出すのは遅くなりますが、進路は開けました。" },
+      { text: "{self}、下げた。" },
+      { text: "{self}が位置を下げます。{selfRank}番手。" },
+      { text: "一列下げた{self}。早いと見たか。" },
+      { text: "{self}、後ろへ。ここは我慢します。" },
     ],
-    splitField: [
-      { text: "{self}、馬群を割って前へ。" },
-      { text: "{self}が馬群の間を突いて上がっていく。" },
-      { text: "馬群を割る{self}。狭いところを抜けて{selfRank}番手へ。" },
-      { text: "{self}、内と外の馬の間へ。強気の騎乗です。" },
+    pushPace: [
+      { text: "{self}、後ろを離しにかかる。" },
+      { text: "{self}、これは大逃げの形。" },
     ],
+    keepGoing: [
+      { text: "{self}、このまま先頭。" },
+      { text: "{self}が引っ張ります。" },
+    ],
+    easeOff: [
+      { text: "{self}、息を入れた。" },
+      { text: "先頭{self}、手綱を緩めた。2番手は{second}。" },
+    ],
+    sitBack: [
+      { text: "{self}、控えた。先頭を譲ります。" },
+      { text: "{self}が下がる。前は{second}。" },
+    ],
+
+    // ===== 中団（Pack）。`domain/judgmentCard.js`の`dreamMidPack`/`dreamStretchPack`が
+    // 元の（位置分岐導入前の）ID をそのまま使うため、このIDだけ道中・直線の両方から引かれる。
     goNow: [
       { text: "{self}、ここで追い出した。早めの仕掛けです。" },
       { text: "{self}が動いた。直線の入り口で先頭を奪いにいきます。" },
@@ -246,54 +265,6 @@ export const COMMENTARY = {
     ],
     // ===== 先頭・前・後方×道中・直線の新規24択（devlog/wave04.md §32）。
     // 1択につき2行（本筋の遅延を避けるための意図的な縮小。先送りではない）。
-    keepGoing: [
-      { text: "{self}、このまま先頭。" },
-      { text: "{self}が引っ張ります。ペースは変えない。" },
-    ],
-    easeOff: [
-      { text: "{self}、少し緩めた。2番手{second}が近づく。" },
-      { text: "先頭{self}、手綱を緩めた。" },
-    ],
-    pickUpPace: [
-      { text: "{self}がペースを上げた。後ろを離しにかかる。" },
-      { text: "先頭{self}、ここで速くした。" },
-    ],
-    lookBack: [
-      { text: "{self}、後ろを見た。2番手は{second}。" },
-      { text: "新人が振り返った。後ろとの差を確かめています。" },
-    ],
-    stayAsIs: [
-      { text: "{self}、{selfRank}番手のまま。" },
-      { text: "{self}は動かず。{leader}の後ろ。" },
-    ],
-    drawLevel: [
-      { text: "{self}が{leader}に並びかける。" },
-      { text: "{self}、前へ。{leader}に並んだ。" },
-    ],
-    moveOutside: [
-      { text: "{self}、外に出した。" },
-      { text: "{self}が外へ。前は開いています。" },
-    ],
-    waitInside: [
-      { text: "{self}、内で待つ。前は{leader}。" },
-      { text: "内で我慢の{self}。{selfRank}番手。" },
-    ],
-    moveUpOutside: [
-      { text: "{self}、外から上がっていく。" },
-      { text: "後方から{self}が動いた。外を回って前へ。" },
-    ],
-    waitInsideRear: [
-      { text: "{self}、後方の内で待つ。" },
-      { text: "{self}は{selfRank}番手のまま内で待ちます。" },
-    ],
-    moveEarly: [
-      { text: "{self}が早めに動いた。{selfRank}番手から前へ。" },
-      { text: "後方の{self}、ここで動く。" },
-    ],
-    waitToEnd: [
-      { text: "{self}、まだ動かない。直線まで待ちます。" },
-      { text: "{self}は後ろで待つ構え。" },
-    ],
     pushNow: [
       { text: "{self}、追い出した。先頭で押し切りにかかる。" },
       { text: "先頭{self}に鞭が入った。" },

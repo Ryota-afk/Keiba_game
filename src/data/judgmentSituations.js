@@ -14,6 +14,15 @@ export const SITUATIONS = Object.freeze([
 
 // 各状況2〜4択（ARCHITECTURE.md §5「択の数｜状況で2〜4」）。
 // choiceの`effect`は仮のボーナス値（`domain/raceOutcome.js`のスコアに加算する）。
+// 道中の共通4択（前・中団・後方）。「どれだけ前へ動くか」の1本の並び。
+// ⚠️`aggression`の中立値0.35＝カードを選ばなかったとき。「内で待つ」はここちょうど。
+const DREAM_MID_CHOICES = Object.freeze([
+  { id: "makuru", label: "まくっていく", aggression: 0.75, forward: true },
+  { id: "moveOutside", label: "外に出す", aggression: 0.5, forward: true },
+  { id: "holdInside", label: "内で待つ", aggression: 0.35, forward: false },
+  { id: "dropBack", label: "位置を下げる", aggression: 0.15, forward: false },
+]);
+
 export const SITUATION_CHOICES = Object.freeze({
   boxed: [
     { id: "wait", label: "じっと待つ", effect: 0 },
@@ -47,37 +56,23 @@ export const SITUATION_CHOICES = Object.freeze({
   // ⚠️`forward`（道中）／`early`（直線）はプレイヤーの択から戦法（脚質）を導く2軸タグ
   // （`domain/graduation.js`の`strategyFromDreamChoices`が使う）。持たせないと、
   // どの状況のカードが出たかに関わらず脚質を決められない。
+  // ⭐2026-09-08に作り直した（ユーザー決定「案A」・`devlog/wave05.md`§57）。
+  // **前・中団・後方は同じ4択**（`DREAM_MID_CHOICES`）、**先頭だけ別**。
+  // ⚠️先頭で「まくっていく」は前に馬がいないので成り立たない、が分ける理由。
+  // ⚠️`aggression`は`sim/raceSim.js`の`midAggressionOf`が直接読む値（0〜1）。
+  // ⭐**中立値は0.35**（カードを選ばなかった状態）。位置を動かさない択はこの値ちょうどにする
+  // ——⚠️それ以前は`forward: false`の択が一律0.15で、**「内で待つ」を選ぶと中団から
+  // 8.1番手ぶん下がっていた**（71回中71回・最大11番手。`devlog/wave05.md`§54）。
+  // ⚠️`forward`は卒業式の戦法4分類（`domain/graduation.js`）が読むタグで、simは読まない。
   dreamMidLead: [
-    // 先頭（1番手）。前へ出るのは「ペースを上げる」だけ、残りは今の位置を動かさない。
-    { id: "keepGoing", label: "このまま行く", effect: 0, forward: false },
-    { id: "easeOff", label: "少し緩める", effect: -1, forward: false },
-    { id: "pickUpPace", label: "ペースを上げる", effect: 2, forward: true },
-    { id: "lookBack", label: "後ろを見る", effect: 0, forward: false },
+    { id: "pushPace", label: "後続を離す", aggression: 0.75, forward: true },
+    { id: "keepGoing", label: "このまま行く", aggression: 0.35, forward: false },
+    { id: "easeOff", label: "息を入れる", aggression: 0.25, forward: false },
+    { id: "sitBack", label: "控える", aggression: 0.1, forward: false },
   ],
-  dreamMidFront: [
-    // 前（2〜4番手）。
-    { id: "stayAsIs", label: "このまま", effect: 0, forward: false },
-    { id: "drawLevel", label: "並びかける", effect: 1, forward: true },
-    { id: "moveOutside", label: "外に出す", effect: 1, forward: true },
-    { id: "waitInside", label: "内で待つ", effect: 0, forward: false },
-  ],
-  dreamMidPack: [
-    // 中団。⚠️IDは元の（位置分岐を導入する前の）`dreamMid`と同じ4つを再利用している——
-    // `data/dreamDerbyCommentary.js`の`choiceReact.holdInside`等（選択直後の反応実況）が
-    // このIDで引かれるため、IDを変えると中団の反応実況だけ静かに消える
-    // （実況の文言そのものは変えない、という依頼の範囲を守るため）。
-    { id: "holdInside", label: "内で待つ", effect: 0, forward: false },
-    { id: "takeOutside", label: "外へ出す", effect: 1, forward: true },
-    { id: "dropBack", label: "下げて外へ", effect: -1, forward: true },
-    { id: "splitField", label: "間を割る", effect: 3, forward: true },
-  ],
-  dreamMidRear: [
-    // 後方（最後方寄り）。
-    { id: "moveUpOutside", label: "外から上がる", effect: 2, forward: true },
-    { id: "waitInsideRear", label: "内で待つ", effect: 0, forward: false },
-    { id: "moveEarly", label: "早めに動く", effect: 1, forward: true },
-    { id: "waitToEnd", label: "最後まで待つ", effect: -1, forward: false },
-  ],
+  dreamMidFront: DREAM_MID_CHOICES,
+  dreamMidPack: DREAM_MID_CHOICES,
+  dreamMidRear: DREAM_MID_CHOICES,
   dreamStretchLead: [
     // 先頭のまま直線へ。
     { id: "pushNow", label: "すぐ追い出す", effect: 1, early: true },
@@ -86,7 +81,7 @@ export const SITUATION_CHOICES = Object.freeze({
     { id: "driftOut", label: "外に出す", effect: 0, early: false },
   ],
   dreamStretchFront: [
-    { id: "drawLevelNow", label: "今並びかける", effect: 1, early: true },
+    { id: "drawLevelNow", label: "早めに仕掛ける", effect: 1, early: true },
     { id: "swingOutside", label: "外へ出す", effect: 2, early: false },
     { id: "passInside", label: "内から抜く", effect: 3, early: true },
     { id: "waitMore", label: "もう少し待つ", effect: 0, early: false },

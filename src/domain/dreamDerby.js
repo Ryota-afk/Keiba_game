@@ -220,6 +220,8 @@ export function choiceTagsOf(situationId, choiceId) {
     forward: !!choice?.forward,
     early: !!choice?.early,
     effect: choice?.effect ?? 0,
+    // ⭐道中の択は`aggression`をそのまま渡す（`sim/raceSim.js`の`midAggressionOf`が読む）。
+    ...(typeof choice?.aggression === "number" ? { aggression: choice.aggression } : {}),
   };
 }
 
