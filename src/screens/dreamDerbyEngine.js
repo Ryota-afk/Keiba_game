@@ -681,11 +681,19 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   function beginRace() {
     if (raceStarted) return;
     raceStarted = true;
-    say("gateIn", 0);
     callbacks.setActiveTab("messages");
     callbacks.setIntroActive(false);
-    raceTimeout(() => resumeClock(), 550);
-    raceTimeout(tutCameraMilestone, 3000);
+    // ⭐夢の入りの1行はここで出す（`devlog/wave05.md`§59）。⚠️`start()`で出していたころは
+    // レース前の画面（不透明・`inset: 0`）の裏で浮かび上がりが終わり、⭐**プレイヤーが
+    // 画面をタップしたときには既に3行目まで積まれていて、小さく薄い行になっていた。**
+    // 浮かび上がる1.6秒のあいだ、この行を最新行（大きい白文字）のままにする。
+    say("intro", 0);
+    raceTimeout(() => {
+      say("fieldIntro", 0);
+      say("gateIn", 0);
+    }, 1700);
+    raceTimeout(() => resumeClock(), 2250);
+    raceTimeout(tutCameraMilestone, 4700);
   }
 
   // ===== 左下の丸ボタン3つ（カメラ・表示・速度）。表示切替そのものはReact側のCSSクラスで行い、
@@ -755,8 +763,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     }
     renderWorld(0);
     updateHudDom();
-    say("intro", 0);
-    say("fieldIntro", 0);
+    // ⚠️実況の1行目は`beginRace`で出す（レース前の画面の裏で流れてしまうため）。
     raceTimeout(beginRace, 3200);
     lastTick = performance.now();
     rafId = requestAnimationFrame(tickClock);

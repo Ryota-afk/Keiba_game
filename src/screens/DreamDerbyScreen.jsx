@@ -7,6 +7,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "../domain/dreamDerby.js";
 import { createDreamDerbyEngine } from "./dreamDerbyEngine.js";
+import { DREAM_FADE_MARK } from "../data/dreamDerbyCommentary.js";
 import "./DreamDerbyScreen.css";
 
 const DISPLAY_STATES = ["馬名", "馬番", "非表示"];
@@ -90,7 +91,11 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
       cardPanel: cardPanelRef.current,
     };
     const callbacks = {
-      appendMessage: (text, stamp) => setMessages((prev) => [{ text, stamp }, ...prev]),
+      // ⚠️`id`を付けて`key`に使う（`key={i}`だと**先頭に足すたびに全行のkeyがずれ**、
+      // Reactが別の行のDOMを使い回して`.lead-body`の浮かび上がりが何度も出直す。
+      // 2026-09-08に実測：2.2秒後の不透明度が1.00→0.89へ戻っていた）。
+      appendMessage: (text, stamp) =>
+        setMessages((prev) => [{ id: (prev[0]?.id ?? 0) + 1, text, stamp }, ...prev]),
       setTutorial: (v) => setTutorial(v),
       setCard: (v) => {
         setCardState(v);
@@ -357,13 +362,29 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
                 </div>
               ))}
             </div>
-            <div className={`tab-panel${activeTab === "messages" ? " active" : ""}`}>
-              {messages.map((m, i) => (
-                <p key={i} className={`msg-line${i === 0 ? " is-latest" : ""}`}>
-                  {m.stamp ? <span className="msg-time">{m.stamp}</span> : null}
-                  {m.text}
-                </p>
-              ))}
+            <div
+              className={`tab-panel${activeTab === "messages" ? " active" : ""}${
+                introActive ? "" : " is-running"
+              }`}
+            >
+              {messages.map((m, i) => {
+                // ⭐夢の入りの1行だけ、記号を先に出して続きの文字を浮かび上がらせる
+                //（`data/dreamDerbyCommentary.js`の`DREAM_FADE_MARK`・`devlog/wave05.md`§59）。
+                const fades = m.text.startsWith(DREAM_FADE_MARK);
+                return (
+                  <p key={m.id} className={`msg-line${i === 0 ? " is-latest" : ""}`}>
+                    {m.stamp ? <span className="msg-time">{m.stamp}</span> : null}
+                    {fades ? (
+                      <span className="lead-fade">
+                        <span className="lead-mark">{DREAM_FADE_MARK}</span>
+                        <span className="lead-body">{m.text.slice(DREAM_FADE_MARK.length)}</span>
+                      </span>
+                    ) : (
+                      m.text
+                    )}
+                  </p>
+                );
+              })}
             </div>
           </div>
 

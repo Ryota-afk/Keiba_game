@@ -408,6 +408,30 @@
   margin-right: 8px;
 }
 
+/* 夢の入りの1行（`data/dreamDerbyCommentary.js`の`DREAM_FADE_MARK`で始まる行）。
+   記号を先に出し、続きの文字をぼやけた状態から1.6秒かけて浮かばせる。
+   ⚠️狙いは「番号を隠す」ことではなく、夢が途中から聞こえ始めること
+   （2026-09-08にユーザー決定・`devlog/wave05.md`§59）。 */
+/* ⚠️⚠️動きは**レース前の画面を閉じてから**始める。`.intro-overlay`は`inset: 0`の
+   不透明な面なので、そこを閉じる前に動かすと**誰にも見えないまま終わる**
+   （`.tab-panel.is-running`が付くのは`setIntroActive(false)`のとき）。 */
+.lead-mark { color: var(--muted); opacity: 1; }
+.lead-body { opacity: 0; filter: blur(4px); }
+.is-running .lead-mark { animation: lead-mark-in 1600ms ease forwards; }
+.is-running .lead-body { animation: lead-body-in 1600ms ease forwards; }
+@keyframes lead-mark-in {
+  from { opacity: 1; }
+  to { opacity: 0.5; }
+}
+@keyframes lead-body-in {
+  from { opacity: 0; filter: blur(4px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lead-mark, .is-running .lead-mark { animation: none; opacity: 0.5; }
+  .lead-body, .is-running .lead-body { animation: none; opacity: 1; filter: none; }
+}
+
 /* ===== 判断カード：下半分をこれで置き換える ===== */
 .card-panel {
   display: none;
