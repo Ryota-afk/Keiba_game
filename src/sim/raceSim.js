@@ -33,6 +33,23 @@ const SHORT_LAG_SECONDS = 25;
 /** 適正距離を下回るレースで、直線の最高速度から引く量。`shortfall`1.0のときの値。 */
 const SHORT_VMAX_LOSS = 0.02;
 
+/** 道中の判断カードを選んでから、目標の位置がそこまで動ききるまでの秒数
+ * （`devlog/wave05.md`§51・2026-09-08にユーザーが20秒で合意）。
+ * ⚠️0にすると目標が1ステップで別の値に入れ替わり、馬は速度の上限
+ * （`vField * 1.13`＝周りより毎秒2.13mまで）に張り付いたまま新しい位置まで走る。
+ * ⭐**動く量はこの秒数を変えても1cmも変わらない。変わるのは寄っていく速さだけ。**
+ * 実測（中団の4択・12通りの乱数の中央値）：0秒だと「間を割る」が20.1m前へ寄るのに
+ * 90%到達11.6秒・寄る速さ32px/s、20秒だと17.7秒・20px/s。⚠️12秒以下では前へ行く択の
+ * 寄る速さが1px/sも変わらない（目標のほうが馬より速く動くので上限に張り付いたままになる）。
+ * ⚠️直線の択には掛けない——直線は「追い出すまでの待ち時間」（`delay`）が同じ役目を
+ * 既に持っているため。
+ * ⚠️⚠️**この倍率は下の`effortMul`にも掛かる**（＝まだ動いていないうちは余分な消耗も
+ * 払わない）。そのぶん前へ行く択が安くなり、勝率が動く：200通りの乱数で
+ * 「型に合わせる」66.0%→72.5%、「型を外す」16.0%→16.5%（`devlog/wave05.md`§52）。
+ * 目安の7〜8割の内側に収まっているのでこの形を採った。⚠️`effortMul`だけ満額に戻すと
+ * 68.5%／17.0%になるが、まだ速く走っていない馬に満額の消耗を課すことになる。 */
+const CARD_RAMP_SECONDS = 20;
+
 /** サンプル間隔(秒)。2400mなら約600ステップ。 */
 export const SIM_DT = 0.25;
 /** 打ち切り時間(秒)。全馬がゴールしたらそこで止める。 */
@@ -241,7 +258,11 @@ export function runRaceSim(input) {
         vWant = vField * clamp(t / tr.accelSeconds, 0, 1);
       } else {
         const aggression = isSelf && t >= midMoveAt ? midAggression : NEUTRAL_MID_AGGRESSION;
-        const swing = (aggression - NEUTRAL_MID_AGGRESSION) * (isSelf ? tr.cardScale : 1);
+        // 選んだ瞬間に目標を切り替えず、CARD_RAMP_SECONDSかけて少しずつ動かす。
+        const cardRamp =
+          isSelf && t >= midMoveAt ? clamp((t - midMoveAt) / CARD_RAMP_SECONDS, 0, 1) : 1;
+        const swing =
+          (aggression - NEUTRAL_MID_AGGRESSION) * (isSelf ? tr.cardScale : 1) * cardRamp;
         const wander =
           2.5 * Math.sin(2 * Math.PI * (t / tr.wanderPeriod + tr.wanderPhase));
         // 適正距離を下回るレースでは、道中のペースについていけず後ろへ下がる
