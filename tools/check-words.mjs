@@ -70,6 +70,22 @@ for (const [label, list] of [["B：開発の言葉", DEV]]) {
   if (n === 0) console.log("  なし");
 }
 
-console.log(`\nAが${banned}件。0になるまで書き換えること。`);
+// D：根拠の無い数字。「目安として」「候補」「〜か〜」で数字を並べている行に、
+// 根拠を示す言葉（実測／実データ／出典／測った／◯レース／ユーザー決定）が無ければ止める。
+// ⚠️2026-09-08にユーザーが「35mとか45mは根拠がある数字？」と指摘して作った。
+// 数字を出すときは必ず「値（根拠：何をどう測ったか／どのデータか）」の形にする。
+const GROUND = /実測|実データ|出典|測った|測り|レース|seed|通り|JRA|ユーザー(が|の)決|根拠[：:]/;
+const PROPOSAL = /目安として|候補|案[ABCＡＢＣ]?[：:]|どれくらいに|にするか|くらい|前後/;
+let ungrounded = 0;
+console.log("\n=== D：根拠の無い数字（提案の行に根拠が書いてあるか） ===");
+lines.forEach((line0, i) => {
+  const line = withoutQuotes(line0);
+  if (/\d/.test(line) && PROPOSAL.test(line) && !GROUND.test(line)) {
+    console.log(`  ${i + 1}行目 → 数字に根拠が無い。「値（根拠：…）」の形にするか、根拠が無いと明記する`);
+    ungrounded += 1;
+  }
+});
+if (ungrounded === 0) console.log("  なし");
+console.log(`\nAが${banned}件・Dが${ungrounded}件。両方0になるまで書き換えること。`);
 console.log("Bは、初出の行に1行の説明が付いているかを自分で確かめる（この検査は数えるだけ）。");
-process.exit(banned > 0 ? 1 : 0);
+process.exit(banned + ungrounded > 0 ? 1 : 0);
