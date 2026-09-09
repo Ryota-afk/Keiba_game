@@ -53,12 +53,6 @@ export function isCurvingAt(d) {
   return CURVE_SECTIONS.some((s) => d >= s.from && d <= s.to);
 }
 
-/** 馬群の広がり(m)からカメラのズーム倍率を求める（広いほど引く）。 */
-export function zoomForSpread(spreadMeters) {
-  const z = 1 - clamp01((spreadMeters - 15) / 120) * 0.34;
-  return Math.max(0.66, Math.min(1, z));
-}
-
 /**
  * カメラの目標（追う対象の距離・画面上のアンカー・基準となるレース進行の距離）。
  * ⚠️`base`は「レース進行そのもの」を表す共通の物差しで、先頭馬の距離を使う

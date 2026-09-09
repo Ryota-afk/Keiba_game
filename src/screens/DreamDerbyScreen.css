@@ -167,13 +167,15 @@
   overflow: hidden;
   background-color: #000;
 }
-/* 走路上の要素（馬・ゲート・ゴール標識）をまとめてズームさせるレイヤー。
-   拡大の中心はレース表示部の縦中央。毎フレームJSがscaleを更新する。 */
+/* 走路上の要素（馬・ゲート・ゴール標識）をまとめて動かすレイヤー。
+ * ⚠️2026-09-08まで馬群の広がりに応じて縮小していたが撤去した（`devlog/wave05.md`§64）——
+ * 隊列を広げて迫力を出す変更（`sim/raceSim.js`の`TARGET_GAP_BAND`）と正反対の向きに働き、
+ * 広げたぶんを画面上で打ち消して全馬が常に画面に収まっていた。今は等倍のまま、
+ * カメラ（`自分`/`先頭`の切替ボタン）の追う対象だけが変わる。 */
 .world-zoom {
   position: absolute;
   inset: 0;
   z-index: 1;
-  transform-origin: 50% 44%;
 }
 
 /* 右下：残り距離＋タイム／左下：丸ボタン3つ（各ボタンは3状態をタップでサイクルする） */
@@ -340,6 +342,14 @@
 .display-number .hs-name { display: none; }
 .display-number .hs-numlabel { display: block; }
 .display-hidden .hs-name { display: none; }
+
+/* ゲート内〜発走直後は全馬が同じ列にいてラベルが重なるため、表示モードに関わらず消す
+ * （`.world-zoom.is-crowded`は`screens/dreamDerbyEngine.js`の`renderWorld`が付け外しする。
+ * `devlog/wave05.md`§64・`TODO.md` #66）。 */
+.world-zoom.is-crowded .hs-name,
+.world-zoom.is-crowded .hs-numlabel {
+  display: none;
+}
 
 /* ===== 下半分：タブ（出馬表／実況）／判断カード ===== */
 .race-bottom {

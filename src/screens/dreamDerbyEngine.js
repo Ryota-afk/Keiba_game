@@ -44,7 +44,6 @@ import {
   gateY,
   laneY,
   isCurvingAt,
-  zoomForSpread,
   cameraTargetFor,
   stepCamera,
   worldFixedFraction,
@@ -101,7 +100,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   let camLastNow = null;
   let curvature = 0;
   let targetCurving = false;
-  let zoomCurrent = 1;
   let sayCount = 0;
   let judgmentTutorialShown = false;
   let tutorialActive = false;
@@ -228,16 +226,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     const leader = currentLeaderEntry();
     if (leader && !leader.isSelf) sprites.get(leader.num).classList.add("is-leader-focus");
   }
-  function zoomForSpreadAt(t) {
-    let minD = Infinity;
-    let maxD = -Infinity;
-    entries.forEach((e) => {
-      const d = distanceOf(e.num, t);
-      if (d < minD) minD = d;
-      if (d > maxD) maxD = d;
-    });
-    return zoomForSpread(maxD - minD);
-  }
   function updateBoundary(cameraDistance, anchor) {
     curvature += (Number(targetCurving) - curvature) * 0.06;
     if (Math.abs(curvature) < 0.001) curvature = 0;
@@ -315,8 +303,12 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     const { distance: cameraDistance, anchor } = currentCameraState(t);
     const positions = {};
     const spread = clamp01(t / 3);
+    let minD = Infinity;
+    let maxD = -Infinity;
     entries.forEach((e, i) => {
       const d = distanceOf(e.num, t);
+      if (d < minD) minD = d;
+      if (d > maxD) maxD = d;
       const rowGateY = gateY(i, entries.length);
       const y = rowGateY + (laneY(e.num, t, { isSelf: e.isSelf }) - rowGateY) * spread;
       positions[e.num] = {
@@ -326,12 +318,18 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
       };
     });
     layout(positions);
+    // ⭐発走直後は全馬がほぼ同じ距離に固まり、馬名/馬番のラベルが互いに重なって読めなくなる
+    // （2026-09-08にユーザーの通しプレイで発覚・`TODO.md` #66）。`t < 3`という固定時間で
+    // 切ったところ、実測で3秒経っても隊列の幅がまだ4.3m（`TARGET_GAP_BAND`が効き切るには
+    // 15〜20秒かかる）で重なりが残っていた。⭐**隊列の実際の幅（最大−最小のm）で判定する**——
+    // 15m未満は`positionFactor`の風よけが利く範囲（`sim/stamina.js`）と同じ値で、
+    // このくらい離れないとラベルが並ぶ幅（画面上12.2px/m換算で183px）が足りない。
+    // ⚠️出馬表タブに同じ情報（枠番・馬名）が既にあるので、消しても情報は失われない。
+    refs.worldZoom.classList.toggle("is-crowded", maxD - minD < 15);
     positionWorldFixedEl(refs.startGate, 0, cameraDistance, anchor);
     distMarkerEls.forEach((m) => positionWorldFixedEl(m.el, m.distance, cameraDistance, anchor));
     positionWorldFixedEl(refs.goalPost, TOTAL_DISTANCE, cameraDistance, anchor);
     targetCurving = isCurvingAt(cameraDistance);
-    zoomCurrent += (zoomForSpreadAt(t) - zoomCurrent) * 0.03;
-    refs.worldZoom.style.transform = `scale(${zoomCurrent.toFixed(3)})`;
     const selfCx = positions[selfEntry.num] ? clamp01(positions[selfEntry.num].cx) : 0.5;
     refs.selfTrackMarker.style.left = `${4 + selfCx * 92}%`;
     updateBoundary(cameraDistance, anchor);
