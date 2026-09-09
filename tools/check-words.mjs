@@ -79,11 +79,13 @@ for (const [label, list] of [["B：開発の言葉", DEV]]) {
 // 数字を出すときは必ず「値（根拠：何をどう測ったか／どのデータか）」の形にする。
 const GROUND = /実測|実データ|出典|測った|測り|レース|seed|通り|JRA|ユーザー(が|の)決|根拠[：:]|根拠(なし|が無い|は無い|がない|はない|がありません)/;
 const PROPOSAL = /目安として|候補|案[ABCＡＢＣ]?[：:]|どれくらいに|にするか|くらい|前後/;
+// 数え上げ（N行・N本・N件・N箇所・Nつ）は提案の数字ではないので、行にそれしか数字が無ければ見ない。
+const COUNT_ONLY = (line) => line.replace(/\d+(行|本|件|箇所|つ|の候補)/g, "").search(/\d/) < 0;
 let ungrounded = 0;
 console.log("\n=== D：根拠の無い数字（提案の行に根拠が書いてあるか） ===");
 lines.forEach((line0, i) => {
   const line = withoutQuotes(line0);
-  if (/\d/.test(line) && PROPOSAL.test(line) && !GROUND.test(line)) {
+  if (/\d/.test(line) && PROPOSAL.test(line) && !GROUND.test(line) && !COUNT_ONLY(line)) {
     console.log(`  ${i + 1}行目 → 数字に根拠が無い。「値（根拠：…）」の形にするか、根拠が無いと明記する`);
     ungrounded += 1;
   }
