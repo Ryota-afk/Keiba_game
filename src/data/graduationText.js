@@ -33,6 +33,13 @@ export function reportLines(schoolRecord) {
 }
 
 /**
+ * 段3：夢の記録に対する2択（C-2）の前に置く1行。⚠️「世界の外からの説明」なので敬語で書く
+ * （CLAUDE.md §7・2026-09-09にユーザーが明示）。2026-09-09にユーザーが(B)案で決定
+ * （`devlog/wave06.md`§65）。
+ */
+export const DREAM_RECORD_INTRO = "夢の中の乗り方を、これからの自分の型にするか選べます。";
+
+/**
  * 段3：夢の記録に対する2択（C-2）。`accept`＝あの乗り方を信じる／`reject`＝一から覚え直す。
  * `strategyLabel`は導出戦法の日本語表記（`data/aptitudeLabels.js`の`STRATEGY_LABELS`）。
  */
@@ -41,19 +48,19 @@ export function dreamRecordChoices(strategyLabel) {
     {
       id: "accept",
       label: "夢の乗り方を信じてみる",
-      hint: `${strategyLabel}が武器になる。代わりに、ほかの三つに穴ができる`,
+      hint: `${strategyLabel}が武器になります。`,
     },
     {
       id: "reject",
       label: "一から覚え直す",
-      hint: "四つとも同じ、平凡な適性になる。穴は無いが、武器も無い",
+      hint: "四つとも同じになります。",
     },
   ];
 }
 
 /** 段4：厩舎を選んだ後の確定行。 */
 export function stableConfirmedLine(trainerFamilyName) {
-  return `${trainerFamilyName}厩舎に所属が決まった。`;
+  return `${trainerFamilyName}厩舎に所属が決まりました。`;
 }
 
 export const STABLE_OFFER_HEADING = "声をかけてきた厩舎";

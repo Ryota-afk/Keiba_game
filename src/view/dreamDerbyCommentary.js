@@ -88,7 +88,10 @@ export function positionLabelFor(band, rank) {
  *   渡されないとき（未使用の呼び出し元）は常にnull。
  * - `leaderJockey`：現在の先頭馬の`jockeyName`（先頭が自分の馬ならnull＝`entries`が
  *   自分にはjockeyNameを持たせていないことをそのまま利用）。
- * - `leadGap2nd`：先頭と2番手の距離差(m)。「独走」判定（`homage`）に使う。
+ * - `leadGap2nd`：先頭と2番手の距離差(m)。「独走」判定（`homage`）・叩き合い判定（`stretchMid`）に使う。
+ * - `leadGap`：`leadGap2nd`を「クビ」「1馬身」等の言葉にしたもの（`gap`と同じ換算。2026-09-09追加）。
+ * - `remain`：先頭の馬を基準に、100メートル単位に丸めた残り距離
+ *   （2026-09-09に自分の馬基準・1メートル単位から直した。`devlog/wave06.md`§65）。
  * - `selfRankNum`：`selfRank`の数値版（文字列の`selfRank`はテンプレート埋め込み専用）。
  * ⚠️`outsider`/`insider`（3番手・4番手の馬名を「内外」と偽って呼んでいた変数）は
  * 2026-09-07に削除した——新しい実況コーパスはどちらも参照しない（実際の内外はsimに無い。
@@ -100,21 +103,22 @@ export function positionLabelFor(band, rank) {
  * @param {(num:number) => number} ctx.distanceOfNum - 現在時刻tでの馬番→距離(m)
  * @param {(num:number, t:number) => number} [ctx.distanceOfNumAt] - 任意時刻tでの馬番→距離(m)。
  *   `moverName`検出に使う（t-5時点の隊列を求めるため）。省略時はmover系が常にnull。
- * @param {number} ctx.selfDistance - 自分の馬の現在の通過距離(m)
  * @param {number|null} ctx.split1000Seconds - 先頭が1000mを通過した時刻(秒)。未通過はnull
  */
-export function commentaryVars(t, { entries, selfEntry, distanceOfNum, distanceOfNumAt, selfDistance, split1000Seconds }) {
+export function commentaryVars(t, { entries, selfEntry, distanceOfNum, distanceOfNumAt, split1000Seconds }) {
   const order = fieldOrder(entries, distanceOfNum);
   const rank = order.findIndex((e) => e.isSelf) + 1;
   const name = (i) => (order[i] ? order[i].name : "");
   const leaderD = distanceOfNum(order[0].num);
+  const meterToWord = (m) =>
+    m < 0.5 ? "クビ" :
+    m < 2.4 ? "1馬身" :
+    m < 4.8 ? "2馬身" :
+    m < 9.6 ? `${Math.round(m / 2.4)}馬身` : "大きく";
   const gapM = leaderD - distanceOfNum(selfEntry.num);
-  const gapWord =
-    gapM < 0.5 ? "クビ" :
-    gapM < 2.4 ? "1馬身" :
-    gapM < 4.8 ? "2馬身" :
-    gapM < 9.6 ? `${Math.round(gapM / 2.4)}馬身` : "大きく";
+  const gapWord = meterToWord(gapM);
   const leadGap2nd = order.length > 1 ? leaderD - distanceOfNum(order[1].num) : 0;
+  const leadGap = meterToWord(leadGap2nd);
   const selfBand = positionBandOf(rank, entries.length);
 
   // 直近5秒（t-5〜t）で順位を3つ以上上げた馬（mover）。複数いれば最も上げた馬。無ければnull。
@@ -151,7 +155,9 @@ export function commentaryVars(t, { entries, selfEntry, distanceOfNum, distanceO
     leaderJockey: order[0].jockeyName ?? null,
     order5: order.slice(0, 5).map((e) => e.name).join("、"),
     field: String(entries.length),
-    remain: String(Math.max(0, Math.round(TOTAL_DISTANCE - (selfDistance ?? 0)))),
+    // ⚠️2026-09-09に先頭基準・100m単位へ直した（`devlog/wave06.md`§65）。以前は自分の馬の
+    // 残り距離を1m単位で出していた。
+    remain: String(Math.max(0, Math.round((TOTAL_DISTANCE - leaderD) / 100) * 100)),
     split1000: fmtTime(split1000Seconds ?? 0),
     split1000Seconds: split1000Seconds ?? null,
     gap: gapWord, winner: name(0),
@@ -159,7 +165,7 @@ export function commentaryVars(t, { entries, selfEntry, distanceOfNum, distanceO
     // 発走前の紹介用：馬番順の先頭6頭（「1番〇〇、2番〇〇…」）と大外の馬
     lineup6: entries.slice(0, 6).map((e) => `${e.num}番${e.name}`).join("、"),
     lastNum: String(entries[entries.length - 1].num), lastName: entries[entries.length - 1].name,
-    selfBand, leadGap2nd,
+    selfBand, leadGap2nd, leadGap,
     moverName, moverNum, moverJockey, moverIsSelf,
   };
 }

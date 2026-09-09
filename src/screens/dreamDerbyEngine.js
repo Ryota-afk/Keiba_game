@@ -395,7 +395,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
         // `distanceOf(num, t)`はsimの時系列をそのまま引くだけなので、tを変えて呼べば
         // 任意時刻の距離が取れる。
         distanceOfNumAt: distanceOf,
-        selfDistance: distanceOf(selfEntry.num, t),
         split1000Seconds: sim.split1000,
       }),
       extraVars || {}
@@ -593,7 +592,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     const band = positionBandOf(rank, entries.length);
     const situationId = dreamSituationId("stretch", band);
     choiceIds.stretchSituationId = situationId;
-    showCardInternal("stretch", "直線に入った", positionLabelFor(band, rank), choicesFor(situationId));
+    showCardInternal("stretch", "最後の直線", positionLabelFor(band, rank), choicesFor(situationId));
   }
 
   // ===== 掲示板・ゴール =====

@@ -3,6 +3,14 @@
 
 export const TOTAL_DISTANCE = 2400;
 
+// 競馬場の事実（実況の出し分けに使う。`design/jra-course-geometry.md`の東京芝2400mより）。
+// ⚠️今は東京しかレースが無いので値は固定。競馬場が増えたらレースごとに渡す形に変える
+// （2026-09-09にユーザー承認・`devlog/wave06.md`§65）。
+export const TRACK_NAME = "東京";
+export const STRAIGHT_LENGTH = 525.9; // 最後の直線の長さ(m)
+export const STRAIGHT_HAS_HILL = true; // 直線に高低差2.1mの上り坂（残り約300mから）
+export const THIRD_CORNER_HAS_HILL = false; // 3〜4コーナーは下り
+
 // 局面の節目は距離で持つ（時刻はレースsimが返す通過距離から都度求める）。
 // ⚠️2026-09-06にレースsimへ差し替えた際、時刻→距離の対応表（DIST_CHECKPOINTS）と
 // 隊列演出の節目（GAP_T）を削除した。simのペースはレースごとに変わるので、

@@ -398,6 +398,11 @@
   text-align: right;
   opacity: 0.85;
 }
+.entry-name { flex: 1; }
+.entry-popularity {
+  font-family: "M PLUS 1 Code", monospace;
+  opacity: 0.7;
+}
 
 /* 実況欄。JRAのテレビ実況のようなアナウンサーの声。時系列順に下へ流れ、
    最新行が一番下（自動で末尾へスクロール）。 */

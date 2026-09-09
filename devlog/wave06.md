@@ -93,3 +93,45 @@ earlyOrder 10→0／stretchMid 8→2（自分が動いた馬のときの2行だ�
 corner12 3→2（ユーザー改稿の3・4）／corner4 3→1／stretchEntry 3→0／backstretch 2→0／corner3 2→0。
 書き換え29行の候補はユーザーへの返信（`scratchpad/report24.md`）。新しい変数`{leadGap}`
 （先頭と2番手の差の言葉。`gapWord`と同じ換算）を`commentaryVars`に足す前提の行が2本ある。
+
+## §66 実装（2026-09-09・Sonnet）
+
+ユーザーが書き換え候補・「不必要な状況説明」の候補・人気の見本を承認（「それでよろしい」）。
+以下を実装した。
+
+### 変更したファイル
+
+- `src/data/dreamDerbyCourse.js`：競馬場の事実を追加（`TRACK_NAME`＝"東京"・`STRAIGHT_LENGTH`＝
+  525.9・`STRAIGHT_HAS_HILL`＝true・`THIRD_CORNER_HAS_HILL`＝false）。
+- `src/data/dreamDerbyCommentary.js`：§65で確定した文言・§66で承認された29行の書き換え・
+  「不必要な状況説明」6行を反映。競馬場の事実を`when`条件に使う行（corner3の1・4／corner4の6／
+  stretchEntryの2・3・5・7・10／homageの7／choiceReact.goNowの4）に条件を付けた。
+  ⭐**自分の馬が残す行に付いていた`bandIn`の条件は、自分の言及自体を削った行からは外した**
+  （元々「自分が先頭と同じ馬にならないように」等の理由だったが、自分の言及が無くなれば
+  理由も消えるため）。行数は125（choiceReactを除く。130から5減：fieldIntro-2・backstretch-1・
+  homage-1・homageWin-1）。
+- `src/view/dreamDerbyCommentary.js`：`remain`を自分の馬基準・1m単位から、**先頭の馬基準・
+  100m単位**に直した。新しい変数`leadGap`（`leadGap2nd`の言葉版。`gapWord`と同じ換算）を追加。
+  未使用になった`ctx.selfDistance`引数を削除（`screens/dreamDerbyEngine.js`の`say()`も同時に）。
+- `src/data/graduationText.js`：`DREAM_RECORD_INTRO`（卒業式の2択の前の1行、(B)案）を追加。
+  2択の添え文を敬語に。`stableConfirmedLine`を敬語に。
+- `src/screens/GraduationScreen.jsx`：`DREAM_RECORD_INTRO`を2択の直前に表示。
+- `src/screens/dreamDerbyEngine.js`：直線の判断カードの見出し「直線に入った」→「最後の直線」。
+- `src/domain/dreamDerby.js`：`assignPostPositions`に`popularity`（人気）を追加。自分の馬＝1番人気
+  固定、他は`horseStrengthScore`（判断カード未選択なのでボーナス無し）の順で2番人気から。
+- `src/screens/DreamDerbyScreen.jsx`／`.css`：出馬表に人気を1列追加（`.entry-popularity`）。
+
+### 確認したこと
+
+`npm run build`が通る。Node単体で`COMMENTARY`の全スロットを、複数の状況（順位帯・mover有無・
+1000m通過前後・競馬場の事実いずれもTokyo値）で走らせ、候補が0件になるスロットが無いことを
+確認した。Playwrightで実機の画面サイズ（iPhone 13）を使い、タイトル→夢のダービー→
+チュートリアル4種→出馬表タブ（自分の行が「1番人気」）→判断カード2回（見出しが「残り1200m」
+「最後の直線」）→ゴール→卒業式→名前入力→夢の記録の2択（`DREAM_RECORD_INTRO`が表示され、
+添え文が敬語）→厩舎選択→週の画面、まで、JSエラー0件で通ることを確認した。
+
+### 実装で見つけた棚上げ
+
+`TODO.md` #68：`homage`の「あなたの、そして私たちの夢が、いま府中を走っています。」に
+競馬場の出し分けが付いていない（他5行には付けた）。ユーザー承認の一覧に入っていなかったため
+そのまま。

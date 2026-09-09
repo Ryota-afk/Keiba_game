@@ -11,6 +11,7 @@ import { nextGrade } from "../data/grades.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { choicesFor } from "./judgmentCard.js";
 import { deriveFavoredStrategy } from "./strategy.js";
+import { horseStrengthScore } from "./raceOutcome.js";
 import { TOTAL_DISTANCE, D_FINAL_STRETCH, D_MID_CARD } from "../data/dreamDerbyCourse.js";
 import { runRaceSim, resumeRaceSim, buildPlan } from "../sim/index.js";
 import { DERBY_WINNERS, KENSHO_DERBY_WINNERS } from "../data/derbyWinners.js";
@@ -164,7 +165,7 @@ export function generateDreamRivals(saveSeed) {
  * @param {number|string} saveSeed
  * @param {object} dreamHorse - `generateDreamHorse`が返した馬
  * @param {object[]} rivals - `generateDreamRivals`が返した17頭
- * @returns {{ num: number, name: string, isSelf: boolean, horse: object,
+ * @returns {{ num: number, name: string, isSelf: boolean, horse: object, popularity: number,
  *   jockeyName: string|null, trainerName: string|null }[]} 馬番昇順
  *   ⚠️`jockeyName`/`trainerName`は相手馬（`rivals`）だけが持つ値をそのまま素通しする
  *   （もじり変換済み。実名ではない）。自分の馬（`isSelf: true`）はどちらも`null`。
@@ -179,11 +180,22 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
     const j = Math.floor(rand01() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
+  // 人気：自分の馬を1番人気に固定し、それ以外は馬の強さ（`horseStrengthScore`。判断カード
+  // 未選択なので択のボーナスは乗らない）の順で2番人気から並べる（2026-09-09にユーザー決定・
+  // `devlog/wave06.md`§65）。
+  const popularityByHorse = new Map();
+  pool
+    .filter((p) => !p.isSelf)
+    .slice()
+    .sort((a, b) => horseStrengthScore(b.horse) - horseStrengthScore(a.horse))
+    .forEach((p, i) => popularityByHorse.set(p.horse, i + 2));
+
   return pool.map((p, i) => ({
     num: i + 1,
     name: p.horse.name,
     isSelf: p.isSelf,
     horse: p.horse,
+    popularity: p.isSelf ? 1 : popularityByHorse.get(p.horse),
     jockeyName: p.horse.jockeyName ?? null,
     trainerName: p.horse.trainerName ?? null,
   }));

@@ -25,6 +25,7 @@ import {
   NAME_PROMPT_TEXT,
   ceremonyLines,
   reportLines,
+  DREAM_RECORD_INTRO,
   dreamRecordChoices,
   stableConfirmedLine,
   STABLE_OFFER_HEADING,
@@ -309,21 +310,24 @@ export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceI
           ))}
         </div>
         {reportChoicesVisible && (
-          <div className="grad-choices">
-            {dreamRecordChoices(STRATEGY_LABELS[derivedStrategy]).map((choice) => (
-              <button
-                key={choice.id}
-                type="button"
-                className={`grad-card-choice${dreamRecordChoice === choice.id ? " is-picked" : ""}${
-                  dreamRecordChoice && dreamRecordChoice !== choice.id ? " is-disabled" : ""
-                }`}
-                onClick={() => pickDreamRecordChoice(choice.id)}
-              >
-                {choice.label}
-                <span className="grad-card-choice-hint">{choice.hint}</span>
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="grad-section-heading">{DREAM_RECORD_INTRO}</div>
+            <div className="grad-choices">
+              {dreamRecordChoices(STRATEGY_LABELS[derivedStrategy]).map((choice) => (
+                <button
+                  key={choice.id}
+                  type="button"
+                  className={`grad-card-choice${dreamRecordChoice === choice.id ? " is-picked" : ""}${
+                    dreamRecordChoice && dreamRecordChoice !== choice.id ? " is-disabled" : ""
+                  }`}
+                  onClick={() => pickDreamRecordChoice(choice.id)}
+                >
+                  {choice.label}
+                  <span className="grad-card-choice-hint">{choice.hint}</span>
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </>
     );

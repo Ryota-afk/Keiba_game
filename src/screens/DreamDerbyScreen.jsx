@@ -358,7 +358,8 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
               {entries.map((e) => (
                 <div key={e.num} className={`entry-row${e.isSelf ? " is-self" : ""}`}>
                   <span className="entry-num">{e.num}</span>
-                  <span>{e.name}</span>
+                  <span className="entry-name">{e.name}</span>
+                  <span className="entry-popularity">{e.popularity}番人気</span>
                 </div>
               ))}
             </div>
