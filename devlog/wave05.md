@@ -1144,7 +1144,12 @@ C（競馬の言葉28語）を`tools/check-words.mjs`・`arch/report-check.md`�
 2. `t < 3`という固定時間に変えても直らなかった：**実測すると隊列の幅は3秒経っても4.3mしか
    広がっていない**（`TARGET_GAP_BAND`が効き切るには`scratchpad/spread-timeline.mjs`の
    実測で15〜20秒かかる）。**隊列の実際の広がり（メートル）で判定する形に変えて解決した。**
-   15mという境目は、`positionFactor`（風よけ、`sim/stamina.js`）が使っている値と同じにした。
+   15mという境目の根拠は理屈ではなく実見：撤去済みの`zoomForSpread`（画面を縮めて収める
+   仕組み）がもともと使っていたしきい値をそのまま引き継いだだけで、`positionFactor`
+   （風よけ、`sim/stamina.js`。範囲は`gapBehindLeader`0〜30m）とは無関係。この値でスクリーン
+   ショットを撮り、ラベルが重ならずに読めることを確かめて採用した（⚠️一度「`positionFactor`
+   と同じ値にした」と誤って書いていたが、`positionFactor`の範囲は0〜30mで15mではない。
+   本節は誤りを訂正済み）。
 
 ### 確認
 

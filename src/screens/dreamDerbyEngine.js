@@ -321,10 +321,14 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     // ⭐発走直後は全馬がほぼ同じ距離に固まり、馬名/馬番のラベルが互いに重なって読めなくなる
     // （2026-09-08にユーザーの通しプレイで発覚・`TODO.md` #66）。`t < 3`という固定時間で
     // 切ったところ、実測で3秒経っても隊列の幅がまだ4.3m（`TARGET_GAP_BAND`が効き切るには
-    // 15〜20秒かかる）で重なりが残っていた。⭐**隊列の実際の幅（最大−最小のm）で判定する**——
-    // 15m未満は`positionFactor`の風よけが利く範囲（`sim/stamina.js`）と同じ値で、
-    // このくらい離れないとラベルが並ぶ幅（画面上12.2px/m換算で183px）が足りない。
-    // ⚠️出馬表タブに同じ情報（枠番・馬名）が既にあるので、消しても情報は失われない。
+    // 15〜20秒かかる。1レース分の例で実測）で重なりが残っていた。
+    // ⭐**隊列の実際の幅（最大−最小のm）で判定する**——15mという境目は、
+    // 撤去済みの`zoomForSpread`が使っていた値をそのまま引き継いだだけで、
+    // `positionFactor`（`sim/stamina.js`。範囲は0〜30m）とは無関係。
+    // ⚠️根拠は理屈ではなく実見：この値でスクリーンショットを撮り、ラベルが
+    // 重ならずに読めることを確かめた（画面上は12.2px/m換算で15mが183px）。
+    // ⚠️出馬表タブに同じ情報（馬番・馬名）が既にあるので、消しても発走直後の
+    // 数秒だけは大きな支障がないはず（この間はどの馬か見分ける必要が薄い場面）。
     refs.worldZoom.classList.toggle("is-crowded", maxD - minD < 15);
     positionWorldFixedEl(refs.startGate, 0, cameraDistance, anchor);
     distMarkerEls.forEach((m) => positionWorldFixedEl(m.el, m.distance, cameraDistance, anchor));
