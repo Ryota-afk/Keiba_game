@@ -43,3 +43,6 @@ node_modules/
 dist/
 __pycache__/
 *.pyc
+# --- 外部出典から取った一次データ（読み取り済みJSONのgzとスクリプト。生HTMLは置かない）---
+!data-src/
+!data-src/**
