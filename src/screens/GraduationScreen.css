@@ -1,0 +1,204 @@
+/* 卒業式画面（`design/mocks/graduation-mock2.html`から移植。CLAUDE.md §8手順で確定）。
+   DreamDerbyScreen.cssの外枠・トークンを踏襲する。 */
+
+.graduation-screen {
+  --turf: #57a24b;
+  --turf2: #4c9142;
+  --panel: #1a2a18;
+  --panel2: #223a20;
+  --muted: #9fb896;
+  --fg: #f2ede0;
+  --accent: #ffd83d;
+  --action: #2f7fe6;
+  --action-hover: #1f6bcf;
+
+  width: min(430px, 100vw);
+  height: min(720px, 100dvh);
+  margin: 0 auto;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #000;
+  position: relative;
+  flex-shrink: 0;
+  font-family: "M PLUS 1p", sans-serif;
+  color: var(--fg);
+}
+
+/* ===== 上半分 ===== */
+.grad-top {
+  height: 300px;
+  flex-shrink: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+.grad-top svg { display: block; width: 100%; height: 100%; }
+
+/* ③名前入力→式典：上半分だけのクロスフェード（`styles/motion.css`の--m3-*）。
+   新旧2枚を`.grad-top`の上に重ねて透明度だけを動かす。 */
+.grad-top-layer { position: absolute; inset: 0; opacity: 1; }
+.grad-top-layer--out { opacity: 0; transition: opacity var(--m3-dur) var(--m3-ease); }
+.grad-top-layer--in-start { opacity: 0; }
+.grad-top-layer--in { opacity: 1; transition: opacity var(--m3-dur) var(--m3-ease); }
+
+/* ===== 成績表 ===== */
+.scoreboard {
+  position: absolute;
+  inset: 0;
+  background: var(--panel2);
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+}
+.score-label { font-size: var(--fs-caption); letter-spacing: 0.16em; color: var(--accent); }
+.score-head { display: flex; flex-direction: column; gap: 6px; }
+.score-scale { display: flex; align-items: center; gap: 8px; }
+.score-scale span { font-family: "M PLUS 1 Code", monospace; font-size: var(--fs-caption); color: var(--muted); }
+.score-scale-line { flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12); }
+.score-groups { display: flex; flex-direction: column; gap: 22px; }
+.score-group { display: flex; flex-direction: column; gap: 14px; }
+.score-row { display: flex; flex-direction: column; gap: 4px; }
+.score-name { font-size: var(--fs-caption); color: var(--muted); letter-spacing: 0.02em; }
+.score-bar-wrap { position: relative; height: 6px; }
+.score-track { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.08); }
+.score-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(255, 255, 255, 0.55);
+}
+.score-fill.is-top { background: var(--accent); }
+.score-grade {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 7px;
+  font-family: "M PLUS 1 Code", monospace;
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.score-grade.is-top { color: var(--accent); }
+
+/* ===== 下半分 ===== */
+.grad-bottom {
+  flex: 1;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.grad-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px 16px 18px;
+  background: var(--panel);
+  transform: translate(0, 0);
+}
+
+/* ④式典→成績表：下半分だけが下から入る（`styles/motion.css`の--m4-*）。
+   ⚠️上半分は動かさない——ここは.grad-panel（下半分）だけのtransform。 */
+.grad-panel--enter-start { transform: translateY(100%); }
+.grad-panel--enter-active { transform: translateY(0); transition: transform var(--m4-dur) var(--m4-ease); }
+
+/* ⑤成績表→厩舎選び：下半分だけの左右スライド（`styles/motion.css`の--m5-*）。
+   出る側（report）は左へ、入る側（stable）は右から。⚠️上半分は動かさない。 */
+.grad-panel--swap-out { transform: translateX(0); }
+.grad-panel--swap-out.is-active { transform: translateX(-100%); transition: transform var(--m5-dur) var(--m5-ease); }
+.grad-panel--swap-in { transform: translateX(100%); }
+.grad-panel--swap-in.is-active { transform: translateX(0); transition: transform var(--m5-dur) var(--m5-ease); }
+.grad-lines { flex: 1; overflow-y: auto; min-height: 0; }
+
+.grad-msg-line {
+  color: var(--fg);
+  font-size: var(--fs-body);
+  line-height: 1.8;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  animation: grad-line-in 400ms ease forwards;
+}
+.grad-msg-line:last-child { border-bottom: none; }
+@keyframes grad-line-in { to { opacity: 1; } }
+
+.grad-system-toast {
+  background: var(--fg);
+  color: #1c1712;
+  padding: 12px 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  font-size: var(--fs-caption);
+  line-height: 1.7;
+}
+
+.grad-name-form { display: flex; gap: 18px; margin: 16px 0 20px; }
+.grad-name-field { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.grad-name-field label { font-size: var(--fs-caption); color: var(--muted); letter-spacing: 0.08em; }
+.grad-name-field input {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  font-size: var(--fs-input);
+  padding: 8px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+.grad-name-field input:focus { border-bottom-color: var(--action); }
+.grad-name-warning { font-size: var(--fs-caption); color: var(--muted); margin: -14px 0 14px; }
+.grad-panel-spacer { flex: 1; }
+
+.grad-next-wrap { display: flex; justify-content: center; padding-top: 4px; }
+.grad-next-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  font-weight: 700;
+  font-size: var(--fs-body);
+  letter-spacing: 0.1em;
+  color: #fff;
+  background: var(--action);
+  padding: 13px;
+}
+.grad-next-btn:hover { background: var(--action-hover); }
+.grad-next-btn:disabled { background: #362f22; color: #6d6656; cursor: default; }
+
+.grad-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.grad-card-choice {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--muted);
+  font-family: "M PLUS 1p", sans-serif;
+  font-size: var(--fs-body);
+  padding: 11px 12px;
+  width: 100%;
+}
+.grad-card-choice:hover { color: #fff; border-color: #fff; }
+.grad-card-choice.is-picked { background: var(--action); border-color: var(--action); color: var(--accent); }
+.grad-card-choice-hint {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.grad-card-choice.is-picked .grad-card-choice-hint { color: rgba(255, 255, 255, 0.75); }
+.grad-card-choice.is-disabled { pointer-events: none; opacity: 0.55; }
+
+.grad-section-heading { font-size: var(--fs-caption); letter-spacing: 0.16em; color: var(--accent); margin: 14px 0 8px; }
+.grad-section-heading:first-child { margin-top: 0; }

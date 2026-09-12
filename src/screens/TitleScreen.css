@@ -1,0 +1,334 @@
+/*
+ * タイトル画面（案A・CLAUDE.md §8の手順でユーザーが選択・2026-09-06に確定）。
+ * 見本：/tmp/.../scratchpad/title-A.html（未選択）・title-A-sel.html（選択済み）。
+ * このCSSと構造は見本のCSSをそのまま踏襲したもの——変える場合は見本を作り直す
+ * ところからやり直すこと。馬の帯（.title-screen__track以下）は
+ * title-track-block.html / title-track-css.cssをそのまま使っている。
+ *
+ * 色：背景の青は#2f7fe6→#1a5fb4に変更（黄文字#ffd83dとのコントラスト比が
+ * 2.86→4.53になり、WCAG AAの4.5:1を満たす）。「騎手になる」が押せる状態も
+ * 同じ青に白文字（6.29:1）。他の画面の色（--action等）はこの変更の対象外。
+ */
+
+.title-screen {
+  --turf: #57a24b;
+  --turf2: #4c9142;
+  --panel: rgba(26, 42, 24, 0.82);
+  --muted: #c9e3bf;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --action-hover: #164f99;
+  --tap: 44px;
+
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--turf);
+  color: #fff;
+  font-family: "M PLUS 1p", sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.title-screen__field {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(90deg, var(--turf) 0 40px, var(--turf2) 40px 80px);
+}
+
+.title-screen__content {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 480px);
+  margin: 0 auto;
+  padding: var(--s3) var(--s2) var(--s2);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.title-screen__title {
+  font-family: "M PLUS 1p", sans-serif;
+  font-weight: 900;
+  font-size: var(--fs-display);
+  line-height: 1.2;
+  color: #fff;
+  text-shadow: 2px 2px 0 #1a2a18, 4px 4px 0 rgba(0, 0, 0, 0.25);
+  margin: 0 0 var(--s2);
+  letter-spacing: 0.02em;
+}
+@media (max-width: 359px) {
+  .title-screen__title {
+    font-size: 40px;
+  }
+}
+
+.title-screen__window {
+  background: var(--panel);
+  padding: var(--s2);
+}
+
+.title-screen__row {
+  margin-bottom: var(--s2);
+}
+.title-screen__row:last-child {
+  margin-bottom: 0;
+}
+
+.title-screen__row-label {
+  font-weight: 700;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: var(--s1);
+}
+
+.title-screen__opts {
+  display: grid;
+  gap: var(--s1);
+}
+.title-screen__opts--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.title-screen__opts--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.title-screen__opt {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--muted);
+  font-family: "M PLUS 1 Code", monospace;
+  font-size: var(--fs-lead);
+  font-variant-numeric: tabular-nums;
+}
+
+.title-screen__opt--text {
+  font-family: "M PLUS 1p", sans-serif;
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+.title-screen__opt:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.title-screen__opt[aria-pressed="true"] {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--accent);
+}
+
+.title-screen__foot {
+  margin-top: var(--s2);
+}
+
+.title-screen__start {
+  all: unset;
+  box-sizing: border-box;
+  cursor: not-allowed;
+  width: 100%;
+  min-height: var(--s6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "M PLUS 1p", sans-serif;
+  font-weight: 700;
+  font-size: var(--fs-body);
+  letter-spacing: 0.12em;
+  color: #cdd8ea;
+  background: #3a4a5e;
+  box-shadow: 0 2px 0 #1a2a18;
+}
+
+.title-screen__start[data-ready="true"] {
+  cursor: pointer;
+  color: #fff;
+  background: var(--action);
+}
+
+.title-screen__start[data-ready="true"]:hover {
+  background: var(--action-hover);
+}
+
+.title-screen__opt:focus-visible,
+.title-screen__start:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ===== 馬の帯（title-track-block.html / title-track-css.cssをそのまま） ===== */
+
+.title-screen__track {
+  position: relative;
+  margin-top: auto;
+  height: 96px;
+  overflow: hidden;
+}
+.title-screen__rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  background: #e9e2c9;
+  opacity: 0.85;
+}
+.title-horse {
+  --w: 48px;
+  position: absolute;
+  top: 14px;
+  left: 0;
+  width: var(--w);
+  height: calc(var(--w) * 32 / 44);
+  animation: title-horse-run 10s linear infinite;
+}
+.title-horse--2 {
+  top: 24px;
+  animation-delay: 0.25s;
+}
+.title-horse--3 {
+  top: 34px;
+  animation-delay: 0.55s;
+}
+.title-horse__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+.title-horse .coat {
+  fill: var(--coat);
+}
+.title-horse .coat-dark {
+  fill: var(--coat-dark);
+}
+.title-horse .silk {
+  fill: var(--silk);
+}
+.title-horse .hoof {
+  fill: #221a14;
+}
+.title-horse .boot {
+  fill: #222;
+}
+.title-horse .skin {
+  fill: #f0c8a0;
+}
+.title-horse .eye {
+  fill: #111;
+}
+.title-horse__shadow {
+  fill: rgba(6, 60, 6, 0.45);
+}
+.title-horse__body {
+  transform-box: fill-box;
+  transform-origin: 50% 60%;
+  animation: title-horse-bob 0.3s linear infinite;
+}
+@keyframes title-horse-bob {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-1.5px);
+  }
+  70% {
+    transform: translateY(0.3px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.title-horse .f1,
+.title-horse .f2,
+.title-horse .f3 {
+  opacity: 0;
+  /* ⚠️⚠️一括指定（animation: 0.3s steps(1,end) infinite）で書かないこと。
+     名前を持たない一括指定は仕様上`animation-name: none`と同じ意味なので、
+     ビルドのCSS圧縮が`animation: none`へ畳む。するとanimation-durationが0秒に戻り、
+     後続の`animation-name: th-f1`だけでは戻せず、⭐3コマとも opacity:0 のまま＝
+     **馬の足が消える**。⚠️開発サーバーでは動き、ビルドしたときだけ壊れる。
+     ユーザーから3回指摘された（2026-09-07に原因特定。`devlog/wave05.md`§50）。
+     ⭐個別指定で書けばこの畳み込みは起きない。 */
+  animation-duration: 0.3s;
+  animation-timing-function: steps(1, end);
+  animation-iteration-count: infinite;
+}
+.title-horse .f1 {
+  animation-name: th-f1;
+}
+.title-horse .f2 {
+  animation-name: th-f2;
+}
+.title-horse .f3 {
+  animation-name: th-f3;
+}
+@keyframes th-f1 {
+  0%, 33.2% {
+    opacity: 1;
+  }
+  33.3%, 100% {
+    opacity: 0;
+  }
+}
+@keyframes th-f2 {
+  0%, 33.2% {
+    opacity: 0;
+  }
+  33.3%, 66.5% {
+    opacity: 1;
+  }
+  66.6%, 100% {
+    opacity: 0;
+  }
+}
+@keyframes th-f3 {
+  0%, 66.5% {
+    opacity: 0;
+  }
+  66.6%, 100% {
+    opacity: 1;
+  }
+}
+@keyframes title-horse-run {
+  0% {
+    transform: translateX(calc(100vw + 70px));
+  }
+  45%, 100% {
+    transform: translateX(-70px);
+  }
+}
+@media (min-width: 900px) {
+  .title-horse {
+    --w: 60px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-horse,
+  .title-horse__body,
+  .title-horse .f1,
+  .title-horse .f3 {
+    animation: none;
+  }
+  .title-horse .f2 {
+    animation: none;
+    opacity: 1;
+  }
+  .title-horse {
+    left: 12%;
+  }
+  .title-horse--2 {
+    left: 42%;
+  }
+  .title-horse--3 {
+    left: 72%;
+  }
+}
