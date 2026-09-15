@@ -56,21 +56,27 @@ export function processYearBoundary(saveSeed, newYear, roster, player) {
     (h) => !sireIdSet.has(h.id) && !broodmareIdSet.has(h.id) && riddenByPlayer.has(h.id)
   );
   const discardedCount = retiring.length - newSires.length - newBroodmares.length - keptRetired.length;
+  // 現役名簿（`horses`配列）から抜ける頭数＝捨てた馬＋繁殖入りした馬（種牡馬・繁殖牝馬も
+  // 現役の名簿からは抜けるため、補充の対象に含める。`keptRetired`は名簿に残るので除く）。
+  // ⚠️2026-09-15：最初の実装ではdiscardedCountだけを補充していたため、繁殖入りした頭数の
+  // ぶん現役頭数が毎年純減し続けるバグがあった（実測：3年で7,600→7,323）。
+  const departedCount = discardedCount + newSires.length + newBroodmares.length;
 
   const breedingPool = {
     sires: [...(roster.breedingPool?.sires ?? []), ...newSires],
     broodmares: [...(roster.breedingPool?.broodmares ?? []), ...newBroodmares],
   };
 
-  // ④新しい2歳の生成。⚠️**仮の形**：discardした頭数ぶんだけ補充し、現役頭数を一定に保つ。
-  // 父母は繁殖プールからランダムに1組選ぶが、⚠️**能力の遺伝（ニック・インブリード・
-  // 系統確立などの配合の枠組み）は未実装**——`generateHorse`が能力を毎回新規に振るだけで、
-  // 親の能力を子へ反映していない。配合を作り込む弾で差し替える（`TODO.md`へ棚上げ）。
-  // 史実馬の新規投入（その年の結果表に出る馬）は史実馬インポートの仕組みが無いため未実装。
+  // ④新しい2歳の生成。⚠️**仮の形**：現役名簿から抜けた頭数ぶんだけ補充し、現役頭数を
+  // 一定に保つ。父母は繁殖プールからランダムに1組選ぶが、⚠️**能力の遺伝（ニック・
+  // インブリード・系統確立などの配合の枠組み）は未実装**——`generateHorse`が能力を毎回
+  // 新規に振るだけで、親の能力を子へ反映していない。配合を作り込む弾で差し替える
+  // （`TODO.md`へ棚上げ）。史実馬の新規投入（その年の結果表に出る馬）は史実馬インポートの
+  // 仕組みが無いため未実装。
   const foalRand = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "foal", newYear);
   const newFoals = [];
   if (breedingPool.sires.length > 0 && breedingPool.broodmares.length > 0) {
-    for (let i = 0; i < discardedCount; i += 1) {
+    for (let i = 0; i < departedCount; i += 1) {
       const sire = pick(foalRand, breedingPool.sires);
       const dam = pick(foalRand, breedingPool.broodmares);
       newFoals.push(
@@ -98,6 +104,7 @@ export function processYearBoundary(saveSeed, newYear, roster, player) {
       keptRetired: keptRetired.length,
       newSires: newSires.length,
       newBroodmares: newBroodmares.length,
+      departedCount,
       newFoals: newFoals.length,
     },
   };

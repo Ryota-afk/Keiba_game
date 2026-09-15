@@ -183,31 +183,47 @@ const PLACE_PRIZE_SHARE = Object.freeze([1, 0.4, 0.25]);
 // 引退判定②で見る直近走数（`arch/horse.md`「②成績：直近6走で1度も5着以内が無ければ引退」）。
 export const RECENT_FINISHES_WINDOW = 6;
 
-/** そのクラス・着順で得られる収得賞金（円）。プレイヤーの鞍・NPCの鞍の両方で使う共通関数。 */
+/** 着順から賞金配分比を引く（1着を1とした比率）。プレイヤー・NPC・重賞のどの経路でも使う。 */
+export function placePrizeShare(position) {
+  return PLACE_PRIZE_SHARE[position - 1] ?? 0;
+}
+
+/** 一般競走（新馬〜3勝クラス）のクラス・着順で得られる収得賞金（円）。 */
 export function earningsForResult(classId, position) {
   const prizeBase = PROVISIONAL_FIRST_PRIZE_1974[classId] ?? 0;
-  return prizeBase * (PLACE_PRIZE_SHARE[position - 1] ?? 0);
+  return prizeBase * placePrizeShare(position);
 }
 
 /**
- * レース結果を通算成績へ積む。純関数——新しいrecordを返す。
+ * レース結果を通算成績へ積む、最も基本の形。純関数——新しいrecordを返す。
+ * `appendRaceResult`（一般競走用）・`domain/npcGradedRace.js`（重賞用・実際の`prize1`を渡す）の
+ * 両方がこれを共通で呼ぶ。
  * @param {{starts:number,wins:number,seconds:number,thirds:number,earnings:number,
  *          gradedWins:number,recentFinishes:number[]}} record
- * @param {string} classId - レース時点のクラス（賞金額の参照に使う）
  * @param {number} position - 着順（1始まり）
+ * @param {number} earningsGain - このレースで得た収得賞金（円）
  * @param {boolean} [isGraded] - 重賞（g1/g2/g3）を勝った場合に`gradedWins`を積む
  */
-export function appendRaceResult(record, classId, position, isGraded = false) {
+export function appendRaceResultWithEarnings(record, position, earningsGain, isGraded = false) {
   const won = position === 1;
   return {
     starts: record.starts + 1,
     wins: record.wins + (won ? 1 : 0),
     seconds: record.seconds + (position === 2 ? 1 : 0),
     thirds: record.thirds + (position === 3 ? 1 : 0),
-    earnings: record.earnings + earningsForResult(classId, position),
+    earnings: record.earnings + earningsGain,
     gradedWins: (record.gradedWins ?? 0) + (won && isGraded ? 1 : 0),
     recentFinishes: [position, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
   };
+}
+
+/**
+ * 一般競走（新馬〜3勝クラス）用のレース結果の積み方。
+ * @param {string} classId - レース時点のクラス（賞金額の参照に使う）
+ * @param {number} position - 着順（1始まり）
+ */
+export function appendRaceResult(record, classId, position) {
+  return appendRaceResultWithEarnings(record, position, earningsForResult(classId, position), false);
 }
 
 // 厩舎のローテの型（穴9・質問27＝(ア)・2026-09-15にユーザー決定）。⚠️**仮の形**：

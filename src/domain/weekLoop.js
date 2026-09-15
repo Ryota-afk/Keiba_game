@@ -20,6 +20,7 @@ import { processMountResult } from "./weekResults.js";
 import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
 import { advanceInjuryByWeek, isSidelined } from "./fall.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
+import { runNpcGradedRaces } from "./npcGradedRace.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import {
@@ -115,11 +116,22 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   }
 
   // プレイヤーが乗らなかった残り約7,600頭も、NPC騎手が乗って実際にレースを走る
-  // （質問14＝(A)「現役馬を全部持ち毎週ローテを回す」・`domain/npcWeeklyRace.js`）。
+  // （質問14＝(A)「現役馬を全部持ち毎週ローテを回す」）。
   // ⚠️2026-09-04時点では`lastRaceWeek`を進めるだけの仮処理だった（`TODO.md` #16）。
-  // 現在は一般競走（新馬〜3勝クラス）だけ本物の週次レースにかけている——重賞・オープン
-  // 特別のNPC出走は別途の増分で作る（`devlog/wave07.md`）。
-  const npcResult = runNpcWeeklyRaces(saveSeed, week, nextPlayer.currentYear, roster.horses, riddenThisWeek);
+  // まず重賞（`domain/npcGradedRace.js`・実データ）を走らせ、その週に重賞へ出た馬を除いてから
+  // 一般競走（`domain/npcWeeklyRace.js`・新馬〜3勝クラス）を走らせる——同じ馬が同じ週に
+  // 2つのレースへ出ないようにするため。オープン特別のNPC出走は実データが無くまだ未実装
+  // （`devlog/wave07.md`）。
+  const gradedResult = runNpcGradedRaces(
+    saveSeed,
+    week,
+    nextPlayer.currentYear,
+    roster.horses,
+    riddenThisWeek,
+    roster.trialResults ?? {}
+  );
+  const npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds]);
+  const npcResult = runNpcWeeklyRaces(saveSeed, week, nextPlayer.currentYear, gradedResult.horses, npcExcluded);
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 
   // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。
@@ -146,7 +158,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   };
 
   return {
-    roster: { ...roster, horses: advancedHorses },
+    roster: { ...roster, horses: advancedHorses, trialResults: gradedResult.trialResults },
     player: nextPlayer,
     notifications,
     requestHorseIds,
