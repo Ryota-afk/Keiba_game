@@ -1,6 +1,8 @@
 // `tools/build-graded-races.mjs`が作る。手で書き足さない。
 // 年ごとの重賞データを、素のstatic import（Node単体でもVite単体でも読める形）で束ねる。
 
+import gradedRaces1972 from "./generated/gradedRaces.1972.json" with { type: "json" };
+import gradedRaces1973 from "./generated/gradedRaces.1973.json" with { type: "json" };
 import gradedRaces1974 from "./generated/gradedRaces.1974.json" with { type: "json" };
 import gradedRaces1975 from "./generated/gradedRaces.1975.json" with { type: "json" };
 import gradedRaces1976 from "./generated/gradedRaces.1976.json" with { type: "json" };
@@ -17,6 +19,8 @@ import gradedRaces1986 from "./generated/gradedRaces.1986.json" with { type: "js
 import gradedRaces1987 from "./generated/gradedRaces.1987.json" with { type: "json" };
 
 export const GRADED_RACES_BY_YEAR = Object.freeze({
+  1972: gradedRaces1972,
+  1973: gradedRaces1973,
   1974: gradedRaces1974,
   1975: gradedRaces1975,
   1976: gradedRaces1976,

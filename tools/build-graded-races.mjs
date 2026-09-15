@@ -254,8 +254,13 @@ function main() {
   writeLoader(existingYears, outDir);
   console.log(`gradedRacesByYear.js を作り直した（${existingYears.length}年ぶん）`);
 
-  writeFileSync(path.join(outDir, "gradedRaces.index.json"), JSON.stringify(index, null, 1));
-  console.log("index:", index);
+  // 索引も既にある年ぶん全部で作り直す（今回の範囲だけで上書きすると他の年が消える）。
+  const fullIndex = {};
+  for (const year of existingYears) {
+    fullIndex[year] = index[year] ?? JSON.parse(readFileSync(path.join(outDir, `gradedRaces.${year}.json`), "utf8")).length;
+  }
+  writeFileSync(path.join(outDir, "gradedRaces.index.json"), JSON.stringify(fullIndex, null, 1));
+  console.log("index:", fullIndex);
 }
 
 main();
