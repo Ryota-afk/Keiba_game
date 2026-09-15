@@ -56,3 +56,8 @@ export const ALL_COURSES = Object.freeze([
 export function findCourse(courseId) {
   return ALL_COURSES.find((c) => c.id === courseId) ?? null;
 }
+
+/** 日本語名（結果表の表記）から競馬場idを引く。無ければnull。 */
+export function findCourseByName(name) {
+  return ALL_COURSES.find((c) => c.name === name)?.id ?? null;
+}
