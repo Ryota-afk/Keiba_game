@@ -19,7 +19,7 @@
 **切り出したファイル**：`arch/horse.md`（§3 馬）／`arch/race-sim.md`（§5 レースsim）／
 `arch/race-program.md`（番組表＝1年のレースをどう並べるか。決定A・質問8〜11の結果）／
 `arch/historical-horses.md`（史実馬の追加手順）／`arch/report-check.md`（ユーザーへ送る文の
-検査手順。CLAUDE.md §15の実体）。⭐**どれもこのファイルと同じく正本。**
+検査手順。CLAUDE.md §15の実体）／`arch/ui-fable.md`（デザイン・UIはFableで行う。§2・§8の実体）。⭐**どれもこのファイルと同じく正本。**
 
 ---
 
