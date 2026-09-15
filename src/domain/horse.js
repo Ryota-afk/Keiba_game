@@ -3,7 +3,7 @@
 // 純ロジック（JSX無し。`data/`・`core/`だけに依存）。
 
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
-import { CLASS_LADDER, classIndex } from "../data/classes.js";
+import { CLASS_LADDER, classIndex, classDisplayName } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
 import { pickGradeBellCurve } from "../data/grades.js";
 import { generateSurfaceAptitude } from "../data/surfaceAptitude.js";
@@ -98,7 +98,8 @@ export function generateHorse(saveSeed, key, opts = {}) {
     surfaceAptitude: generateSurfaceAptitude(rand01),
     // 通算成績（収得賞金の順位付け・引退判定に使う。`arch/horse.md`「引退」「出走馬の決定」）。
     // ⚠️`earnings`は収得賞金（円）。実際の獲得賞金（プレイヤーの手取り）とは別の数値。
-    // `recentFinishes`は新しい順の着順（引退判定②「直近6走で1度も5着以内が無ければ引退」に使う）。
+    // `recentFinishes`は新しい順の直近戦績（着順・レース名・日付等の詳細つき。引退判定②
+    // 「直近6走で1度も5着以内が無ければ引退」と、出馬表の馬柱の両方に使う）。
     // `gradedWins`は重賞の勝ち鞍数（引退規則④「重賞を1つでも勝った牡馬は種牡馬」の判定に使う。
     // `domain/npcGradedRace.js`が重賞を勝つたびに積む）。
     record: { starts: 0, wins: 0, seconds: 0, thirds: 0, earnings: 0, gradedWins: 0, recentFinishes: [] },
@@ -201,13 +202,22 @@ export function earningsForResult(classId, position) {
  * レース結果を通算成績へ積む、最も基本の形。純関数——新しいrecordを返す。
  * `appendRaceResult`（一般競走用）・`domain/npcGradedRace.js`（重賞用・実際の`prize1`を渡す）の
  * 両方がこれを共通で呼ぶ。
+ * ⚠️`recentFinishes`は「直近◯走」の詳細を持つ——**生涯の全レースではない**（質問16は生涯の
+ * 全レースを持つ決定だが、7,600頭超が常時それを保持するとメモリを圧迫するため、実装では
+ * 直近`RECENT_FINISHES_WINDOW`走だけを持つ形にした。生涯の全レースはセーブ層
+ * （IndexedDB・未実装）で追記型に持たせる想定——`TODO.md`へ棚上げ）。
  * @param {{starts:number,wins:number,seconds:number,thirds:number,earnings:number,
- *          gradedWins:number,recentFinishes:number[]}} record
- * @param {number} position - 着順（1始まり）
+ *          gradedWins:number,recentFinishes:object[]}} record
+ * @param {{ position: number, fieldSize?: number, popularity?: number|null,
+ *           raceName?: string, week?: number, year?: number, courseId?: string|null,
+ *           surface?: string|null, distance?: number|null, distanceBand?: string|null,
+ *           condition?: string|null }} historyEntry - `position`（着順・1始まり）は必須、
+ *   他は出馬表の馬柱に出す表示用の詳細（分かる範囲でよい）
  * @param {number} earningsGain - このレースで得た収得賞金（円）
  * @param {boolean} [isGraded] - 重賞（g1/g2/g3）を勝った場合に`gradedWins`を積む
  */
-export function appendRaceResultWithEarnings(record, position, earningsGain, isGraded = false) {
+export function appendRaceResultWithEarnings(record, historyEntry, earningsGain, isGraded = false) {
+  const { position } = historyEntry;
   const won = position === 1;
   return {
     starts: record.starts + 1,
@@ -216,17 +226,18 @@ export function appendRaceResultWithEarnings(record, position, earningsGain, isG
     thirds: record.thirds + (position === 3 ? 1 : 0),
     earnings: record.earnings + earningsGain,
     gradedWins: (record.gradedWins ?? 0) + (won && isGraded ? 1 : 0),
-    recentFinishes: [position, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
+    recentFinishes: [historyEntry, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
   };
 }
 
 /**
  * 一般競走（新馬〜3勝クラス）用のレース結果の積み方。
- * @param {string} classId - レース時点のクラス（賞金額の参照に使う）
- * @param {number} position - 着順（1始まり）
+ * @param {string} classId - レース時点のクラス（賞金額の参照に使う。馬柱の「レース名」にも使う）
+ * @param {object} historyEntry - `position`必須。`raceName`を省略すると`classId`の表記で埋める
  */
-export function appendRaceResult(record, classId, position) {
-  return appendRaceResultWithEarnings(record, position, earningsForResult(classId, position), false);
+export function appendRaceResult(record, classId, historyEntry) {
+  const entry = { raceName: classDisplayName(classId), ...historyEntry };
+  return appendRaceResultWithEarnings(record, entry, earningsForResult(classId, entry.position), false);
 }
 
 // 厩舎のローテの型（穴9・質問27＝(ア)・2026-09-15にユーザー決定）。⚠️**仮の形**：

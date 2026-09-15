@@ -11,6 +11,7 @@ import { runPlaceholderRace } from "./raceOutcome.js";
 import { nextClassAfterRace, appendRaceResult, pickRotationIntervalWeeks } from "./horse.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { checkFall, applyInjuryToHorse } from "./fall.js";
+import { rollActualCondition } from "./weather.js";
 import { fatiguePenaltyFactor } from "./fatigue.js";
 import { rideIncome } from "./income.js";
 import { adjustTrust, trustFor } from "./player.js";
@@ -29,10 +30,12 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  * @param {number} week
  * @param {object} player
  * @param {object} horse
- * @param {{ horseId: string, declaredStrategy?: string|null }} mount
+ * @param {{ horseId: string, declaredStrategy?: string|null, courseId?: string, surface?: string,
+ *           distanceBand?: string }} mount
+ * @param {object[]} allHorses - ロースター全馬（実在の相手馬を組むために使う）
  * @returns {{ player: object, horse: object, notifications: object[], raced: boolean }}
  */
-export function processMountResult(saveSeed, week, player, horse, mount) {
+export function processMountResult(saveSeed, week, player, horse, mount, allHorses) {
   const notifications = [];
 
   // 落馬を先に判定する（落馬すればそのレースは走らない）。
@@ -48,7 +51,7 @@ export function processMountResult(saveSeed, week, player, horse, mount) {
   }
 
   const fatigueFactor = fatiguePenaltyFactor(player.fatigue);
-  const result = runPlaceholderRace(saveSeed, week, mount, horse, fatigueFactor);
+  const result = runPlaceholderRace(saveSeed, week, mount, horse, allHorses, fatigueFactor);
 
   let nextPlayer = { ...player, money: player.money + rideIncome(horse.classId, result.won) };
 
@@ -92,8 +95,20 @@ export function processMountResult(saveSeed, week, player, horse, mount) {
     classId: nextClassAfterRace(horse.classId, result.won),
     // 通算成績：`domain/npcWeeklyRace.js`のNPC馬と同じ形で積む（2026-09-15までは
     // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
-    // NPC馬とズレる不整合があった）。
-    record: appendRaceResult(horse.record, horse.classId, result.position),
+    // NPC馬とズレる不整合があった）。⚠️`distance`は未定（プレイヤーの鞍はまだ距離帯
+    // （`mount.distanceBand`：sprint/mile等）しか持たない——実データの番組表に
+    // 置き換わるまでの仮。距離は`distanceBand`のほうに入れる）。
+    record: appendRaceResult(horse.record, horse.classId, {
+      position: result.position,
+      fieldSize: result.fieldSize,
+      popularity: result.popularity,
+      week,
+      year: player.currentYear,
+      courseId: mount.courseId ?? null,
+      surface: mount.surface ?? null,
+      distanceBand: mount.distanceBand ?? null,
+      condition: mount.courseId ? rollActualCondition(saveSeed, week, mount.courseId) : null,
+    }),
     nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
   };
 

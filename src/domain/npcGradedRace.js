@@ -18,6 +18,7 @@ import { horseStrengthScore } from "./raceOutcome.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { determineEntries, PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
+import { rollActualCondition } from "./weather.js";
 
 // オープン以上（重賞に出られる最低クラス）。`arch/horse.md`「クラス（10段）」。
 const MIN_ENTRY_CLASS_INDEX = classIndex("open");
@@ -95,6 +96,10 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
 
     const fieldSize = Math.min(MAX_FIELD_SIZE, candidates.length);
     const { entries } = determineEntries(candidates, fieldSize, priorityIds);
+    // 優先出走権→収得賞金順で決めた並び＝人気順として扱う（質問19「人気は走る前に見えている
+    // 情報だけから作る」に沿う仮の指標。`devlog/wave07.md`「未定のまま実装に入るもの」#6）。
+    const popularityByHorseId = new Map(entries.map((h, i) => [h.id, i + 1]));
+    const condition = rollActualCondition(saveSeed, week, race.courseId);
 
     const scored = entries
       .map((h) => ({ h, score: horseStrengthScore(h, null) + (rand01() - 0.5) * 30 }))
@@ -109,7 +114,23 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
 
       let updated = {
         ...h,
-        record: appendRaceResultWithEarnings(h.record, position, earningsGain, true),
+        record: appendRaceResultWithEarnings(
+          h.record,
+          {
+            position,
+            fieldSize,
+            popularity: popularityByHorseId.get(h.id) ?? null,
+            raceName: race.name,
+            week,
+            year,
+            courseId: race.courseId,
+            surface: race.surface,
+            distance: race.distance,
+            condition,
+          },
+          earningsGain,
+          true
+        ),
         lastRaceWeek: week,
         nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
       };

@@ -9,15 +9,15 @@
 // （史実ローテーション・優先出走権が絡む）は別途、後続の増分で作る。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
 
-import { streamRandom, RNG_STREAMS, weightedPick } from "../core/rng.js";
-import { WEEKS_PER_YEAR } from "../data/calendar.js";
+import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
+import { WEEKS_PER_YEAR, weekOfYear } from "../data/calendar.js";
 import {
   buildYearlyClassCounts,
   drawFieldSize,
-  SURFACE_SHARE,
+  drawGeneralRaceShape,
   NON_OPEN_CLASS_SHARE,
 } from "../data/raceProgram.js";
-import { MEETING_DAYS_PER_YEAR } from "../data/jraMeetingSchedule.js";
+import { MEETING_DAYS_PER_YEAR, coursesOpenInWeek } from "../data/jraMeetingSchedule.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface } from "../data/surfaceAptitude.js";
 import {
@@ -30,6 +30,7 @@ import {
 import { horseStrengthScore } from "./raceOutcome.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
+import { rollActualCondition } from "./weather.js";
 
 // 重賞データが無い年の仮の重賞本数（`tools/build-graded-races.mjs`で作った1974〜1987年の
 // 実測本数84〜100の中央値）。年ごとの実データが揃ったら`gradedRacesForYear`に置き換わる。
@@ -60,6 +61,7 @@ function stochasticRound(value, rand01) {
 export function runNpcWeeklyRaces(saveSeed, week, year, horses, excludeHorseIds = new Set()) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, week);
   const { counts } = buildYearlyClassCounts(year, MEETING_DAYS_PER_YEAR, gradedCountForYear(year));
+  const openCourses = coursesOpenInWeek(weekOfYear(week));
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
   const queueByClass = new Map(GENERAL_CLASS_KEYS.map((k) => [k, []]));
@@ -83,12 +85,14 @@ export function runNpcWeeklyRaces(saveSeed, week, year, horses, excludeHorseIds 
     for (let r = 0; r < targetRaces; r += 1) {
       if (queue.length < 5) break; // 出走頭数の最小（`FIELD_SIZE_BUCKETS`）に届かない
 
-      const surface = weightedPick(rand01, SURFACE_SHARE);
+      const { surface, distance, fillyOnly } = drawGeneralRaceShape(rand01);
+      const courseId = openCourses.length ? pick(rand01, openCourses) : null;
       // 収得賞金の多い順（質問15「条件戦も同じ」）。同額（新馬戦など多くは0円）に
       // ごく小さな乱数を足して割り切る——厳密な同額順のままだと、同額どうしが毎週
       // 同じ並び順のまま固定され、後ろに並んだ馬がいつまでも出走できなくなる。
       const eligible = queue
         .filter((h) => canRaceOnSurface(h.surfaceAptitude, surface))
+        .filter((h) => !fillyOnly || h.gender === "filly")
         .map((h) => ({ h, key: h.record.earnings + rand01() * 0.001 }))
         .sort((a, b) => b.key - a.key)
         .map((x) => x.h);
@@ -96,10 +100,12 @@ export function runNpcWeeklyRaces(saveSeed, week, year, horses, excludeHorseIds 
 
       const desired = drawFieldSize(rand01);
       const fieldSize = Math.min(desired, eligible.length);
-      const field = eligible.slice(0, fieldSize);
+      const field = eligible.slice(0, fieldSize); // 既に収得賞金の多い順＝人気順
+      const popularityByHorseId = new Map(field.map((h, i) => [h.id, i + 1]));
       const fieldIds = new Set(field.map((h) => h.id));
       queue = queue.filter((h) => !fieldIds.has(h.id));
       queueByClass.set(classKey, queue);
+      const condition = courseId ? rollActualCondition(saveSeed, week, courseId) : null;
 
       // 強さ比べで着順を決める（⚠️仮sim。`raceOutcome.js`のhorseStrengthScoreをそのまま使う）。
       const scored = field
@@ -115,7 +121,17 @@ export function runNpcWeeklyRaces(saveSeed, week, year, horses, excludeHorseIds 
         let updated = {
           ...h,
           classId: nextClassId,
-          record: appendRaceResult(h.record, h.classId, position),
+          record: appendRaceResult(h.record, h.classId, {
+            position,
+            fieldSize,
+            popularity: popularityByHorseId.get(h.id) ?? null,
+            week,
+            year,
+            courseId,
+            surface,
+            distance,
+            condition,
+          }),
           lastRaceWeek: week,
           nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
         };

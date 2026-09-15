@@ -89,7 +89,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const fatigueBefore = nextPlayer.fatigue;
   for (const mount of mounts) {
     const horse = horsesById.get(mount.horseId);
-    const res = processMountResult(saveSeed, week, nextPlayer, horse, mount);
+    const res = processMountResult(saveSeed, week, nextPlayer, horse, mount, roster.horses);
     nextPlayer = res.player;
     horsesById.set(horse.id, res.horse);
     notifications.push(...res.notifications);

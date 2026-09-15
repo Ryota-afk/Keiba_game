@@ -35,12 +35,15 @@ export function isPastMaxAge(horse, currentYear) {
 }
 
 /**
- * ②成績不振による引退。`recentFinishes`（新しい順の着順配列）の直近`WINLESS_STREAK_LIMIT`走が
- * すべて`WINLESS_STREAK_RANK_CUTOFF`着より下なら引退。走数が足りなければ判定しない。
+ * ②成績不振による引退。`recentFinishes`（新しい順の直近戦績・`{position,...}`の配列）の
+ * 直近`WINLESS_STREAK_LIMIT`走がすべて`WINLESS_STREAK_RANK_CUTOFF`着より下なら引退。
+ * 走数が足りなければ判定しない。
  */
 export function isWinlessStreakOver(recentFinishes) {
   if (!recentFinishes || recentFinishes.length < WINLESS_STREAK_LIMIT) return false;
-  return recentFinishes.slice(0, WINLESS_STREAK_LIMIT).every((pos) => pos > WINLESS_STREAK_RANK_CUTOFF);
+  return recentFinishes
+    .slice(0, WINLESS_STREAK_LIMIT)
+    .every((entry) => entry.position > WINLESS_STREAK_RANK_CUTOFF);
 }
 
 /** ③骨折による引退抽選（骨折した瞬間に1回だけ判定する。呼び出し側は骨折時にこれを呼ぶ）。 */

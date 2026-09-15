@@ -19,6 +19,25 @@ export const CLASS_LADDER = Object.freeze([
 
 export const GRADED_CLASSES = Object.freeze(["g3", "g2", "g1"]);
 
+// 画面に出す言葉（`arch/horse.md`「クラス（10段）」の表・CLAUDE.md §7の明示的な例外）。
+export const CLASS_DISPLAY_NAME = Object.freeze({
+  shinba: "新馬",
+  maiden: "未勝利",
+  win1: "1勝クラス",
+  win2: "2勝クラス",
+  win3: "3勝クラス",
+  open: "オープン特別",
+  listed: "リステッド",
+  g3: "GIII",
+  g2: "GII",
+  g1: "GI",
+});
+
+/** クラスidから画面表記を引く。不明なクラスはidをそのまま返す。 */
+export function classDisplayName(classId) {
+  return CLASS_DISPLAY_NAME[classId] ?? classId;
+}
+
 /** クラスの序列上の位置（0始まり）。不明なクラスは-1。 */
 export function classIndex(classId) {
   return CLASS_LADDER.indexOf(classId);

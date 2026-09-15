@@ -283,3 +283,44 @@
 **測定**：2年分（104週）のロースターで実行。オープン以上の馬195頭全頭に主戦が付き、
 190厩舎全部が主戦を持てた（160人のNPC騎手で190厩舎をカバー——フォールバック
 （ランク最上位騎手の共有）が機能していることを確認）。
+
+## 項目7：出馬表の画面（案E）（2026-09-15〜）
+
+ユーザーに「IndexedDBセーブ／出馬表の画面／sim反映」のどれを先にするか尋ね、
+**出馬表の画面（案E）を先に作る**を選んだ。
+
+### 準備：戦績を「着順の数値」から「馬柱に出せる詳細」へ拡張
+
+出馬表（案E）は1頭ごとに直近5走の日付・競馬場・レース名・距離・馬場状態・頭数・人気・着順を
+並べる。実装済みの`record.recentFinishes`は着順の数値だけだったため、詳細を持つ形に直した。
+
+- `src/data/classes.js`：`CLASS_DISPLAY_NAME`／`classDisplayName()`を追加（`arch/horse.md`の
+  クラス表記表をコード化。一般競走の馬柱の「レース名」欄には、実名が無いのでクラス名
+  （新馬・未勝利・1勝クラス…）を代わりに使う——実在の条件戦の多くもレース名を持たない）。
+- `src/domain/horse.js`：`appendRaceResultWithEarnings`/`appendRaceResult`の引数を
+  「着順の数値」から「`{position, fieldSize, popularity, raceName, week, year, courseId,
+  surface, distance/distanceBand, condition}`の詳細エントリ」へ変更。⚠️**質問16は生涯の
+  全レースを持つ決定だが、7,600頭超が常時それを保持するとメモリを圧迫するため、実装では
+  直近`RECENT_FINISHES_WINDOW`（6走）だけを持つ形にした**——生涯の全レースはセーブ層
+  （IndexedDB・未実装）で追記型に持たせる想定。`retirement.js`の`isWinlessStreakOver`も
+  `.position`参照に直した。
+- `src/domain/npcWeeklyRace.js`：距離・牝馬限定を`drawGeneralRaceShape`で引くようにし
+  （今まで馬場だけ引いて距離を持っていなかった）、開催場を`coursesOpenInWeek`から選び、
+  馬場状態を`weather.js`の`rollActualCondition`で決め、人気（仮：収得賞金順の並び）を
+  history詳細に積むようにした。
+- `src/domain/npcGradedRace.js`：同様に馬場状態・人気（優先出走権→収得賞金順の並び）を積む。
+- **`src/domain/raceOutcome.js`を作り直した**：相手馬を`syntheticRivalScore`で数値だけ
+  手続き生成していたのをやめ、**ロースターの実在の馬から実際の出走枠を組む**
+  `assembleRealField`に置き換えた（同クラス・同じ馬場に出られる馬を収得賞金順＋乱数の
+  ジッターで選ぶ——NPCエンジンと同じ考え方）。出走頭数も固定の一様乱数（6〜18）から
+  `raceProgram.js`の実測分布（`drawFieldSize`）に差し替えた。これで**プレイヤーの鞍にも
+  名前・騎手・戦績を持つ実在の相手馬が付くようになった**（`TODO.md`旧#23の「出馬表を描く
+  材料が1つも無い」を解消）。
+- `src/domain/weekResults.js`：`processMountResult`に`allHorses`を追加し、`raceOutcome.js`の
+  結果（`field`・`popularity`）と馬場状態を使って詳細な戦績エントリを積むようにした。
+  ⚠️プレイヤーの鞍は`mount.distanceBand`（距離帯）しか持たず、正確な距離（メートル）は
+  まだ無い——`fridayConfirmation.js`が仮の距離帯しか割り当てていないため（実データの
+  番組表に置き換わるまでの制約。`devlog/wave02.md④`から続く既知の仮の位置づけ）。
+
+**測定**：20週分のロースターでプレイヤーの鞍を通し、`recentFinishes`に実在の相手馬を
+含む出走枠（フィールドサイズ・人気・馬場状態つき）が正しく積まれることを確認した。
