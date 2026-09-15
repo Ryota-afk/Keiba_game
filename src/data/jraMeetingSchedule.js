@@ -82,6 +82,31 @@ export function firstWeekOfMonth(month) {
 }
 
 /**
+ * 暦週（1〜52）から、月と「その月の第何週目か」を出す（`weekOfYearFromDate`の逆引き）。
+ * @param {number} week
+ * @returns {{ month: number, weekOfMonth: number }}
+ */
+export function monthAndWeekOfMonth(week) {
+  let w = week;
+  for (let month = 1; month <= 12; month += 1) {
+    if (w <= WEEKS_PER_MONTH[month - 1]) return { month, weekOfMonth: w };
+    w -= WEEKS_PER_MONTH[month - 1];
+  }
+  return { month: 12, weekOfMonth: WEEKS_PER_MONTH[11] };
+}
+
+/**
+ * 出馬表の日付欄に出す近似日付（`{ year, month, day }`）。⚠️実際のカレンダーとは
+ * 一致しない——週番号から「その月の第何週目か」だけを使い、日は`(週目-1)*7+1`で
+ * 仮に決める（実データの正確な開催日はまだ取れていない・`arch/horse.md`「レースカレンダー」）。
+ */
+export function approximateDate(year, week) {
+  const { month, weekOfMonth } = monthAndWeekOfMonth(week);
+  const day = Math.min(28, (weekOfMonth - 1) * 7 + 1);
+  return { year, month, day };
+}
+
+/**
  * 実際の日付（year, month, day）を、その年の暦週（1〜52）へ変換する。
  * ⚠️史実の重賞データを52週の並びに載せるための近似——「1月1日を第1週として
  * 7日ごとに数える」（`devlog/wave06.md`〜`wave07.md`で史実の突き合わせに使った方法と同じ）。

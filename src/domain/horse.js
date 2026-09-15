@@ -19,6 +19,12 @@ export { GRADE_SCALE } from "../data/grades.js";
 
 export const GENDERS = Object.freeze(["colt", "filly", "gelding"]); // 牡・牝・セン
 
+// 画面表記（出馬表の馬柱など）。⚠️斤量（負担重量）は未実装——牡・セン57.0／牝55.0の
+// 定量を仮に置く（`arch/race-program.md`に斤量そのものの規則は無い。着順の計算にも
+// まだ使っていない表示専用の値）。
+export const GENDER_LABEL = Object.freeze({ colt: "牡", filly: "牝", gelding: "セン" });
+export const STANDARD_WEIGHT = Object.freeze({ colt: 57.0, filly: 55.0, gelding: 57.0 });
+
 export const GROWTH_TYPES = Object.freeze([
   "early", // 早熟：2歳後半〜3歳前半にピーク
   "normal", // 標準

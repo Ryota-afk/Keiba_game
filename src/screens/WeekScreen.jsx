@@ -10,6 +10,7 @@ import { resolveWeekRaceContexts, courseIdsAvailable } from "../domain/fridayCon
 import { weekOfYear } from "../data/calendar.js";
 import { findCourse } from "../data/courses.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
+import { EntryListScreen } from "./EntryListScreen.jsx";
 
 function notificationText(n, horsesById, stablesById) {
   const horseName = (id) => horsesById.get(id)?.name ?? id;
@@ -41,6 +42,8 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const [player, setPlayer] = useState(initialPlayer);
   const [log, setLog] = useState([]); // { week, year, notifications: [] }[]
   const [selectedCourse, setSelectedCourse] = useState(null);
+  // 出馬表を開いている依頼（質問25＝(ア)：月曜の依頼の段階から見せる）。
+  const [entryListRequest, setEntryListRequest] = useState(null);
 
   const horsesById = useMemo(() => new Map(roster.horses.map((h) => [h.id, h])), [roster]);
   const stablesById = useMemo(() => new Map(roster.stables.map((s) => [s.id, s])), [roster]);
@@ -58,6 +61,22 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const chosenCourse = selectedCourse && courses.includes(selectedCourse) ? selectedCourse : courses[0] ?? null;
 
   const yearCompleted = player.currentYear > startYear;
+
+  if (entryListRequest) {
+    const entryHorse = horsesById.get(entryListRequest.horseId);
+    return (
+      <EntryListScreen
+        saveSeed={saveSeed}
+        week={week}
+        currentYear={player.currentYear}
+        player={player}
+        roster={roster}
+        horse={entryHorse}
+        mount={entryListRequest}
+        onClose={() => setEntryListRequest(null)}
+      />
+    );
+  }
 
   function handleAdvance() {
     const res = advanceWeek(saveSeed, roster, player, {
@@ -109,7 +128,10 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
             return (
               <li key={r.horseId}>
                 {horse?.name} （{stable?.trainerName}厩舎） — {course?.name ?? r.courseId} {r.surface}
-                {r.distanceBand}
+                {r.distanceBand}{" "}
+                <button type="button" onClick={() => setEntryListRequest(r)}>
+                  出馬表を見る
+                </button>
               </li>
             );
           })}
