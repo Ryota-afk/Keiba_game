@@ -7,6 +7,7 @@ import { CLASS_LADDER, classIndex } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
 import { pickGradeBellCurve } from "../data/grades.js";
 import { generateSurfaceAptitude } from "../data/surfaceAptitude.js";
+import { PROVISIONAL_FIRST_PRIZE_1974 } from "../data/raceProgram.js";
 
 // ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
 // ダービー馬51頭は65〜92なので、この上限（理論上の最大に近い値で71〜72）なら
@@ -97,7 +98,10 @@ export function generateHorse(saveSeed, key, opts = {}) {
     surfaceAptitude: generateSurfaceAptitude(rand01),
     // 通算成績（収得賞金の順位付け・引退判定に使う。`arch/horse.md`「引退」「出走馬の決定」）。
     // ⚠️`earnings`は収得賞金（円）。実際の獲得賞金（プレイヤーの手取り）とは別の数値。
-    record: { starts: 0, wins: 0, seconds: 0, thirds: 0, earnings: 0 },
+    // `recentFinishes`は新しい順の着順（引退判定②「直近6走で1度も5着以内が無ければ引退」に使う）。
+    // `gradedWins`は重賞の勝ち鞍数（引退規則④「重賞を1つでも勝った牡馬は種牡馬」の判定に使う。
+    // ⚠️重賞のNPC出走はまだ実装していないため、当面は常に0——`devlog/wave07.md`参照）。
+    record: { starts: 0, wins: 0, seconds: 0, thirds: 0, earnings: 0, gradedWins: 0, recentFinishes: [] },
     adaptability: createInitialAdaptability(bloodlineFamily),
     // 前走の週。⚠️新規キャリア開始時は`opts.lastRaceWeek`で散らす（career.js参照）——
     // 全頭nullのままだと初週に全馬が一斉に出走候補になってしまう。
@@ -169,6 +173,41 @@ export function classAfterDebutLoss(currentClassId) {
 /** レース結果からクラスの昇降先を1つで決める。純関数。 */
 export function nextClassAfterRace(currentClassId, won) {
   return won ? classAfterWin(currentClassId) : classAfterDebutLoss(currentClassId);
+}
+
+// 着順ごとの賞金配分（1着を1とした比率）。⚠️仮（JRAの本賞金配分の目安を簡略化した値。
+// `PROVISIONAL_FIRST_PRIZE_1974`自体も収得賞金の順番付けにしか使わない仮の額——
+// `arch/race-program.md`§8）。
+const PLACE_PRIZE_SHARE = Object.freeze([1, 0.4, 0.25]);
+
+// 引退判定②で見る直近走数（`arch/horse.md`「②成績：直近6走で1度も5着以内が無ければ引退」）。
+export const RECENT_FINISHES_WINDOW = 6;
+
+/** そのクラス・着順で得られる収得賞金（円）。プレイヤーの鞍・NPCの鞍の両方で使う共通関数。 */
+export function earningsForResult(classId, position) {
+  const prizeBase = PROVISIONAL_FIRST_PRIZE_1974[classId] ?? 0;
+  return prizeBase * (PLACE_PRIZE_SHARE[position - 1] ?? 0);
+}
+
+/**
+ * レース結果を通算成績へ積む。純関数——新しいrecordを返す。
+ * @param {{starts:number,wins:number,seconds:number,thirds:number,earnings:number,
+ *          gradedWins:number,recentFinishes:number[]}} record
+ * @param {string} classId - レース時点のクラス（賞金額の参照に使う）
+ * @param {number} position - 着順（1始まり）
+ * @param {boolean} [isGraded] - 重賞（g1/g2/g3）を勝った場合に`gradedWins`を積む
+ */
+export function appendRaceResult(record, classId, position, isGraded = false) {
+  const won = position === 1;
+  return {
+    starts: record.starts + 1,
+    wins: record.wins + (won ? 1 : 0),
+    seconds: record.seconds + (position === 2 ? 1 : 0),
+    thirds: record.thirds + (position === 3 ? 1 : 0),
+    earnings: record.earnings + earningsForResult(classId, position),
+    gradedWins: (record.gradedWins ?? 0) + (won && isGraded ? 1 : 0),
+    recentFinishes: [position, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
+  };
 }
 
 // 厩舎のローテの型（穴9・質問27＝(ア)・2026-09-15にユーザー決定）。⚠️**仮の形**：

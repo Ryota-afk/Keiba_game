@@ -16,23 +16,24 @@ import {
   drawFieldSize,
   SURFACE_SHARE,
   NON_OPEN_CLASS_SHARE,
-  PROVISIONAL_FIRST_PRIZE_1974,
 } from "../data/raceProgram.js";
 import { MEETING_DAYS_PER_YEAR } from "../data/jraMeetingSchedule.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface } from "../data/surfaceAptitude.js";
-import { classAfterWin, classAfterDebutLoss, pickRotationIntervalWeeks, isDueForNextRace } from "./horse.js";
+import {
+  classAfterWin,
+  classAfterDebutLoss,
+  pickRotationIntervalWeeks,
+  isDueForNextRace,
+  appendRaceResult,
+} from "./horse.js";
 import { horseStrengthScore } from "./raceOutcome.js";
-import { isSidelined } from "./fall.js";
+import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
+import { rollFractureRetirement } from "./retirement.js";
 
 // 重賞データが無い年の仮の重賞本数（`tools/build-graded-races.mjs`で作った1974〜1987年の
 // 実測本数84〜100の中央値）。年ごとの実データが揃ったら`gradedRacesForYear`に置き換わる。
 const FALLBACK_GRADED_COUNT = 90;
-
-// 着順ごとの賞金配分（1着を1とした比率）。⚠️仮（JRAの本賞金配分の目安を簡略化した値。
-// `PROVISIONAL_FIRST_PRIZE_1974`自体も収得賞金の順番付けにしか使わない仮の額——
-// `arch/race-program.md`§8）。
-const PLACE_PRIZE_SHARE = Object.freeze([1, 0.4, 0.25]);
 
 const GENERAL_CLASS_KEYS = Object.keys(NON_OPEN_CLASS_SHARE); // shinba, maiden, win1, win2, win3
 
@@ -105,27 +106,33 @@ export function runNpcWeeklyRaces(saveSeed, week, year, horses, excludeHorseIds 
         .map((h) => ({ h, score: horseStrengthScore(h, null) + (rand01() - 0.5) * 30 }))
         .sort((a, b) => b.score - a.score);
 
-      const prizeBase = PROVISIONAL_FIRST_PRIZE_1974[classKey] ?? 0;
       scored.forEach(({ h }, idx) => {
         const position = idx + 1;
         const won = position === 1;
-        const earningsGain = prizeBase * (PLACE_PRIZE_SHARE[position - 1] ?? 0);
         const nextClassId = won ? classAfterWin(h.classId) : classAfterDebutLoss(h.classId);
         const intervalRand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, "interval", week, h.id);
-        horseById.set(h.id, {
+
+        let updated = {
           ...h,
           classId: nextClassId,
-          record: {
-            ...h.record,
-            starts: h.record.starts + 1,
-            wins: h.record.wins + (position === 1 ? 1 : 0),
-            seconds: h.record.seconds + (position === 2 ? 1 : 0),
-            thirds: h.record.thirds + (position === 3 ? 1 : 0),
-            earnings: h.record.earnings + earningsGain,
-          },
+          record: appendRaceResult(h.record, h.classId, position),
           lastRaceWeek: week,
           nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
-        });
+        };
+
+        // 落馬・怪我（⚠️簡略化：この週の着順そのものには反映せず、次週以降の離脱と
+        // 引退判定③の材料だけに使う。`arch/horse.md`「⭐ 落馬・怪我」は本来プレイヤーの
+        // 鞍を主眼にした仕組みだが、引退規則③「骨折した馬の3割が引退」を成立させるには
+        // NPCの馬にも骨折が起こる必要があるため、ここでも`fall.js`の判定をそのまま使う）。
+        const fall = checkFall(saveSeed, week, h.id, h.abilities.health, 0);
+        if (fall.fell) {
+          updated = applyInjuryToHorse(updated, fall);
+          if (fall.injuryType === "fracture" && rollFractureRetirement(saveSeed, week, h.id)) {
+            updated = { ...updated, isRetired: true };
+          }
+        }
+
+        horseById.set(h.id, updated);
         startsRun += 1;
       });
       racesRun += 1;
