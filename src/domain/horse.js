@@ -100,8 +100,11 @@ export function generateHorse(saveSeed, key, opts = {}) {
     // ⚠️`earnings`は収得賞金（円）。実際の獲得賞金（プレイヤーの手取り）とは別の数値。
     // `recentFinishes`は新しい順の着順（引退判定②「直近6走で1度も5着以内が無ければ引退」に使う）。
     // `gradedWins`は重賞の勝ち鞍数（引退規則④「重賞を1つでも勝った牡馬は種牡馬」の判定に使う。
-    // ⚠️重賞のNPC出走はまだ実装していないため、当面は常に0——`devlog/wave07.md`参照）。
+    // `domain/npcGradedRace.js`が重賞を勝つたびに積む）。
     record: { starts: 0, wins: 0, seconds: 0, thirds: 0, earnings: 0, gradedWins: 0, recentFinishes: [] },
+    // 馬ごとの主戦騎手（質問23＝(ウ)）。オープン以上に上がった時点で付く（`domain/
+    // jockeyAssignment.js`）。条件戦の馬はnullのまま——厩舎の主戦をそのつど使う。
+    primaryJockeyId: null,
     adaptability: createInitialAdaptability(bloodlineFamily),
     // 前走の週。⚠️新規キャリア開始時は`opts.lastRaceWeek`で散らす（career.js参照）——
     // 全頭nullのままだと初週に全馬が一斉に出走候補になってしまう。

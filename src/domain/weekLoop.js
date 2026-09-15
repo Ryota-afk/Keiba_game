@@ -21,6 +21,7 @@ import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
 import { advanceInjuryByWeek, isSidelined } from "./fall.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
+import { assignStablePrimaryJockeys, assignHorsePrimaryJockeys } from "./jockeyAssignment.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import {
@@ -135,7 +136,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 
   // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。
-  const advancedHorses = roster.horses.map((h) => {
+  const injuryAdvancedHorses = roster.horses.map((h) => {
     // プレイヤーが乗った馬は`processMountResult`の結果（`horsesById`）を使い、
     // それ以外はNPC週次レースの結果（クラス・戦績・次走間隔が更新済み）を使う。
     // ⚠️`horsesById`は全頭ぶんのMapなので、`riddenThisWeek`で明示的に判定する
@@ -143,6 +144,10 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     const horse = riddenThisWeek.has(h.id) ? horsesById.get(h.id) : npcHorsesById.get(h.id);
     return advanceInjuryByWeek(horse ?? h);
   });
+
+  // 馬ごとの主戦騎手（質問23＝(ウ)）：オープン以上に上がった時点で、まだ付いていなければ付ける。
+  const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
+  const advancedHorses = assignHorsePrimaryJockeys(injuryAdvancedHorses, primaryJockeyByStable, roster.npcJockeys);
 
   // ⚠️`currentWeek`は折り返さない絶対値のまま進める（ARCHITECTURE.md §1「1年分を
   // 週×競馬場で固定して30年使い回す」の対象は番組表の中身であって、週カウンタそのもの
