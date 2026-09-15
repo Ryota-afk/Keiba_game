@@ -46,3 +46,8 @@ __pycache__/
 # --- 外部出典から取った一次データ（読み取り済みJSONのgzとスクリプト。生HTMLは置かない）---
 !data-src/
 !data-src/**
+
+# 優駿達の蹄跡の生HTML・中間JSON・取得ログはリポジトリに入れない（data-src/ahonoora/README.md）
+data-src/ahonoora/raw/
+data-src/ahonoora/parsed/
+data-src/ahonoora/fetch.log

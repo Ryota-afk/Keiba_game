@@ -136,3 +136,25 @@
 第52週の結果処理の直後：①馬の引退判定 →②繁殖入り →③繁殖に上がらなかった引退馬を捨てる
 （プレイヤーが乗った馬は残す）→④新しい2歳の生成（6月まで出走しない）→⑤調教師の引退と開業
 →⑥騎手の引退と新人 →⑦主戦の付け直し →⑧既存の年次処理（難易度・引退勧告・ランク判定）。
+
+## 10. 週の番組表と依頼の結びつけ（2026-09-15・通しプレイ①の指摘で決定）
+
+⭐**週のレースは`domain/weeklyCard.js`の`buildWeeklyCard(saveSeed, week, year)`が1回だけ組み、
+依頼（`weeklyRequests.js`）・NPCのレース（`npcWeeklyRace.js`／`npcGradedRace.js`）・出馬表
+（`entryListPreview.js`）はすべてその中の1レース（`raceId`）を指す。**
+- 中身：その週の重賞（実データ）＋オープン特別（年の推定本数を52週へ確率配分・クラス`open`）＋
+  一般競走（`coursesOpenInWeek`の各場×2日×`racesPerDay(year)`から重賞・オープン特別の本数を引いた残り）。
+- 依頼は「クラス一致・馬場に出られる・牝馬限定の条件が合う」レースを1つ選ぶ。合う物が無い馬は依頼にならない。
+- 競馬場・馬場・距離・クラスは必ずレースから引く。⚠️`fridayConfirmation.js`の`resolveRaceContext`
+  （無作為の割り当て）は廃止。
+- 2歳は第23週（`TWO_YEAR_OLD_DEBUT_WEEK`）より前に出走候補にしない。
+- 乱数ストリームは`RNG_STREAMS.CARD`（`(saveSeed, week)`）。月曜の一覧と週末のレースが一致する。
+
+## 11. 開始前の事前シミュレーション（質問22の一般化・2026-09-15）
+
+`domain/bootstrap.js`の`bootstrapRoster(saveSeed, startYear)`が、開始年Yの2年前から104週を
+プレイヤー無しで回し（各年末に`processYearBoundary`）、クラス・戦績・収得賞金・年齢・繁殖プールを作る。
+- 生年：Y−2時点の馬齢を2歳35%・3歳30%・4歳20%・5歳10%・6歳5%で引く（⚠️仮。回した後の分布を
+  1974年の実測と比べて直す・`devlog/wave07.md`）。
+- 前提：Y−2〜Yの重賞データ（`hasGradedRaceData`）。無い年は`assertStartYearData`が開始年の選択を拒否する。
+- 実行：夢のダービーの間に裏で回す（実測37.77ms/週×104週≒3.9秒）。
