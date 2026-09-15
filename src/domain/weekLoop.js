@@ -19,6 +19,7 @@ import { declareStrategy, deriveFavoredStrategy } from "./strategy.js";
 import { processMountResult } from "./weekResults.js";
 import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
 import { advanceInjuryByWeek, isSidelined } from "./fall.js";
+import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import {
@@ -113,17 +114,22 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     }
   }
 
+  // プレイヤーが乗らなかった残り約7,600頭も、NPC騎手が乗って実際にレースを走る
+  // （質問14＝(A)「現役馬を全部持ち毎週ローテを回す」・`domain/npcWeeklyRace.js`）。
+  // ⚠️2026-09-04時点では`lastRaceWeek`を進めるだけの仮処理だった（`TODO.md` #16）。
+  // 現在は一般競走（新馬〜3勝クラス）だけ本物の週次レースにかけている——重賞・オープン
+  // 特別のNPC出走は別途の増分で作る（`devlog/wave07.md`）。
+  const npcResult = runNpcWeeklyRaces(saveSeed, week, nextPlayer.currentYear, roster.horses, riddenThisWeek);
+  const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
+
   // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。
   const advancedHorses = roster.horses.map((h) => {
-    let horse = horsesById.get(h.id) ?? h;
-    // プレイヤーが乗らなかった、出走可能だった馬もNPC騎手が乗って走ったものとして扱う
-    // （2026-09-04・実測で判明。`TODO.md` #16）。⚠️プレイヤーが乗った馬しか
-    // `lastRaceWeek`が進まないと、乗らなかった馬が永久に「出走待ち」のまま積み上がり、
-    // 数週で全馬7,600頭が候補になってしまう。離脱中（怪我）の馬は対象外。
-    if (dueHorseIds.has(horse.id) && !riddenThisWeek.has(horse.id) && !isSidelined(horse)) {
-      horse = { ...horse, lastRaceWeek: week };
-    }
-    return advanceInjuryByWeek(horse);
+    // プレイヤーが乗った馬は`processMountResult`の結果（`horsesById`）を使い、
+    // それ以外はNPC週次レースの結果（クラス・戦績・次走間隔が更新済み）を使う。
+    // ⚠️`horsesById`は全頭ぶんのMapなので、`riddenThisWeek`で明示的に判定する
+    // （そうしないと未更新の元の馬がヒットしてしまい、NPC側の結果が反映されない）。
+    const horse = riddenThisWeek.has(h.id) ? horsesById.get(h.id) : npcHorsesById.get(h.id);
+    return advanceInjuryByWeek(horse ?? h);
   });
 
   // ⚠️`currentWeek`は折り返さない絶対値のまま進める（ARCHITECTURE.md §1「1年分を
