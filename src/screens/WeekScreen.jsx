@@ -10,6 +10,10 @@ import { resolveWeekRaceContexts, courseIdsAvailable } from "../domain/fridayCon
 import { weekOfYear } from "../data/calendar.js";
 import { findCourse } from "../data/courses.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
+import { RANK_LABELS } from "../data/ranks.js";
+import { INJURY_LABELS } from "../data/injuryLabels.js";
+import { SURFACE_LABELS, DISTANCE_BAND_LABELS } from "../data/aptitudeLabels.js";
+import { classDisplayName } from "../data/classes.js";
 import { EntryListScreen } from "./EntryListScreen.jsx";
 
 function notificationText(n, horsesById, stablesById) {
@@ -18,7 +22,7 @@ function notificationText(n, horsesById, stablesById) {
     case NOTIFICATION_TYPES.LOST_MAIN_MOUNT:
       return `主戦の座を失った：${horseName(n.horseId)}`;
     case NOTIFICATION_TYPES.INJURY:
-      return `落馬・怪我：${horseName(n.horseId)}（${n.injuryType}・${n.weeksOut}週離脱）`;
+      return `落馬・怪我：${horseName(n.horseId)}（${INJURY_LABELS[n.injuryType] ?? n.injuryType}・${n.weeksOut}週間乗れません）`;
     case NOTIFICATION_TYPES.BIG_TRUST_CHANGE: {
       const targetName =
         n.targetType === "trainer" ? stablesById.get(n.targetId)?.trainerName ?? n.targetId : n.targetId;
@@ -109,7 +113,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         {player.currentYear}年 {weekOfYear(week)}週目
       </h1>
       <p>
-        騎手：{player.jockey.name}（{player.jockey.rank}） ／ 所持金：{player.money.toLocaleString()}円
+        騎手：{player.jockey.name}（{RANK_LABELS[player.jockey.rank] ?? player.jockey.rank}） ／ 所持金：{player.money.toLocaleString()}円
       </p>
 
       {yearCompleted && (
@@ -127,8 +131,9 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
             const course = findCourse(r.courseId);
             return (
               <li key={r.horseId}>
-                {horse?.name} （{stable?.trainerName}厩舎） — {course?.name ?? r.courseId} {r.surface}
-                {r.distanceBand}{" "}
+                {horse?.name} （{stable?.trainerName}厩舎） — {classDisplayName(horse?.classId)}{" "}
+                {course?.name ?? r.courseId} {SURFACE_LABELS[r.surface] ?? r.surface}{" "}
+                {DISTANCE_BAND_LABELS[r.distanceBand] ?? r.distanceBand}{" "}
                 <button type="button" onClick={() => setEntryListRequest(r)}>
                   出馬表を見る
                 </button>

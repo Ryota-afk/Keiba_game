@@ -8,7 +8,7 @@ export const DIFFICULTY_LABELS = Object.freeze({
   easy: "やさしい",
   normal: "ふつう",
   hard: "きびしい",
-  brutal: "過酷",
+  brutal: "とてもきびしい", // 2026-09-15にユーザーが「過酷は変」と指摘し、案Aで確定（devlog/wave07.md）
 });
 
 export const DEFAULT_DIFFICULTY = "normal";

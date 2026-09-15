@@ -10,6 +10,16 @@ export const RANK_LADDER = Object.freeze([
   "top", // トップ
 ]);
 
+/** 画面表記。⚠️画面にランクidを出さない（2026-09-07・09-15の通しプレイで「rookie」が見えた。`TODO.md` #65）。 */
+export const RANK_LABELS = Object.freeze({
+  rookie: "新人",
+  young: "若手",
+  midCareer: "中堅",
+  veteran: "実力派",
+  elite: "一流",
+  top: "トップ",
+});
+
 /** ランクごとの仕様（昇格条件・平日の枠・スキル枠・適性の上限＝Sにできる数）。 */
 export const RANK_SPECS = Object.freeze({
   rookie: { promotionRequirement: null, weekdaySlots: 1, skillSlots: 2, aptitudeSCap: 2 },
