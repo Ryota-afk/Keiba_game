@@ -77,7 +77,8 @@ export function parSecondsFor(surface, distance) {
 
 /**
  * 2400m（芝）を1.00としたときの、その馬場・距離の基準タイムの比。
- * `sim/raceSim.js`がゴールタイム正規化の窓に掛ける。
+ * ⚠️2026-09-16に`sim/raceSim.js`は`parSecondsFor`を直接使うようになったので、
+ * 今のところ呼び出し元は無い。距離をまたいで比べる画面を作るときに使えるよう残してある。
  */
 export function parRatioFor(surface, distance) {
   return parSecondsFor(surface, distance) / parSecondsFor(REFERENCE_SURFACE, REFERENCE_DISTANCE);

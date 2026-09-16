@@ -13,7 +13,7 @@
 // 着順用のハッシュを演出へ流用して集団が規則的に動いて見えた（`arch/race-sim.md`）。
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
-import { parRatioFor } from "../data/parTimes.js";
+import { parSecondsFor } from "../data/parTimes.js";
 import { surfaceFactorFor } from "../data/surfaceAptitude.js";
 import { mudFactorFor } from "../data/mudAptitude.js";
 import { decideRaceTrend, paceMultiplierAt, trendAdaptationOf, DERBY_TREND_BASE } from "./pace.js";
@@ -68,11 +68,41 @@ const CARD_MOVE_METERS = 22;
 export const SIM_DT = 0.25;
 /** 打ち切り時間(秒)。全馬がゴールしたらそこで止める。 */
 export const MAX_SIM_SECONDS = 210;
-/** 基準タイム(秒)＝この距離を倍率1.0のペースで走ったときの所要時間。2400mで2:24.0。 */
+/** 基準タイム(秒)＝この距離を倍率1.0のペースで走ったときの所要時間。2400mで2:24.0。
+ * ⚠️2026-09-16に基準速度の決め方が変わり、この定数はもう`vPar`を決めていない
+ * （`fieldSpeedFactor`と`data/parTimes.js`が決める）。⭐まだ`sim/pace.js`の
+ * レース傾向の表示・`domain/`の仮の換算が参照しているので残してある。 */
 export const PAR_SECONDS_PER_2400 = 146;
-/** ゴールタイムを収める帯（`domain/dreamDerby.js`のGOAL_TIME_MIN/MAXの内側に取る）。 */
-export const NORMALIZED_TIME_MIN = 141.5;
-export const NORMALIZED_TIME_MAX = 147.5;
+
+/** ゴールタイムの安全網の幅（基準タイムに対する倍率）。
+ * ⚠️2026-09-16まで、ここは141.5〜147.5秒という**狭い帯**で、実測すると芝2000mの300本が
+ * **300本とも発動**し、勝ちタイムが全部121.15秒（幅0.00秒）になっていた
+ * ——つまり正規化が勝ちタイムを決めており、simが出した値は捨てられていた。
+ * ⭐今は基準速度の側が出走馬の強さでタイムを決めるので、ここは
+ * 「ありえない値だけを弾く」ためだけに置く。実測で発動率0%であることを確かめること
+ * （`devlog/wave08.md`§6）。 */
+export const SAFETY_TIME_MIN_RATIO = 0.90;
+export const SAFETY_TIME_MAX_RATIO = 1.14;
+
+/** ⭐出走馬の強さが基準速度を何倍にするか（2026-09-16のユーザー決定・`devlog/wave08.md`§6）。
+ * `FIELD_LEVEL_REF`＝重賞の出走馬の平均能力（実測0.5195・104週の事前シミュレーション89本）。
+ * ここを1.00の基準に置く＝**重賞の勝ちタイムが`data/parTimes.js`の実データに一致する**。
+ * `FIELD_SPEED_SPAN`は「芝2000mで重賞と新馬・未勝利の勝ちタイム差を約4秒にする」という
+ * ユーザー決定から逆算した値（実測での較正は同§6）。 */
+const FIELD_LEVEL_REF = 0.5195;
+const FIELD_SPEED_SPAN = 0.43;
+/** 倍率の上下限。⚠️出走頭数が5頭のレースは平均がぶれるので、端を切る。 */
+const FIELD_FACTOR_MIN = 0.93;
+const FIELD_FACTOR_MAX = 1.05;
+
+/** simが実際に出す勝ちタイムを、狙った基準タイムに合わせるための2つの較正値。
+ * ⭐`勝ちタイム ≒ 発走の遅れ + 距離 / (効率 × vPar)`。
+ * 発走の遅れ＝ゲートから走行速度に達するまでに失う時間、効率＝道中と直線を通した
+ * 平均速度が`vPar`の何倍か。⚠️どちらも**simの中身を変えたら測り直す**
+ * （`tools/measure-sim-times.mjs`。狙いとのずれが1%を超えたら`SIM_SPEED_EFFICIENCY`を
+ * `現在値 ÷ ずれ率`に置き換える）。 */
+const SIM_START_OVERHEAD_SECONDS = 1.8;
+const SIM_SPEED_EFFICIENCY = 0.970;
 
 const DASH_SECONDS = 3.6; // 発走の加速区間（一番遅い馬が走行速度に届くまで）
 const STRETCH_METERS = 600; // 最終直線として扱う残り距離
@@ -83,6 +113,13 @@ const ACCEL_LIMIT = 1.2; // m/s^2（レース中の加速。位置を上げる�
 const START_ACCEL_LIMIT = 8;
 const DECEL_LIMIT = 1.6; // m/s^2
 const KICK_RAMP_SECONDS = 3.0; // 直線で追い出してから全開になるまで
+/** 直線の判断カードが「追い出すまでの待ち時間」を動かす幅（秒／積極性の振れ1.0あたり）。
+ * ⚠️2026-09-16に9.0→24.0へ上げた。理由は2つとも同じ弾で直した欠陥の後始末
+ * （`devlog/wave08.md`§6）——⭐**カードが積分の中で約5秒早く発動していた**バグを直した
+ * ことと、基準速度が実データに合って道中の消耗が減ったことで、カードの効きが落ち、
+ * 一番良い選び方の1着率が62.0%→56.0%まで下がっていた（`tools/measure-card-winrate.mjs`）。
+ * 24.0で**69.5%／一番悪い27.5%**（シード200通り）に戻り、目安（7〜8割／2〜3割）の内側に入る。 */
+const STRETCH_CARD_DELAY_SPAN = 24.0;
 
 // 宣言脚質ごとの「先頭からの目標差(m)」の**帯**（`data/aptitudeCategories.js`のSTRATEGIESと同じ並び）。
 // ⭐2026-09-08に1点（逃げ3／先行9／差し19／追込29）から帯へ変えた（`devlog/wave05.md`§56）。
@@ -181,8 +218,11 @@ function courageScale(jockey) {
 /** 騎手の適性が脚の総量に掛かる幅。1±この値の半分。⚠️根拠は無い（較正で決めた値）。
  * ⭐0.12で始めたが、**対照実験で0.14着しか動かず騎手が飾りだった**ため0.30へ上げた
  * （`devlog/wave08.md`§3の計測）。騎手の段位は中央に寄って分布するので、
- * 幅の数字ほどには実効の差が出ない。 */
-const JOCKEY_EFFECT_SPAN = 0.3;
+ * 幅の数字ほどには実効の差が出ない。
+ * ⭐**2026-09-16に0.30→0.70へ上げた**（ユーザー決定「騎手の効き幅を馬の1.5倍に」）。
+ * 対照実験で0.35着→**0.89着**。同じ実験での馬の芝ダ適性は0.57着なので1.56倍
+ * （`devlog/wave08.md`§6-6）。⚠️§3の「馬の適性より小さく保つ」はこの決定で逆になった。 */
+const JOCKEY_EFFECT_SPAN = 0.7;
 
 /**
  * 騎手の適性3つ（今日の脚質・距離帯・馬場）の平均から、脚の総量に掛ける倍率を出す。
@@ -206,6 +246,32 @@ function jockeyAptitudeFactor(jockey, strategy, distance, surface) {
 }
 
 /**
+ * ⭐そのレースの出走馬の強さ（0〜1）。simが実際に読む6軸の平均を、出走馬全部で平均する。
+ * ⚠️賢さ・丈夫さ・柔軟性は入れない——この3つは速度そのものを決めていないため。
+ * ⚠️**「一番強い馬」ではなく「出走馬の平均」を使う**。実測すると、一番強い馬の能力は
+ * 未勝利0.5976・重賞0.6180で差が0.02しかないが（強い馬は未勝利戦にも紛れている）、
+ * 出走馬の平均は0.4779と0.5195で差が0.042ある。クラスの差がタイムに出るのは平均のほう。
+ */
+function fieldLevelOf(entries) {
+  let sum = 0;
+  for (const e of entries) {
+    const a = normalizedAbilities(e.horse);
+    sum += (a.speed + a.stamina + a.sharpness + a.grit + a.power + a.mentalStrength) / 6;
+  }
+  return entries.length > 0 ? sum / entries.length : FIELD_LEVEL_REF;
+}
+
+/** 出走馬の強さから、基準速度に掛ける倍率を出す。重賞の平均で1.00になる。 */
+function fieldSpeedFactor(entries) {
+  const level = fieldLevelOf(entries);
+  return clamp(
+    1 + FIELD_SPEED_SPAN * (level - FIELD_LEVEL_REF),
+    FIELD_FACTOR_MIN,
+    FIELD_FACTOR_MAX
+  );
+}
+
+/**
  * レースを1本走らせる。自己完結の純関数（同じ入力なら常に同じ結果）。
  * @param {object} input
  * @param {number|string} input.seed - `saveSeed`
@@ -213,6 +279,9 @@ function jockeyAptitudeFactor(jockey, strategy, distance, surface) {
  * @param {number} [input.distance] - m
  * @param {{num:number,horse:object,isSelf?:boolean}[]} input.entries - 馬番昇順
  * @param {object} input.plan - 作戦。`{ selfNum, strategies: {馬番:脚質}, moves: [{at,phase,forward,early,effect}] }`
+ * @param {number} [input.fieldFactor] - 基準速度に掛ける倍率を、出走馬から計算せずに直に渡す。
+ *   ⚠️夢のダービーだけが使う（史実馬の能力値は架空馬と別の物差しなので、
+ *   `fieldSpeedFactor`の較正範囲の外に出る。`devlog/wave08.md`§6）
  * @param {number} [input.timeScale] - ゴールタイム正規化の倍率。フォーク時に基準の値を引き継ぐ
  * @param {object} [input.trendBase] - レース傾向の「なりやすさ」
  * @returns {object} 下記の`result`
@@ -235,7 +304,14 @@ export function runRaceSim(input) {
   const n = entries.length;
   const dtRaw = SIM_DT;
   const steps = Math.ceil(MAX_SIM_SECONDS / dtRaw) + 1;
-  const vPar = 2400 / PAR_SECONDS_PER_2400; // 基準速度(m/s)。距離が変わっても基準の脚色は同じ
+  // ⭐基準速度(m/s)。⚠️2026-09-16まで全レース共通の固定値（16.44m/s）だった
+  // ——実測すると芝2000mの300本の勝ちタイムの幅が**0.00秒**、生タイムと出走馬の能力平均の
+  // 相関は**0.085**（ほぼ無相関）で、強い馬が揃っても弱い馬が揃ってもタイムが同じだった。
+  // 今は「その馬場・距離の基準タイム（史実）」を「出走馬の強さ」で割ったものを狙う。
+  const fieldFactor = input.fieldFactor ?? fieldSpeedFactor(entries);
+  const targetSeconds = parSecondsFor(surface, distance) / fieldFactor;
+  const vPar =
+    distance / (SIM_SPEED_EFFICIENCY * Math.max(targetSeconds - SIM_START_OVERHEAD_SECONDS, 1));
   const dStretch = distance - STRETCH_METERS;
 
   const strategyList = entries.map((e) => plan.strategies[e.num] ?? "senko");
@@ -379,7 +455,7 @@ export function runRaceSim(input) {
         const aggression = isSelf && t >= stretchMoveAt ? stretchAggression : null;
         // 積極性からの振れ幅は賢さ倍率（cardScale）を通す。中立値からの差だけが動く。
         const swing = aggression != null ? (aggression - NEUTRAL_STRETCH_AGGRESSION) * tr.cardScale : 0;
-        const delay = aggression != null ? 3.0 - 9.0 * swing : tr.kickDelay;
+        const delay = aggression != null ? 3.0 - STRETCH_CARD_DELAY_SPAN * swing : tr.kickDelay;
         const kickT = stretchEnterT[i] + Math.max(0, delay);
         const effort = clamp((t - kickT) / KICK_RAMP_SECONDS, 0, 1);
         // ⭐直線で出せる速度＝基準＋瞬発力＋スピード＋**残りの脚**＋勝負根性。
@@ -477,20 +553,20 @@ export function runRaceSim(input) {
     if (finishTime[i] == null) finishTime[i] = MAX_SIM_SECONDS;
   }
 
-  // ===== ゴールタイムの正規化（`devlog/wave04.md`§28-1） =====
-  // 生の勝ちタイムが帯（2400mの芝で141.5〜147.5秒）から外れたら、時間軸全体を一様に
-  // 伸縮させて収める。
+  // ===== ゴールタイムの安全網（`devlog/wave04.md`§28-1・`devlog/wave08.md`§6） =====
+  // ⚠️⚠️**ここは普段働かない。** 勝ちタイムを決めるのは上の`vPar`（＝基準タイム÷出走馬の
+  // 強さ）であって、この節ではない。ここは「発走で全馬が出遅れた」「全馬が距離不足で
+  // 垂れた」といった、狙いから1割以上外れた値だけを弾く。
   // ⚠️倍率はレース開始時（フォーク前）に1度だけ決め、以後のフォークは同じ倍率を使い回す
   // ——フォークのたびに倍率が変わると、既に見せた時刻の隊列と矛盾する。
-  // ⭐帯そのものは距離・馬場で伸縮させる（`data/parTimes.js`の実データの比）。
-  // ⚠️2026-09-16までこの帯は2400m固定だったため、1200mでも3200mでも勝ちタイムが
-  // 141.5〜147.5秒に丸められていた（1200mが141.5秒＝実際の約2倍。実測で発見）。
-  // 2400mの芝は比が1.00なので、夢のダービーの時間は変わらない。
-  const parRatio = parRatioFor(surface, distance);
   const rawWinner = Math.min(...finishTime);
   const timeScale =
     input.timeScale ??
-    clamp(rawWinner, NORMALIZED_TIME_MIN * parRatio, NORMALIZED_TIME_MAX * parRatio) / (rawWinner || 1);
+    clamp(
+      rawWinner,
+      targetSeconds * SAFETY_TIME_MIN_RATIO,
+      targetSeconds * SAFETY_TIME_MAX_RATIO
+    ) / (rawWinner || 1);
   const dt = dtRaw * timeScale;
   const scaledFinish = finishTime.map((x) => x * timeScale);
 
@@ -572,7 +648,16 @@ export function runRaceSim(input) {
  */
 export function resumeRaceSim(base, tFork, patch) {
   const prev = base.input;
-  const moves = [...(prev.plan.moves ?? []).filter((m) => m.phase !== patch.phase), { ...patch, at: tFork }];
+  // ⚠️⚠️`tFork`は**画面の時計**（正規化後）の秒数だが、積分の中の`t`は正規化前の秒数。
+  // そのまま`at`に入れると、カードを選んだ時刻が積分の中ではずれた場所になる
+  // （2026-09-16に実測で発見。それまで正規化の倍率が常に0.963だったので、道中のカードは
+  // 積分の中で**約5秒早く**発動していた＝カードの効きが実際より強く出ていた。
+  // `devlog/wave08.md`§6）。ここで正規化前の秒数に戻す。
+  const rawFork = tFork / (base.timeScale || 1);
+  const moves = [
+    ...(prev.plan.moves ?? []).filter((m) => m.phase !== patch.phase),
+    { ...patch, at: rawFork },
+  ];
   return runRaceSim({ ...prev, plan: { ...prev.plan, moves }, timeScale: base.timeScale });
 }
 
