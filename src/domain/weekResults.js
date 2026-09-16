@@ -33,9 +33,10 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  * @param {{ horseId: string, declaredStrategy?: string|null, courseId?: string, surface?: string,
  *           distance?: number, raceId?: string }} mount
  * @param {object[]} allHorses - ロースター全馬（実在の相手馬を組むために使う）
+ * @param {(horse: object) => object|undefined} [getJockey] - 相手馬に乗るNPC騎手を引く関数
  * @returns {{ player: object, horse: object, notifications: object[], raced: boolean }}
  */
-export function processMountResult(saveSeed, week, player, horse, mount, allHorses) {
+export function processMountResult(saveSeed, week, player, horse, mount, allHorses, getJockey) {
   const notifications = [];
 
   // 落馬を先に判定する（落馬すればそのレースは走らない）。
@@ -51,7 +52,14 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
   }
 
   const fatigueFactor = fatiguePenaltyFactor(player.fatigue);
-  const result = runPlaceholderRace(saveSeed, week, mount, horse, allHorses, fatigueFactor);
+  // ⚠️馬場状態はここで1回だけ決め、simにも戦績にも同じ値を渡す（別々に引くとズレる）。
+  const condition = mount.courseId ? rollActualCondition(saveSeed, week, mount.courseId) : "good";
+  const result = runPlaceholderRace(saveSeed, week, mount, horse, allHorses, {
+    jockeyPenalty: fatigueFactor,
+    playerJockey: player.jockey,
+    getJockey,
+    condition,
+  });
 
   let nextPlayer = { ...player, money: player.money + rideIncome(horse.classId, result.won) };
 
@@ -106,7 +114,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
       courseId: mount.courseId ?? null,
       surface: mount.surface ?? null,
       distance: mount.distance ?? null,
-      condition: mount.courseId ? rollActualCondition(saveSeed, week, mount.courseId) : null,
+      condition,
     }),
     nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
   };

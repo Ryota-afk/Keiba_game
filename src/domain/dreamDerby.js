@@ -218,6 +218,12 @@ export function startDreamDerbySim(saveSeed, entries) {
     distance: TOTAL_DISTANCE,
     entries,
     plan,
+    // ⚠️**適性の係数を切っている（一時的）**。史実のダービー馬51頭は芝ダ適性が
+    // `generateHorse`のランダム生成のままで、シンボリルドルフが「芝×」になるなど
+    // 実際と食い違う（2026-09-16に実測で発見・`devlog/wave08.md`§4）。
+    // ⭐史実馬の適性はCLAUDE.md §17によりユーザーの確認を通してから入れる。
+    // それまで夢のダービーは、調整済みの1着率（`devlog/wave05.md`§57）を保つために切る。
+    aptitudeFactors: false,
   });
 }
 

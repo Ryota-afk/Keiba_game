@@ -17,7 +17,11 @@ import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
 import { advanceInjuryByWeek, isSidelined } from "./fall.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
-import { assignStablePrimaryJockeys, assignHorsePrimaryJockeys } from "./jockeyAssignment.js";
+import {
+  assignStablePrimaryJockeys,
+  assignHorsePrimaryJockeys,
+  jockeyIdForHorse,
+} from "./jockeyAssignment.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import {
@@ -47,6 +51,11 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const week = player.currentWeek;
   const notifications = [];
   const horsesById = new Map(roster.horses.map((h) => [h.id, h]));
+  // ⭐本物のsimは騎手の適性も見る（`devlog/wave08.md`§2）。相手馬にも必ず騎手を乗せる
+  // ——プレイヤーの鞍だけ騎手が乗ると、プレイヤーの適性の良し悪しが一方的な下駄になる。
+  const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
+  const stableJockeys = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
+  const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, stableJockeys)) ?? undefined;
 
   // 月曜：依頼一覧
   const requests = generateWeeklyRequests(saveSeed, week, roster, player);
@@ -85,7 +94,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const fatigueBefore = nextPlayer.fatigue;
   for (const mount of mounts) {
     const horse = horsesById.get(mount.horseId);
-    const res = processMountResult(saveSeed, week, nextPlayer, horse, mount, roster.horses);
+    const res = processMountResult(saveSeed, week, nextPlayer, horse, mount, roster.horses, getJockey);
     nextPlayer = res.player;
     horsesById.set(horse.id, res.horse);
     notifications.push(...res.notifications);
@@ -127,7 +136,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     nextPlayer.currentYear,
     roster.horses,
     riddenThisWeek,
-    roster.trialResults ?? {}
+    roster.trialResults ?? {},
+    getJockey
   );
   const npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds]);
   const npcResult = runNpcWeeklyRaces(
@@ -136,7 +146,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     nextPlayer.currentYear,
     gradedResult.horses,
     npcExcluded,
-    riddenRaceIds
+    riddenRaceIds,
+    getJockey
   );
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 
@@ -151,8 +162,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   });
 
   // 馬ごとの主戦騎手（質問23＝(ウ)）：オープン以上に上がった時点で、まだ付いていなければ付ける。
-  const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
-  const advancedHorses = assignHorsePrimaryJockeys(injuryAdvancedHorses, primaryJockeyByStable, roster.npcJockeys);
+  const advancedHorses = assignHorsePrimaryJockeys(injuryAdvancedHorses, stableJockeys, roster.npcJockeys);
 
   // ⚠️`currentWeek`は折り返さない絶対値のまま進める（ARCHITECTURE.md §1「1年分を
   // 週×競馬場で固定して30年使い回す」の対象は番組表の中身であって、週カウンタそのもの

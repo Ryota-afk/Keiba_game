@@ -1,6 +1,7 @@
-// 仮sim（ARCHITECTURE.md §5「レースsim」の本実装は⑦・`claude-opus-5`で行う）。
-// ここでは週の進行と各種処理（信頼・金・主戦判定・開示・疲労・落馬）を先に回すための
-// 仮の着順決定だけを行う。消耗差・レース傾向・適応能力の成長といった⑦の中身は含まない。
+// プレイヤーの鞍1つぶんのレース解決。
+// ⭐2026-09-16：着順を本物のsim（`src/sim/`）で決めるようにした（`devlog/wave08.md`）。
+// それまでは`horseStrengthScore`（能力を1つの数値に潰した強さ比べ）だった。
+// ⚠️`horseStrengthScore`自体は人気の並び（`domain/dreamDerby.js`）でまだ使う。
 // 純ロジック（JSX無し。`core/`・`data/`・`domain/`の他ファイルだけに依存）。
 //
 // ⚠️2026-09-15：相手馬を`syntheticRivalScore`で数値だけ手続き生成していたのをやめ、
@@ -8,6 +9,7 @@
 // （出馬表の画面（案E）が実在の相手馬を必要とするため。`TODO.md`旧#23の指摘の解消）。
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
+import { runRaceSim, buildPlan } from "../sim/index.js";
 import { gradeToNumber } from "../data/grades.js";
 import { drawFieldSize } from "../data/raceProgram.js";
 import { canRaceOnSurface } from "../data/surfaceAptitude.js";
@@ -58,20 +60,24 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
 }
 
 /**
- * 仮simでレースを1つ走らせ、着順を決める。自己完結の純関数。
+ * プレイヤーの鞍1つぶんのレースを走らせ、着順を決める。自己完結の純関数。
  * @param {number|string} saveSeed
  * @param {number} week
- * @param {{ horseId: string, declaredStrategy?: string|null, surface?: string }} mount
+ * @param {{ horseId: string, declaredStrategy?: string|null, surface?: string,
+ *           distance?: number, raceId?: string }} mount
  * @param {object} horse
  * @param {object[]} allHorses - ロースター全馬（相手馬を実在の馬から組むために使う）
- * @param {number} [fatiguePenaltyFactor] - 疲労による騎手の能力低下の係数（1で無補正）。
- *   §6「疲労」が奪う3つのうち「騎手の能力が落ちる」をここで反映する。
- * @param {number} [bonus] - 加算ボーナス（仮）。判断カードの選択などを反映する
- *   （§5「判断カード」の正式な効果量は⑦で確定。それまでの仮の差し込み口）。
+ * @param {{ jockeyPenalty?: number, playerJockey?: object, getJockey?: (h:object)=>object|undefined,
+ *           condition?: string }} [options]
+ *   - `jockeyPenalty`：疲労による騎手の能力低下の倍率（1で無補正）。§6「疲労」が奪う3つのうち
+ *     「騎手の能力が落ちる」をここで反映する
+ *   - `playerJockey`：プレイヤー自身の騎手。渡さないと適性の倍率が1.0になる
+ *   - `getJockey`：相手馬に乗るNPC騎手を引く関数
+ *   - `condition`：馬場状態（good|yielding|soft|heavy）
  * @returns {{ position: number, fieldSize: number, won: boolean, field: object[],
  *             popularity: number }}
  */
-export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, fatiguePenaltyFactor = 1, bonus = 0) {
+export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, options = {}) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
   const fieldSizeTarget = drawFieldSize(rand01);
   const field = assembleRealField(rand01, horse, mount.surface, allHorses, fieldSizeTarget);
@@ -79,16 +85,29 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, fati
   // 並びは既に収得賞金の多い順（人気順の仮の指標。質問19・`devlog/wave07.md`「未定」#6）。
   const popularity = field.findIndex((h) => h.id === horse.id) + 1;
 
-  const scored = field
-    .map((h) => {
-      const isAnchor = h.id === horse.id;
-      const base = horseStrengthScore(h, isAnchor ? mount.declaredStrategy : null);
-      const factor = isAnchor ? fatiguePenaltyFactor : 1;
-      const extra = isAnchor ? bonus : 0;
-      return { h, score: base * factor + (rand01() - 0.5) * 30 + extra };
-    })
-    .sort((a, b) => b.score - a.score);
+  const entries = field.map((h, i) => ({
+    num: i + 1,
+    horse: h,
+    isSelf: h.id === horse.id,
+    jockey: h.id === horse.id ? options.playerJockey : options.getJockey?.(h),
+    // 疲労はプレイヤーの鞍にだけ乗る（NPC騎手の疲労は持っていない）。
+    jockeyPenalty: h.id === horse.id ? options.jockeyPenalty ?? 1 : 1,
+  }));
+  const plan = buildPlan(entries, (e) =>
+    e.isSelf && mount.declaredStrategy ? mount.declaredStrategy : deriveFavoredStrategy(e.horse)
+  , entries.find((e) => e.isSelf)?.num ?? 1);
 
-  const position = scored.findIndex((s) => s.h.id === horse.id) + 1;
+  const sim = runRaceSim({
+    seed: saveSeed,
+    raceKey: `player-${week}-${mount.raceId ?? mount.horseId}`,
+    distance: mount.distance ?? 2000,
+    surface: mount.surface ?? "turf",
+    condition: options.condition ?? "good",
+    entries,
+    plan,
+  });
+
+  const selfEntryIndex = entries.findIndex((e) => e.isSelf);
+  const position = sim.order.indexOf(selfEntryIndex) + 1;
   return { position, fieldSize, won: position === 1, field, popularity };
 }

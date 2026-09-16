@@ -10,7 +10,11 @@ import { createInitialRoster } from "./career.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
 import { advanceInjuryByWeek } from "./fall.js";
-import { assignStablePrimaryJockeys, assignHorsePrimaryJockeys } from "./jockeyAssignment.js";
+import {
+  assignStablePrimaryJockeys,
+  assignHorsePrimaryJockeys,
+  jockeyIdForHorse,
+} from "./jockeyAssignment.js";
 import { processYearBoundary } from "./yearBoundary.js";
 import { WEEKS_PER_YEAR } from "../data/calendar.js";
 import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
@@ -58,17 +62,30 @@ function assignInitialBornYears(saveSeed, horses, bootstrapStartYear) {
  * @returns {{ roster: object }}
  */
 export function runBootstrapWeek(saveSeed, week, year, roster) {
+  // 本物のsimは騎手の適性も見るので、事前シミュレーションでも騎手を乗せる。
+  const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
+  const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
+  const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, primaryJockeyByStable)) ?? undefined;
+
   const gradedResult = runNpcGradedRaces(
     saveSeed,
     week,
     year,
     roster.horses,
     new Set(),
-    roster.trialResults ?? {}
+    roster.trialResults ?? {},
+    getJockey
   );
-  const npcResult = runNpcWeeklyRaces(saveSeed, week, year, gradedResult.horses, new Set(), new Set());
+  const npcResult = runNpcWeeklyRaces(
+    saveSeed,
+    week,
+    year,
+    gradedResult.horses,
+    new Set(),
+    new Set(),
+    getJockey
+  );
   const advancedHorses = npcResult.horses.map((h) => advanceInjuryByWeek(h));
-  const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
   const jockeyedHorses = assignHorsePrimaryJockeys(advancedHorses, primaryJockeyByStable, roster.npcJockeys);
   return { roster: { ...roster, horses: jockeyedHorses, trialResults: gradedResult.trialResults } };
 }
@@ -110,7 +127,10 @@ export function bootstrapRoster(saveSeed, startYear) {
  * @returns {Promise<{ roster: object }>}
  */
 export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
-  const weeksPerChunk = options.weeksPerChunk ?? 8;
+  // ⚠️1週あたりの処理は実測43.5ms（本物のsimに置き換えた後・`devlog/wave08.md`§5）。
+  // 8週ずつ回すと1回の塊が350msになり、夢のダービーの描画が目に見えて止まる。
+  // 2週ずつ（約90ms）に細かくした。⚠️刻むほど`setTimeout`の往復が増える（104週で約0.2秒）。
+  const weeksPerChunk = options.weeksPerChunk ?? 2;
   const yieldToRender = options.yield ?? (() => new Promise((resolve) => setTimeout(resolve, 0)));
 
   const bootstrapStartYear = startYear - BOOTSTRAP_YEARS;

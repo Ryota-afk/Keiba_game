@@ -9,9 +9,8 @@
 // 同じ抽選をさらに別に行っていたため、プレイヤーの依頼とNPCのレースが同じ「番組表」を
 // 見ていない状態だった（通しプレイ①の指摘）。
 //
-// ⚠️**着順の決め方は仮**（`raceOutcome.js`のhorseStrengthScoreをそのまま使う強さ比べ）。
-// 本物のsim（`src/sim/`にsurface・jockeyを通す）への置き換えは`claude-opus-5`の担当
-// （CLAUDE.md §2・`devlog/wave07.md`実装の順③）。
+// ⭐2026-09-16：着順を本物のsim（`src/sim/`）で決めるようにした（`devlog/wave08.md`）。
+// それまでは`raceOutcome.js`のhorseStrengthScoreを使った強さ比べだった。
 // ⚠️**このファイルは一般競走＋オープン特別だけを扱う。** 重賞のNPC出走（史実の実データ・
 // 優先出走権が絡む）は`domain/npcGradedRace.js`が別に行う。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
@@ -28,7 +27,8 @@ import {
   canDebutThisWeek,
   appendRaceResult,
 } from "./horse.js";
-import { horseStrengthScore } from "./raceOutcome.js";
+import { runRaceSim, buildPlan } from "../sim/index.js";
+import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { rollActualCondition } from "./weather.js";
@@ -42,6 +42,9 @@ import { rollActualCondition } from "./weather.js";
  * @param {Set<string>} [excludeHorseIds] - 今週プレイヤーが乗った馬（対象外にする）
  * @param {Set<string>} [excludeRaceIds] - 今週プレイヤーが乗ったレース（同じレースが
  *   二重に開催されないよう、週の番組表からその枠を外す）
+ * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数。
+ *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——プレイヤーの鞍だけ騎手が乗る
+ *   状態を作らないため、呼び出し側は必ず渡すこと。
  * @returns {{ horses: object[], racesRun: number, startsRun: number }}
  */
 export function runNpcWeeklyRaces(
@@ -50,7 +53,8 @@ export function runNpcWeeklyRaces(
   year,
   horses,
   excludeHorseIds = new Set(),
-  excludeRaceIds = new Set()
+  excludeRaceIds = new Set(),
+  getJockey = undefined
 ) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, week);
   const card = buildWeeklyCard(saveSeed, week, year).filter(
@@ -95,12 +99,20 @@ export function runNpcWeeklyRaces(
     poolByClass.set(race.classId, classPool.filter((h) => !fieldIds.has(h.id)));
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
-    // 強さ比べで着順を決める（⚠️仮sim。`raceOutcome.js`のhorseStrengthScoreをそのまま使う）。
-    const scored = field
-      .map((h) => ({ h, score: horseStrengthScore(h, null) + (rand01() - 0.5) * 30 }))
-      .sort((a, b) => b.score - a.score);
+    // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
+    const simEntries = field.map((h, i) => ({ num: i + 1, horse: h, jockey: getJockey?.(h) }));
+    const plan = buildPlan(simEntries, (e) => deriveFavoredStrategy(e.horse), 1);
+    const sim = runRaceSim({
+      seed: saveSeed,
+      raceKey: `${year}-w${week}-${race.raceId}`,
+      distance: race.distance,
+      surface: race.surface,
+      condition,
+      entries: simEntries,
+      plan,
+    });
 
-    scored.forEach(({ h }, idx) => {
+    sim.order.map((entryIndex) => ({ h: simEntries[entryIndex].horse })).forEach(({ h }, idx) => {
       const position = idx + 1;
       const won = position === 1;
       const nextClassId = won ? classAfterWin(h.classId) : classAfterDebutLoss(h.classId);

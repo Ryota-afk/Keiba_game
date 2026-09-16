@@ -4,8 +4,7 @@
 // ⚠️**オープン特別は対象外**。実データが無く（`arch/race-program.md`§3の1.07倍推定値しか
 // 無い）、実装するには推定生成の設計が要る——重賞の実データだけを先に本筋2へ入れる
 // （2026-09-15にユーザーが選んだ優先順位）。
-// ⚠️**着順の決め方は仮**（`raceOutcome.js`のhorseStrengthScoreをそのまま使う強さ比べ）。
-// 本物のsimへの置き換えは`claude-opus-5`の担当（CLAUDE.md §2）。
+// ⭐2026-09-16：着順を本物のsim（`src/sim/`）で決めるようにした（`devlog/wave08.md`）。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
@@ -20,7 +19,8 @@ import {
   canDebutThisWeek,
   placePrizeShare,
 } from "./horse.js";
-import { horseStrengthScore } from "./raceOutcome.js";
+import { runRaceSim, buildPlan } from "../sim/index.js";
+import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { determineEntries, PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
@@ -58,10 +58,11 @@ function findTrialResultKey(trialResultsForYear, trialFor) {
  * @param {object} trialResults - `{ [year]: { [レース名]: string[] } }`（優先出走権の材料。
  *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
  *   レース名をキーに年ごとに持つ）
+ * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数
  * @returns {{ horses: object[], trialResults: object, racedHorseIds: Set<string>,
  *             racesRun: number, startsRun: number }}
  */
-export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds, trialResults) {
+export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds, trialResults, getJockey) {
   if (!hasGradedRaceData(year)) {
     return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
   }
@@ -82,8 +83,6 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
   // ⚠️レースごとに候補を毎回作り直す——同じ週の複数の重賞に同じ馬が2回出ないよう、
   // 選ばれた馬は`racedHorseIds`へ積んで次のレースの候補から除く。
   for (const race of racesToday) {
-    const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, "graded", week, race.id);
-
     const trialKey = race.trialFor ? findTrialResultKey(nextTrialResults[year], race.trialFor) : null;
     const priorityIds = new Set(trialKey ? nextTrialResults[year][trialKey] : []);
 
@@ -108,12 +107,21 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
     const popularityByHorseId = new Map(entries.map((h, i) => [h.id, i + 1]));
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
-    const scored = entries
-      .map((h) => ({ h, score: horseStrengthScore(h, null) + (rand01() - 0.5) * 30 }))
-      .sort((a, b) => b.score - a.score);
+    // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
+    const simEntries = entries.map((h, i) => ({ num: i + 1, horse: h, jockey: getJockey?.(h) }));
+    const plan = buildPlan(simEntries, (e) => deriveFavoredStrategy(e.horse), 1);
+    const sim = runRaceSim({
+      seed: saveSeed,
+      raceKey: `${year}-w${week}-${race.id}`,
+      distance: race.distance,
+      surface: race.surface,
+      condition,
+      entries: simEntries,
+      plan,
+    });
 
     const topFinishers = [];
-    scored.forEach(({ h }, idx) => {
+    sim.order.map((entryIndex) => ({ h: simEntries[entryIndex].horse })).forEach(({ h }, idx) => {
       const position = idx + 1;
       topFinishers.push(h.id);
       const earningsGain = (race.prize1 ?? 0) * placePrizeShare(position);

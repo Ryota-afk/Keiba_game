@@ -7,6 +7,7 @@ import { CLASS_LADDER, classIndex, classDisplayName } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
 import { pickGradeBellCurve } from "../data/grades.js";
 import { generateSurfaceAptitude } from "../data/surfaceAptitude.js";
+import { generateMudAptitude } from "../data/mudAptitude.js";
 import { PROVISIONAL_FIRST_PRIZE_1974, TWO_YEAR_OLD_DEBUT_WEEK } from "../data/raceProgram.js";
 import { weekOfYear } from "../data/calendar.js";
 
@@ -103,6 +104,9 @@ export function generateHorse(saveSeed, key, opts = {}) {
     // 芝・ダートの適性（`arch/horse.md`「⭐ 芝・ダートの適性」）。◎○△×を面ごとに持つ。
     // ⭐恒久ルール：時代に合わせない（血統は除く）——`generateSurfaceAptitude`だけで決まる。
     surfaceAptitude: generateSurfaceAptitude(rand01),
+    // 道悪適性（重い馬場の得手不得手・`data/mudAptitude.js`）。⚠️芝ダ適性と違い、×でも
+    // 出走は止めない——雨は選べないので、苦手な馬が重馬場に当たる事故そのものがゲームになる。
+    mudAptitude: generateMudAptitude(rand01),
     // 通算成績（収得賞金の順位付け・引退判定に使う。`arch/horse.md`「引退」「出走馬の決定」）。
     // ⚠️`earnings`は収得賞金（円）。実際の獲得賞金（プレイヤーの手取り）とは別の数値。
     // `recentFinishes`は新しい順の直近戦績（着順・レース名・日付等の詳細つき。引退判定②

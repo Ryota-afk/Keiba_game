@@ -14,6 +14,8 @@
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { parRatioFor } from "../data/parTimes.js";
+import { surfaceFactorFor } from "../data/surfaceAptitude.js";
+import { mudFactorFor } from "../data/mudAptitude.js";
 import { decideRaceTrend, paceMultiplierAt, trendAdaptationOf, DERBY_TREND_BASE } from "./pace.js";
 import {
   normalizedAbilities,
@@ -23,6 +25,7 @@ import {
   positionFactor,
   drainPerSecond,
   shortfallOf,
+  gradeNorm,
   REFERENCE_WEIGHT_KG,
 } from "./stamina.js";
 
@@ -166,6 +169,43 @@ function clamp(v, lo, hi) {
 }
 
 /**
+ * 騎手の度胸から、判断カードで覆せる量の倍率を出す。度胸50で1.0（中立）。
+ * ⚠️係数（0.7＋0.6×）は馬の賢さと同じ形を借りた仮値。根拠は無い。
+ * 騎手が渡らなければ1.0（夢のダービー＝トップジョッキー・度胸の差を作らない）。
+ */
+function courageScale(jockey) {
+  if (!jockey || typeof jockey.courage !== "number") return 1;
+  return 0.7 + 0.6 * clamp(jockey.courage / 100, 0, 1);
+}
+
+/** 騎手の適性が脚の総量に掛かる幅。1±この値の半分。⚠️根拠は無い（較正で決めた値）。
+ * ⭐0.12で始めたが、**対照実験で0.14着しか動かず騎手が飾りだった**ため0.30へ上げた
+ * （`devlog/wave08.md`§3の計測）。騎手の段位は中央に寄って分布するので、
+ * 幅の数字ほどには実効の差が出ない。 */
+const JOCKEY_EFFECT_SPAN = 0.3;
+
+/**
+ * 騎手の適性3つ（今日の脚質・距離帯・馬場）の平均から、脚の総量に掛ける倍率を出す。
+ * 2026-09-16のユーザー決定「適性3つ＋度胸」。騎手が渡らなければ1.0。
+ */
+function jockeyAptitudeFactor(jockey, strategy, distance, surface) {
+  if (!jockey?.aptitudes) return 1;
+  const band =
+    distance <= 1400 ? "sprint" : distance <= 1800 ? "mile" : distance <= 2400 ? "intermediate" : "long";
+  const keys = [`strategy:${strategy}`, `distance:${band}`, `surface:${surface}`];
+  let sum = 0;
+  let n = 0;
+  for (const key of keys) {
+    const grade = jockey.aptitudes[key];
+    if (grade == null) continue;
+    sum += gradeNorm(grade);
+    n += 1;
+  }
+  if (n === 0) return 1;
+  return 1 + JOCKEY_EFFECT_SPAN * (sum / n - 0.5);
+}
+
+/**
  * レースを1本走らせる。自己完結の純関数（同じ入力なら常に同じ結果）。
  * @param {object} input
  * @param {number|string} input.seed - `saveSeed`
@@ -183,6 +223,11 @@ export function runRaceSim(input) {
     raceKey = "race",
     distance = 2400,
     surface = "turf",
+    condition = "good",
+    // ⚠️適性の係数（芝ダ・道悪・騎手）を効かせるか。既定はON。
+    // 夢のダービーだけOFFにしている——史実馬の芝ダ適性がランダムに振られたままで、
+    // ダービー馬が「芝×」になる状態のため（`devlog/wave08.md`§4）。
+    aptitudeFactors = true,
     entries,
     plan,
     trendBase = DERBY_TREND_BASE,
@@ -203,9 +248,18 @@ export function runRaceSim(input) {
     const staminaApt = staminaAptitude(e.horse, distance);
     const shortfall = shortfallOf(e.horse, distance);
     const adapt = trendAdaptationOf(e.horse, trend);
+    // ⭐適性の係数3つ（2026-09-16のユーザー決定・`devlog/wave08.md`§2）。
+    // 距離適性と同じ場所＝脚の総量に掛ける。`arch/race-sim.md`冒頭「最大の逆転要因は
+    // 適性（距離・馬場・戦法）。騎手の適性10個と馬の適性が同じレースに掛かる」。
+    const surfaceFactor = aptitudeFactors ? surfaceFactorFor(e.horse.surfaceAptitude, surface) : 1;
+    const mudFactor = aptitudeFactors ? mudFactorFor(e.horse.mudAptitude, condition) : 1;
+    // ⚠️`jockeyPenalty`は疲労（`domain/fatigue.js`）。1で無補正。
+    const jockeyFactor = aptitudeFactors
+      ? jockeyAptitudeFactor(e.jockey, strategyList[i], distance, surface) * (e.jockeyPenalty ?? 1)
+      : 1;
     const capacity = staminaCapacity({
       staminaNorm: ab.stamina,
-      distanceApt: staminaApt,
+      distanceApt: staminaApt * surfaceFactor * mudFactor * jockeyFactor,
       trendAdaptation: adapt,
     });
     const strategy = strategyList[i];
@@ -225,8 +279,9 @@ export function runRaceSim(input) {
       // まったく同じ加速をし、発走の差が消える（実測で全18頭の距離が小数点以下まで一致した）。
       accelSeconds: 3.6 - 1.5 * clamp(dash, 0, 1),
       // 判断カードで覆せる量の倍率。`arch/race-sim.md`「覆せる量＝基準幅×馬の賢さ×騎手の度胸×疲労」。
-      // ⚠️夢のダービーは騎手＝トップジョッキー・疲労なしなので、今は賢さだけが効く。
-      cardScale: 0.7 + 0.6 * ab.wisdom,
+      // ⚠️疲労はまだ入っていない（プレイヤーの疲労は`domain/weekResults.js`が別に扱う）。
+      // 騎手が渡らないレース（夢のダービー＝トップジョッキー）は度胸の項が1.0になる。
+      cardScale: (0.7 + 0.6 * ab.wisdom) * courageScale(e.jockey),
       // 部品2：脚質の帯の中の1点。精神力が高いほど帯の前寄りに付ける。
       baseGap: (() => {
         const [lo, hi] = TARGET_GAP_BAND[strategy] ?? TARGET_GAP_BAND.sashi;

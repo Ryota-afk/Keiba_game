@@ -51,3 +51,20 @@ export function generateSurfaceAptitude(rand01) {
 export function canRaceOnSurface(surfaceAptitude, surface) {
   return surfaceAptitude[surface] !== "×";
 }
+
+/**
+ * 芝ダ適性の係数。脚の総量（`sim/stamina.js`の`staminaCapacity`）に、距離適性と同じ場所で
+ * 掛ける（2026-09-16のユーザー決定・`devlog/wave08.md`§2）。
+ * ⚠️**数値に根拠は無い（仮値）。** ○と△の1着率の差を実測して直す。
+ * ×は出走しない（`canRaceOnSurface`が止める）ので、万一渡された場合の保険の値。
+ */
+export const SURFACE_FACTOR = Object.freeze({ "◎": 1.0, "○": 0.94, "△": 0.86, "×": 0.7 });
+
+/**
+ * その馬・その馬場の係数を引く。
+ * @param {{turf: string, dirt: string}} surfaceAptitude
+ * @param {string} surface - "turf" | "dirt"
+ */
+export function surfaceFactorFor(surfaceAptitude, surface) {
+  return SURFACE_FACTOR[surfaceAptitude?.[surface]] ?? 1; // 未設定は割引なし
+}
