@@ -7,7 +7,8 @@ import { CLASS_LADDER, classIndex, classDisplayName } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
 import { pickGradeBellCurve } from "../data/grades.js";
 import { generateSurfaceAptitude } from "../data/surfaceAptitude.js";
-import { PROVISIONAL_FIRST_PRIZE_1974 } from "../data/raceProgram.js";
+import { PROVISIONAL_FIRST_PRIZE_1974, TWO_YEAR_OLD_DEBUT_WEEK } from "../data/raceProgram.js";
+import { weekOfYear } from "../data/calendar.js";
 
 // ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
 // ダービー馬51頭は65〜92なので、この上限（理論上の最大に近い値で71〜72）なら
@@ -264,4 +265,17 @@ export function isDueForNextRace(horse, currentWeek) {
   if (horse.lastRaceWeek == null) return true;
   const interval = horse.nextRaceIntervalWeeks ?? ROTATION_INTERVAL_MIN_WEEKS;
   return currentWeek - horse.lastRaceWeek >= interval;
+}
+
+/**
+ * 2歳馬は第`TWO_YEAR_OLD_DEBUT_WEEK`週より前は出走候補にしない
+ * （`arch/race-program.md`§10「2歳戦解禁」の判定・通しプレイ①の指摘の解消）。
+ * ⚠️生年（`horse.bornYear`）が無い馬は年齢が分からないので通す——事前シミュレーション
+ * （設計③・未実装）が全馬に生年を付けるまでの間の暫定。
+ */
+export function canDebutThisWeek(horse, week, year) {
+  if (horse.bornYear == null) return true;
+  const age = year - horse.bornYear;
+  if (age !== 2) return true;
+  return weekOfYear(week) >= TWO_YEAR_OLD_DEBUT_WEEK;
 }

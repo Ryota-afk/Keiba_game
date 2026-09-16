@@ -49,6 +49,7 @@ export const RNG_STREAMS = Object.freeze({
   REQUESTS: "requests", // 週次の騎乗依頼一覧の生成
   PITCH: "pitch", // 自分から売り込む（成功判定）
   NPC_RACE: "npcRace", // NPC全馬の毎週ローテ（`domain/npcWeeklyRace.js`）
+  CARD: "card", // 週の番組表（`domain/weeklyCard.js`。週×年で固定）
 });
 
 /**

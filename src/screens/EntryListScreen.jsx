@@ -15,7 +15,8 @@ import "./EntryListScreen.css";
 /**
  * @param {{ saveSeed: number|string, week: number, currentYear: number, player: object,
  *           roster: object, horse: object, mount: { horseId: string, surface: string,
- *           courseId?: string, distanceBand?: string }, onClose?: () => void }} props
+ *           courseId?: string, distance?: number, classId?: string, raceName?: string|null,
+ *           grade?: string|null }, onClose?: () => void }} props
  */
 export function EntryListScreen({ saveSeed, week, currentYear, player, roster, horse, mount, onClose }) {
   const jockeyById = useMemo(() => new Map(roster.npcJockeys.map((j) => [j.id, j])), [roster.npcJockeys]);
@@ -47,14 +48,15 @@ export function EntryListScreen({ saveSeed, week, currentYear, player, roster, h
   const header = useMemo(
     () =>
       buildEntryListHeader({
-        classId: horse.classId,
-        raceName: classDisplayName(horse.classId),
+        classId: mount.classId ?? horse.classId,
+        raceName: mount.raceName ?? classDisplayName(mount.classId ?? horse.classId),
+        grade: mount.grade ?? null,
         courseId: mount.courseId ?? null,
         surface: mount.surface,
-        distanceBand: mount.distanceBand ?? null,
+        distance: mount.distance ?? null,
         fieldSize: field.length,
       }),
-    [horse.classId, mount.courseId, mount.surface, mount.distanceBand, field.length]
+    [mount.classId, mount.raceName, mount.grade, horse.classId, mount.courseId, mount.surface, mount.distance, field.length]
   );
 
   return (

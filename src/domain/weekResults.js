@@ -31,7 +31,7 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  * @param {object} player
  * @param {object} horse
  * @param {{ horseId: string, declaredStrategy?: string|null, courseId?: string, surface?: string,
- *           distanceBand?: string }} mount
+ *           distance?: number, raceId?: string }} mount
  * @param {object[]} allHorses - ロースター全馬（実在の相手馬を組むために使う）
  * @returns {{ player: object, horse: object, notifications: object[], raced: boolean }}
  */
@@ -95,9 +95,8 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     classId: nextClassAfterRace(horse.classId, result.won),
     // 通算成績：`domain/npcWeeklyRace.js`のNPC馬と同じ形で積む（2026-09-15までは
     // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
-    // NPC馬とズレる不整合があった）。⚠️`distance`は未定（プレイヤーの鞍はまだ距離帯
-    // （`mount.distanceBand`：sprint/mile等）しか持たない——実データの番組表に
-    // 置き換わるまでの仮。距離は`distanceBand`のほうに入れる）。
+    // NPC馬とズレる不整合があった）。⭐距離は`mount.distance`（週の番組表・実データが
+    // 決めた具体的なメートル数。`arch/race-program.md`§10）をそのまま使う。
     record: appendRaceResult(horse.record, horse.classId, {
       position: result.position,
       fieldSize: result.fieldSize,
@@ -106,7 +105,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
       year: player.currentYear,
       courseId: mount.courseId ?? null,
       surface: mount.surface ?? null,
-      distanceBand: mount.distanceBand ?? null,
+      distance: mount.distance ?? null,
       condition: mount.courseId ? rollActualCondition(saveSeed, week, mount.courseId) : null,
     }),
     nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),

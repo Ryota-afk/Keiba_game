@@ -6,13 +6,13 @@
 import React, { useMemo, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
-import { resolveWeekRaceContexts, courseIdsAvailable } from "../domain/fridayConfirmation.js";
+import { courseIdsAvailable } from "../domain/fridayConfirmation.js";
 import { weekOfYear } from "../data/calendar.js";
 import { findCourse } from "../data/courses.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
 import { RANK_LABELS } from "../data/ranks.js";
 import { INJURY_LABELS } from "../data/injuryLabels.js";
-import { SURFACE_LABELS, DISTANCE_BAND_LABELS } from "../data/aptitudeLabels.js";
+import { SURFACE_LABELS } from "../data/aptitudeLabels.js";
 import { classDisplayName } from "../data/classes.js";
 import { EntryListScreen } from "./EntryListScreen.jsx";
 
@@ -57,11 +57,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     () => generateWeeklyRequests(saveSeed, week, roster, player),
     [saveSeed, week, roster, player]
   );
-  const withCtx = useMemo(
-    () => resolveWeekRaceContexts(saveSeed, week, requests),
-    [saveSeed, week, requests]
-  );
-  const courses = useMemo(() => courseIdsAvailable(withCtx), [withCtx]);
+  const courses = useMemo(() => courseIdsAvailable(requests), [requests]);
   const chosenCourse = selectedCourse && courses.includes(selectedCourse) ? selectedCourse : courses[0] ?? null;
 
   const yearCompleted = player.currentYear > startYear;
@@ -125,15 +121,17 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
       <section style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15 }}>今週の依頼（{requests.length}件・乗れるのは{RIDABLE_SLOTS_PER_WEEK}鞍）</h2>
         <ul>
-          {withCtx.map((r) => {
+          {requests.map((r) => {
             const horse = horsesById.get(r.horseId);
             const stable = stablesById.get(r.stableId);
             const course = findCourse(r.courseId);
+            const raceLabel = r.raceName ?? classDisplayName(r.classId);
             return (
               <li key={r.horseId}>
-                {horse?.name} （{stable?.trainerName}厩舎） — {classDisplayName(horse?.classId)}{" "}
-                {course?.name ?? r.courseId} {SURFACE_LABELS[r.surface] ?? r.surface}{" "}
-                {DISTANCE_BAND_LABELS[r.distanceBand] ?? r.distanceBand}{" "}
+                {horse?.name} （{stable?.trainerName}厩舎） — {raceLabel}
+                {r.grade ? `（${r.grade.toUpperCase()}）` : ""}{" "}
+                {course?.name ?? r.courseId} {SURFACE_LABELS[r.surface] ?? r.surface}
+                {r.distance}m{" "}
                 <button type="button" onClick={() => setEntryListRequest(r)}>
                   出馬表を見る
                 </button>

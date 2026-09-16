@@ -548,3 +548,74 @@ CLAUDE.md §2の「Fableは実装に使わない」を書き換え、§8の手�
 - 確認：Playwright（iPhone 13）で第1週と第13週の画面の文字を取り、英語のidが0件・JSエラー0件。
   スクリーンショットで「新人」「新馬 札幌 ダート 〜1400m」を目視。⚠️第1週に札幌・小倉が出るのは
   設計②（週のレース一覧）で直る。`TODO.md` #65は完了として削除。
+
+## 実装②：週の番組表と依頼の結びつけ（2026-09-16・`claude-sonnet-5`で実装）
+
+設計は本ファイル上の「設計②」節・正本は`arch/race-program.md`§10。実装した内容：
+
+- **`domain/weeklyCard.js`（新規）**：`buildWeeklyCard(saveSeed, week, year)`。
+  `RNG_STREAMS.CARD`で`(saveSeed, week)`から毎回同じ一覧を返す。中身は
+  ①重賞（`gradedRacesForYear`の実データそのまま。グレード表記の無い年〜1983は`classId:"open"`）
+  ②オープン特別（`estimateOpenStakesCount`の年間推定を52週へ確率配分。`classId:"open"`固定）
+  ③一般競走（開いている競馬場×2日×`racesPerDay(year)`から①②の本数を引いた残り。
+  クラスは`drawGeneralRaceClass`で1本ずつ重み抽選）。
+- **`data/classes.js`**：`isEligibleForRaceClass(horseClassId, raceClassId)`を追加。
+  オープン以上（open/listed/g3/g2/g1）は「馬がオープン以上なら出られる」、新馬〜3勝クラスは
+  完全一致だけ出られる（`domain/npcGradedRace.js`の`MIN_ENTRY_CLASS_INDEX`と同じ考え方）。
+- **`domain/horse.js`**：`canDebutThisWeek(horse, week, year)`を追加（2歳は第23週まで出走候補に
+  しない）。⚠️生年（`bornYear`）が無い馬は判定しようがないので通す——設計③（未実装）が
+  全馬に生年を付けるまでの暫定。
+- **`domain/weeklyRequests.js`**：依頼の生成が`buildWeeklyCard`を1回呼び、各馬について
+  クラス一致・馬場に出られる・牝馬限定の条件が合うレースを`matchRaceForHorse`で1つ選ぶ
+  （複数合えば`(saveSeed, week, horse.id)`の乱数で1つに絞る）。合う物が無い馬は依頼にならない。
+  依頼オブジェクトに`raceId`・`classId`・`courseId`・`surface`・`distance`（メートル）・
+  `fillyOnly`・`raceName`（重賞なら実名）・`grade`が付く。`horsesDueThisWeek`に`year`引数を足し、
+  2歳ゲートを適用。
+- **`domain/fridayConfirmation.js`**：無作為の`resolveRaceContext`／`resolveWeekRaceContexts`を削除。
+  依頼は`weeklyRequests.js`が既にレースを結びつけた状態で来るため、`courseIdsAvailable`・
+  `mountsAtCourse`・`confirmMounts`はそのまま`requests`を受け取る形にした。
+- **`domain/npcWeeklyRace.js`**：一般競走の目標本数をこのファイルの中で毎週計算し直す方式
+  （`buildYearlyClassCounts`＋`stochasticRound`）をやめ、`buildWeeklyCard`が組んだ同じ週の
+  番組表（重賞を除く・プレイヤーが乗ったレースIDも除く＝新しい`excludeRaceIds`引数）を
+  そのまま走らせる形にした。オープン特別もこのファイルが走らせるようになった（旧`TODO.md` #77
+  「オープン特別のNPC出走が未実装」を解消——完了項目としてTODOから削除）。
+- **`domain/npcGradedRace.js`**：候補の絞り込みに`canDebutThisWeek`を追加（2歳ゲート）。
+- **`domain/weekLoop.js`**：`resolveWeekRaceContexts`呼び出しを削除して`requests`を直接使い、
+  プレイヤーが乗ったレースID（`riddenRaceIds`）を`runNpcWeeklyRaces`の`excludeRaceIds`へ渡す
+  （同じレース枠が二重に開催されないように）。
+- **`domain/weekResults.js`**：戦績に積む距離を`mount.distanceBand`（sprint/mile等の帯）から
+  `mount.distance`（週の番組表が決めた具体的なメートル数）へ変更。
+- **`screens/WeekScreen.jsx`**：依頼の行に、レースの実名（重賞の場合）またはクラス表記、
+  競馬場・馬場・距離（メートル）を表示。全部レースから引くので開発語彙は残らない。
+  `resolveWeekRaceContexts`/`DISTANCE_BAND_LABELS`のimportを削除。
+- **`screens/EntryListScreen.jsx`**：出馬表の見出しに`mount`の`classId`/`raceName`/`grade`/
+  `distance`（レース由来）を使うよう変更（従来は常に`horse.classId`から組み立てていた）。
+
+### 確認したこと（実データ・実測）
+
+- **人間の目視**：`?debugWeek=1`のPlaywright（iPhone 13）で、第1週の依頼が中山・京都
+  （第1週に実際に開いている2場）だけに絞られていることを画面の文字とスクリーンショットで確認。
+  函館・小倉が出ていた元の指摘は再現しなくなった。第41週も東京・京都に切り替わっていることを確認。
+- **機械の検算**：`buildWeeklyCard`の返す競馬場が、その週の`coursesOpenInWeek`の部分集合に
+  必ず収まることを、5,800頭級のロースターで260週（5年）ぶんの依頼全件について確認（不一致0件）。
+- **実際に重賞へ出る依頼が生成されること**：60週以内に「農林省賞典 阪神3歳ステークス」への
+  依頼が実際に発生し、出馬表・見出し（レース名・馬場・距離・9頭）が正しく組めることを確認。
+
+### 計測（CLAUDE.md §10・機能追加とセットで実施。7,600頭のロースターで計測）
+
+| 項目 | 変更前（`devlog/wave07.md`「実装」節・2026-09-15実測） | 変更後（2026-09-16実測） |
+|---|---|---|
+| `runNpcWeeklyRaces`単体・1週あたりの時間 | 37.77ms（5年260週平均） | 20.15ms（同条件） |
+| `tools/bench-weekloop.mjs`（0.98ms/週）との倍率 | 約38倍 | 約20倍 |
+| 1年あたりの平均出走数（5年平均） | 3.68走 | 3.72走 |
+| 5年間で1回以上出走した馬の割合 | 98.5% | 98.4% |
+
+⚠️**出走数・出走率はほぼ変化なし**（差は3.68→3.72で誤差の範囲。出走枠の総量は「週に開いている
+競馬場×2日×レース数から重賞・オープン特別を引いた残り」という計算に変えただけで、枠の総数
+そのものを増減させる意図の変更ではなかったため、動かないのが期待どおりの結果）。
+⭐**処理速度は狙わずに約半分になった**——週の番組表を1回だけ組んで使い回す形に変えたことで、
+クラスごとに重複していた抽選・集計が減ったため。#74（型付き配列化を検討するかの判断）は
+新しい実測値（20.15ms/週・0.98ms/週の約20倍）で`TODO.md`を更新し、判断自体は保留のまま残す。
+
+### 棚上げ
+今回はありません（#73・#74・#76は元から棚上げ済み。#77はこの実装で解消したのでTODOから削除）。

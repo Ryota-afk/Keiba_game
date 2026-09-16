@@ -13,7 +13,13 @@ import { weekOfYear } from "../data/calendar.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface } from "../data/surfaceAptitude.js";
 import { classIndex } from "../data/classes.js";
-import { appendRaceResultWithEarnings, pickRotationIntervalWeeks, isDueForNextRace, placePrizeShare } from "./horse.js";
+import {
+  appendRaceResultWithEarnings,
+  pickRotationIntervalWeeks,
+  isDueForNextRace,
+  canDebutThisWeek,
+  placePrizeShare,
+} from "./horse.js";
 import { horseStrengthScore } from "./raceOutcome.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
@@ -89,6 +95,7 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
       if (classIndex(horse.classId) < MIN_ENTRY_CLASS_INDEX) continue;
       if (!canRaceOnSurface(horse.surfaceAptitude, race.surface)) continue;
       if (race.fillyOnly && horse.gender !== "filly") continue;
+      if (!canDebutThisWeek(horse, week, year)) continue;
       if (!isDueForNextRace(horse, week) && !priorityIds.has(horse.id)) continue;
       candidates.push(horse);
     }

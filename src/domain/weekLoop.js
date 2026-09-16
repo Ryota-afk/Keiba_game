@@ -10,11 +10,7 @@
 
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK, horsesDueThisWeek } from "./weeklyRequests.js";
 import { WEEKS_PER_YEAR } from "../data/calendar.js";
-import {
-  resolveWeekRaceContexts,
-  courseIdsAvailable,
-  confirmMounts,
-} from "./fridayConfirmation.js";
+import { courseIdsAvailable, confirmMounts } from "./fridayConfirmation.js";
 import { declareStrategy, deriveFavoredStrategy } from "./strategy.js";
 import { processMountResult } from "./weekResults.js";
 import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
@@ -41,7 +37,7 @@ export const RIVAL_WIN_PROBABILITY = 0.08;
  * @param {object} player
  * @param {{
  *   previousRequestHorseIds?: Set<string>,
- *   chooseCourse?: (courseIds: string[], requestsWithContext: object[]) => string,
+ *   chooseCourse?: (courseIds: string[], requests: object[]) => string,
  *   chooseStrategy?: (mount: object, horse: object) => string,
  *   maxMounts?: number,
  * }} [options]
@@ -64,16 +60,16 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     }
   }
 
-  // 金曜：競馬場→鞍→脚質の確定
-  const withCtx = resolveWeekRaceContexts(saveSeed, week, requests);
-  const courses = courseIdsAvailable(withCtx);
+  // 金曜：競馬場→鞍→脚質の確定（依頼は既に週の番組表からレースが結びついている＝
+  // 競馬場・馬場・距離・クラスは`weeklyRequests.js`が付けた値をそのまま使う）
+  const courses = courseIdsAvailable(requests);
   const chosenCourse = courses.length
     ? options.chooseCourse
-      ? options.chooseCourse(courses, withCtx)
+      ? options.chooseCourse(courses, requests)
       : courses[0]
     : null;
   const maxMounts = options.maxMounts ?? RIDABLE_SLOTS_PER_WEEK;
-  const confirmedRaw = chosenCourse ? confirmMounts(withCtx, chosenCourse, maxMounts) : [];
+  const confirmedRaw = chosenCourse ? confirmMounts(requests, chosenCourse, maxMounts) : [];
   const mounts = confirmedRaw
     .filter((m) => !isSidelined(horsesById.get(m.horseId))) // 離脱中は乗れない
     .map((m) => {
@@ -101,7 +97,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
 
   // 主戦の座を持つが今週乗らなかった馬：他騎手が勝てば失う（§6「主戦の座」）。
   const riddenThisWeek = new Set(mounts.map((m) => m.horseId));
-  const dueHorseIds = new Set(horsesDueThisWeek(roster.horses, week).map((h) => h.id));
+  const riddenRaceIds = new Set(mounts.map((m) => m.raceId).filter(Boolean));
+  const dueHorseIds = new Set(horsesDueThisWeek(roster.horses, week, player.currentYear).map((h) => h.id));
   for (const horseId of Object.keys(nextPlayer.mainMounts)) {
     if (!isMainMount(nextPlayer.mainMounts, horseId)) continue;
     if (riddenThisWeek.has(horseId)) continue;
@@ -120,9 +117,10 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // （質問14＝(A)「現役馬を全部持ち毎週ローテを回す」）。
   // ⚠️2026-09-04時点では`lastRaceWeek`を進めるだけの仮処理だった（`TODO.md` #16）。
   // まず重賞（`domain/npcGradedRace.js`・実データ）を走らせ、その週に重賞へ出た馬を除いてから
-  // 一般競走（`domain/npcWeeklyRace.js`・新馬〜3勝クラス）を走らせる——同じ馬が同じ週に
-  // 2つのレースへ出ないようにするため。オープン特別のNPC出走は実データが無くまだ未実装
-  // （`devlog/wave07.md`）。
+  // 一般競走＋オープン特別（`domain/npcWeeklyRace.js`）を走らせる——同じ馬が同じ週に
+  // 2つのレースへ出ないようにするため。⭐両方とも`domain/weeklyCard.js`が組んだ同じ週の
+  // 番組表を見ている（`arch/race-program.md`§10）。プレイヤーが乗ったレースは
+  // `excludeRaceIds`でNPC側の番組表から外し、同じレース枠が二重に開催されないようにする。
   const gradedResult = runNpcGradedRaces(
     saveSeed,
     week,
@@ -132,7 +130,14 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     roster.trialResults ?? {}
   );
   const npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds]);
-  const npcResult = runNpcWeeklyRaces(saveSeed, week, nextPlayer.currentYear, gradedResult.horses, npcExcluded);
+  const npcResult = runNpcWeeklyRaces(
+    saveSeed,
+    week,
+    nextPlayer.currentYear,
+    gradedResult.horses,
+    npcExcluded,
+    riddenRaceIds
+  );
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 
   // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。

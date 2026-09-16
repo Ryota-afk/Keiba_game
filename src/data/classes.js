@@ -52,3 +52,17 @@ export function isGraded(classId) {
 export function isHigherClass(a, b) {
   return classIndex(a) > classIndex(b);
 }
+
+/**
+ * 馬（`horseClassId`）がそのクラスのレース（`raceClassId`）に出られるか
+ * （`arch/race-program.md`§10・`domain/weeklyCard.js`が組む週の番組表の判定に使う）。
+ * ⚠️オープン以上（オープン特別・リステッド・g3・g2・g1）は、馬の側の勝利昇級が
+ * `open`で頭打ちになる（`domain/horse.js`の`WIN_PROMOTION_CAP`）ため、「オープン以上の
+ * レースは、馬がオープン以上であれば出られる」という判定にする（`domain/npcGradedRace.js`の
+ * `MIN_ENTRY_CLASS_INDEX`と同じ考え方）。新馬〜3勝クラスは完全一致だけ出られる。
+ */
+export function isEligibleForRaceClass(horseClassId, raceClassId) {
+  const openIdx = classIndex("open");
+  if (classIndex(raceClassId) >= openIdx) return classIndex(horseClassId) >= openIdx;
+  return horseClassId === raceClassId;
+}
