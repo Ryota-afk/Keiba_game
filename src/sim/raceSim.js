@@ -88,9 +88,10 @@ export const SAFETY_TIME_MAX_RATIO = 1.14;
  * `FIELD_LEVEL_REF`＝重賞の出走馬の平均能力（実測0.5195・104週の事前シミュレーション89本）。
  * ここを1.00の基準に置く＝**重賞の勝ちタイムが`data/parTimes.js`の実データに一致する**。
  * `FIELD_SPEED_SPAN`は「芝2000mで重賞と新馬・未勝利の勝ちタイム差を約4秒にする」という
- * ユーザー決定から逆算した値（実測での較正は同§6）。 */
+ * ユーザー決定から逆算した値（実測3.99秒。較正は同§6。⚠️§7で芝ダ適性を広げたとき
+ * 3.85秒に縮んだので0.43→0.46に戻した——**適性の係数を触ったらここも測り直す**）。 */
 const FIELD_LEVEL_REF = 0.5195;
-const FIELD_SPEED_SPAN = 0.43;
+const FIELD_SPEED_SPAN = 0.46;
 /** 倍率の上下限。⚠️出走頭数が5頭のレースは平均がぶれるので、端を切る。 */
 const FIELD_FACTOR_MIN = 0.93;
 const FIELD_FACTOR_MAX = 1.05;
