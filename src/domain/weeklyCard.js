@@ -10,11 +10,15 @@
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 import { weekOfYear, WEEKS_PER_YEAR } from "../data/calendar.js";
 import { coursesOpenInWeek } from "../data/jraMeetingSchedule.js";
+import { drawShapeAtCourse } from "../data/courses.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import {
   racesPerDay,
   estimateOpenStakesCount,
   drawGeneralRaceShape,
+  SURFACE_SHARE,
+  DISTANCE_SHARE_TURF,
+  DISTANCE_SHARE_DIRT,
   drawGeneralRaceClass,
 } from "../data/raceProgram.js";
 
@@ -37,6 +41,21 @@ function stochasticRound(value, rand01) {
   const floor = Math.floor(value);
   const frac = value - floor;
   return rand01() < frac ? floor + 1 : floor;
+}
+
+
+// ⭐その競馬場で実際に行われる馬場×距離から引く（`data/courses.js`の`drawShapeAtCourse`）。
+// ⚠️**これが無いと、競馬場と距離を別々に抽選するので札幌で芝3600mのレースが組まれる**
+// （実際には行われない距離。`devlog/wave08.md`§9）。
+// ⚠️`profile`を持たない競馬場（今は地方・海外だけ）は、従来どおり全国の割合から引く。
+const SHARES = {
+  surfaceShare: SURFACE_SHARE,
+  distanceShare: { turf: DISTANCE_SHARE_TURF, dirt: DISTANCE_SHARE_DIRT },
+};
+function drawShapeFor(rand01, courseId) {
+  const shape = drawShapeAtCourse(rand01, courseId, SHARES);
+  const fallback = drawGeneralRaceShape(rand01);
+  return shape ? { ...shape, fillyOnly: fallback.fillyOnly } : fallback;
 }
 
 /**
@@ -80,11 +99,12 @@ export function buildWeeklyCard(saveSeed, week, year) {
   const openStakesCountThisYear = estimateOpenStakesCount(gradedCountForYear(year));
   const openStakesToday = stochasticRound(openStakesCountThisYear / WEEKS_PER_YEAR, rand01);
   for (let i = 0; i < openStakesToday; i += 1) {
-    const { surface, distance, fillyOnly } = drawGeneralRaceShape(rand01);
+    const courseId = pick(rand01, openCourses);
+    const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
     races.push({
       raceId: `${year}-w${thisWeek}-open-${i}`,
       classId: "open",
-      courseId: pick(rand01, openCourses),
+      courseId,
       surface,
       distance,
       fillyOnly,
@@ -98,11 +118,12 @@ export function buildWeeklyCard(saveSeed, week, year) {
   const generalSlots = Math.max(0, totalSlotsThisWeek - gradedToday.length - openStakesToday);
   for (let i = 0; i < generalSlots; i += 1) {
     const classId = drawGeneralRaceClass(rand01);
-    const { surface, distance, fillyOnly } = drawGeneralRaceShape(rand01);
+    const courseId = pick(rand01, openCourses);
+    const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
     races.push({
       raceId: `${year}-w${thisWeek}-gen-${i}`,
       classId,
-      courseId: pick(rand01, openCourses),
+      courseId,
       surface,
       distance,
       fillyOnly,

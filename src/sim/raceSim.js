@@ -96,8 +96,8 @@ export const SAFETY_TIME_MAX_RATIO = 1.14;
  * `FIELD_SPEED_SPAN`は「芝2000mで重賞と新馬・未勝利の勝ちタイム差を約4秒にする」という
  * ユーザー決定から逆算した値（実測3.99秒。較正は同§6。⚠️§7で芝ダ適性を広げたとき
  * 3.85秒に縮んだので0.43→0.46に戻した——**適性の係数を触ったらここも測り直す**）。 */
-export const FIELD_LEVEL_REF = 0.39;
-export const FIELD_SPEED_SPAN = 0.165;
+export const FIELD_LEVEL_REF = 0.345;
+export const FIELD_SPEED_SPAN = 0.225;
 /** 倍率の上下限。⚠️出走頭数が5頭のレースは平均がぶれるので、端を切る。 */
 export const FIELD_FACTOR_MIN = 0.93;
 export const FIELD_FACTOR_MAX = 1.05;
