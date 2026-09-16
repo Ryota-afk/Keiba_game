@@ -13,6 +13,7 @@
 // 着順用のハッシュを演出へ流用して集団が規則的に動いて見えた（`arch/race-sim.md`）。
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
+import { parRatioFor } from "../data/parTimes.js";
 import { decideRaceTrend, paceMultiplierAt, trendAdaptationOf, DERBY_TREND_BASE } from "./pace.js";
 import {
   normalizedAbilities,
@@ -181,6 +182,7 @@ export function runRaceSim(input) {
     seed,
     raceKey = "race",
     distance = 2400,
+    surface = "turf",
     entries,
     plan,
     trendBase = DERBY_TREND_BASE,
@@ -421,13 +423,19 @@ export function runRaceSim(input) {
   }
 
   // ===== ゴールタイムの正規化（`devlog/wave04.md`§28-1） =====
-  // 生の勝ちタイムが帯（141.5〜147.5秒）から外れたら、時間軸全体を一様に伸縮させて収める。
+  // 生の勝ちタイムが帯（2400mの芝で141.5〜147.5秒）から外れたら、時間軸全体を一様に
+  // 伸縮させて収める。
   // ⚠️倍率はレース開始時（フォーク前）に1度だけ決め、以後のフォークは同じ倍率を使い回す
   // ——フォークのたびに倍率が変わると、既に見せた時刻の隊列と矛盾する。
+  // ⭐帯そのものは距離・馬場で伸縮させる（`data/parTimes.js`の実データの比）。
+  // ⚠️2026-09-16までこの帯は2400m固定だったため、1200mでも3200mでも勝ちタイムが
+  // 141.5〜147.5秒に丸められていた（1200mが141.5秒＝実際の約2倍。実測で発見）。
+  // 2400mの芝は比が1.00なので、夢のダービーの時間は変わらない。
+  const parRatio = parRatioFor(surface, distance);
   const rawWinner = Math.min(...finishTime);
   const timeScale =
     input.timeScale ??
-    clamp(rawWinner, NORMALIZED_TIME_MIN, NORMALIZED_TIME_MAX) / (rawWinner || 1);
+    clamp(rawWinner, NORMALIZED_TIME_MIN * parRatio, NORMALIZED_TIME_MAX * parRatio) / (rawWinner || 1);
   const dt = dtRaw * timeScale;
   const scaledFinish = finishTime.map((x) => x * timeScale);
 
