@@ -8,28 +8,13 @@
 //
 // 使い方： node tools/measure-sim-times.mjs [1距離あたりのレース数]
 
-import { runRaceSim, buildPlan } from "../src/sim/index.js";
+import { runRaceSim, buildPlan, fieldSpeedFactor } from "../src/sim/index.js";
 import { parSecondsFor } from "../src/data/parTimes.js";
-import { normalizedAbilities } from "../src/sim/stamina.js";
 import { generateHorse } from "../src/domain/horse.js";
 
-// ⚠️`sim/raceSim.js`の同名の定数と揃えること（この2つはexportしていない）。
-const FIELD_LEVEL_REF = 0.5195;
-const FIELD_SPEED_SPAN = 0.43;
-const FIELD_FACTOR_MIN = 0.93;
-const FIELD_FACTOR_MAX = 1.05;
 
 const RACES = Number(process.argv[2] ?? 60);
 const STRATEGIES = ["nige", "senko", "sashi", "oikomi"];
-
-function fieldLevelOf(entries) {
-  let sum = 0;
-  for (const e of entries) {
-    const a = normalizedAbilities(e.horse);
-    sum += (a.speed + a.stamina + a.sharpness + a.grit + a.power + a.mentalStrength) / 6;
-  }
-  return sum / entries.length;
-}
 
 function runOne(seed, distance, surface, size = 12) {
   const entries = [];
@@ -38,10 +23,7 @@ function runOne(seed, distance, surface, size = 12) {
   }
   const plan = buildPlan(entries, (e) => STRATEGIES[e.num % 4], null);
   const sim = runRaceSim({ seed, raceKey: `${seed}-${distance}`, distance, surface, entries, plan });
-  const factor = Math.max(
-    FIELD_FACTOR_MIN,
-    Math.min(FIELD_FACTOR_MAX, 1 + FIELD_SPEED_SPAN * (fieldLevelOf(entries) - FIELD_LEVEL_REF))
-  );
+  const factor = fieldSpeedFactor(entries, surface, distance);
   return {
     winnerTime: sim.winnerTime,
     target: parSecondsFor(surface, distance) / factor,

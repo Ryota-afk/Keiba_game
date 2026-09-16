@@ -52,18 +52,54 @@ export function canRaceOnSurface(surfaceAptitude, surface) {
   return surfaceAptitude[surface] !== "×";
 }
 
+/** その馬場を得意としているか（◎か○）。△は「出られるが向いていない」。 */
+export function isSuitedToSurface(surfaceAptitude, surface) {
+  const level = surfaceAptitude?.[surface];
+  return level === "◎" || level === "○";
+}
+
+/**
+ * ⭐その馬場に向いた馬を先に、足りなければ△の馬で埋める。
+ * ⚠️**これが無いと、芝が苦手な馬が毎週そのまま芝のレースに出てくる。**
+ * 2026-09-16にウイポの実測（`design/winning-post-surface-aptitude.md`）へ係数を
+ * 合わせたところ、△の馬は12頭立てで平均8〜10着まで落ちるようになった。その状態で
+ * 出走馬の4割強が△のままだと、勝ち上がる馬が「能力の高い馬」ではなく「馬場が
+ * 合っていた馬」になり、クラスが能力を分けなくなる（実測：重賞の出走馬の能力平均が
+ * 0.5181→0.4954まで下がり、未勝利の0.4784とほとんど差が無くなった）。
+ * ⭐実際の競馬でも、陣営は芝が苦手な馬を芝には使わない。
+ * @param {object[]} horses - 既に希望の順（収得賞金の多い順など）に並んでいること
+ * @param {string} surface - "turf" | "dirt"
+ * @param {number} needed - 欲しい頭数
+ * @returns {object[]} 並び順を保ったまま、向いた馬を前に寄せた一覧
+ */
+export function preferSuitedRunners(horses, surface, needed) {
+  const suited = horses.filter((h) => isSuitedToSurface(h.surfaceAptitude, surface));
+  if (suited.length >= needed) return suited;
+  const rest = horses.filter((h) => !isSuitedToSurface(h.surfaceAptitude, surface));
+  return [...suited, ...rest];
+}
+
 /**
  * 芝ダ適性の係数。脚の総量（`sim/stamina.js`の`staminaCapacity`）に、距離適性と同じ場所で
  * 掛ける（2026-09-16のユーザー決定・`devlog/wave08.md`§2）。
- * ⚠️**数値に根拠は無い（仮値）。** 着順がどれだけ動くかを実測して決めた値。
- * ⭐**2026-09-16に◎1.00／○0.94／△0.86から広げた**（ユーザーの指摘「これだと強い芝馬が
- * ダートでも無双する」）。実測（`tools/measure-surface-aptitude.mjs`）——広げる前は
- * 強さ上位20%の馬がダート△でも3.80着で、ダート◎の中位の馬（5.29着）より前に来ていた。
- * 同じ強さの帯の中でも◎3.38着と△3.80着で0.42着しか違わなかった。
- * 広げた後は同じ帯の中で◎2.92着・△4.11着＝1.19着差。`devlog/wave08.md`§7。
+ * ⭐**2026-09-16にウイニングポストの実測へ合わせた**（`design/winning-post-surface-aptitude.md`・
+ * ユーザーが出典を提示）。合わせ方は`tools/measure-aptitude-vs-speed.mjs`——能力がまったく
+ * 同じ16頭（◎○△×を4頭ずつ）に芝2000mを走らせ、適性ごとの平均着順を出典と突き合わせる。
+ *
+ * | 適性 | このsim | 出典（ウイポ） |
+ * |---|---|---|
+ * | ◎ | 3.43着 | 3.6着 |
+ * | ○ | 5.86着 | 6.0着 |
+ * | △ | 11.32着 | 11.1着 |
+ * | × | 13.40着 | 13.3着 |
+ *
+ * ⚠️**◎○△×は等間隔ではない。○と△の間だけが他の2つの約2倍開く**（出典の実測。
+ * このsimでも◎○2.43着・○△5.46着・△×2.08着）。⚠️係数を触ったら必ず上のツールで測り直す。
+ * ⚠️2026-09-16の午前は◎1.00／○0.94／△0.86で、同じ測り方だと◎6.94着・○7.29着・△8.30着
+ * ＝適性がほとんど効いていなかった（`devlog/wave08.md`§8）。
  * ×は出走しない（`canRaceOnSurface`が止める）ので、万一渡された場合の保険の値。
  */
-export const SURFACE_FACTOR = Object.freeze({ "◎": 1.0, "○": 0.86, "△": 0.70, "×": 0.45 });
+export const SURFACE_FACTOR = Object.freeze({ "◎": 1.0, "○": 0.50, "△": 0.27, "×": 0.21 });
 
 /**
  * その馬・その馬場の係数を引く。

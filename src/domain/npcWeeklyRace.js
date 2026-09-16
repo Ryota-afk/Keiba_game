@@ -18,7 +18,7 @@
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { drawFieldSize } from "../data/raceProgram.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
-import { canRaceOnSurface } from "../data/surfaceAptitude.js";
+import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
 import {
   classAfterWin,
   classAfterDebutLoss,
@@ -92,8 +92,11 @@ export function runNpcWeeklyRaces(
     if (eligible.length < 5) continue;
 
     const desired = drawFieldSize(rand01);
-    const fieldSize = Math.min(desired, eligible.length);
-    const field = eligible.slice(0, fieldSize); // 既に収得賞金の多い順＝人気順の仮の指標
+    // ⭐その馬場に向いた馬（◎か○）を先に取り、足りなければ△で埋める
+    // （`data/surfaceAptitude.js`の`preferSuitedRunners`。理由はそちらのコメント）。
+    const ordered = preferSuitedRunners(eligible, race.surface, desired);
+    const fieldSize = Math.min(desired, ordered.length);
+    const field = ordered.slice(0, fieldSize); // 既に収得賞金の多い順＝人気順の仮の指標
     const popularityByHorseId = new Map(field.map((h, i) => [h.id, i + 1]));
     const fieldIds = new Set(field.map((h) => h.id));
     poolByClass.set(race.classId, classPool.filter((h) => !fieldIds.has(h.id)));

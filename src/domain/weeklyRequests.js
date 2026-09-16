@@ -12,7 +12,7 @@ import { isDueForNextRace, canDebutThisWeek } from "./horse.js";
 import { trustFor } from "./player.js";
 import { rankIndex } from "../data/ranks.js";
 import { gradeToNumber } from "../data/grades.js";
-import { canRaceOnSurface } from "../data/surfaceAptitude.js";
+import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
 import { isEligibleForRaceClass } from "../data/classes.js";
 import { buildWeeklyCard } from "./weeklyCard.js";
 
@@ -42,8 +42,12 @@ function matchRaceForHorse(saveSeed, week, card, horse) {
       (!race.fillyOnly || horse.gender === "filly")
   );
   if (matches.length === 0) return null;
+  // ⭐その馬が得意な馬場（◎か○）のレースを優先する。無ければ苦手な馬場でも出す
+  // （`data/surfaceAptitude.js`の`preferSuitedRunners`と同じ理由）。
+  const suited = matches.filter((race) => isSuitedToSurface(horse.surfaceAptitude, race.surface));
+  const pool = suited.length > 0 ? suited : matches;
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.REQUESTS, week, horse.id, "race-pick");
-  return pick(rand01, matches);
+  return pick(rand01, pool);
 }
 
 /** 厩舎の強さ＝3軸（育てる力・見抜く力・仕上げ）の平均をG〜Sの数値(0〜7)で表す。 */

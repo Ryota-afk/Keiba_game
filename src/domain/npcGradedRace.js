@@ -10,7 +10,7 @@
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { weekOfYear } from "../data/calendar.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
-import { canRaceOnSurface } from "../data/surfaceAptitude.js";
+import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
 import { classIndex } from "../data/classes.js";
 import {
   appendRaceResultWithEarnings,
@@ -101,7 +101,15 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
     if (candidates.length < MIN_FIELD_SIZE) continue; // 出走できる馬が少なすぎる週はレースが成立しない
 
     const fieldSize = Math.min(MAX_FIELD_SIZE, candidates.length);
-    const { entries } = determineEntries(candidates, fieldSize, priorityIds);
+    // ⭐その馬場に向いた馬（◎か○）を先に。足りなければ△で埋める
+    // （`data/surfaceAptitude.js`の`preferSuitedRunners`）。
+    // ⚠️優先出走権を持つ馬はここで落とさない——`determineEntries`が先に入れる。
+    const suited = preferSuitedRunners(candidates, race.surface, fieldSize);
+    const withPriority = [
+      ...suited,
+      ...candidates.filter((h) => priorityIds.has(h.id) && !suited.includes(h)),
+    ];
+    const { entries } = determineEntries(withPriority, fieldSize, priorityIds);
     // 優先出走権→収得賞金順で決めた並び＝人気順として扱う（質問19「人気は走る前に見えている
     // 情報だけから作る」に沿う仮の指標。`devlog/wave07.md`「未定のまま実装に入るもの」#6）。
     const popularityByHorseId = new Map(entries.map((h, i) => [h.id, i + 1]));

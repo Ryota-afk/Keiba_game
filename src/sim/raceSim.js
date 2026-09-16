@@ -20,6 +20,7 @@ import { decideRaceTrend, paceMultiplierAt, trendAdaptationOf, DERBY_TREND_BASE 
 import {
   normalizedAbilities,
   staminaAptitude,
+  distanceAptitude,
   staminaCapacity,
   weightFactor,
   positionFactor,
@@ -66,8 +67,13 @@ const CARD_MOVE_METERS = 22;
 
 /** サンプル間隔(秒)。2400mなら約600ステップ。 */
 export const SIM_DT = 0.25;
-/** 打ち切り時間(秒)。全馬がゴールしたらそこで止める。 */
-export const MAX_SIM_SECONDS = 210;
+/** 打ち切り時間(秒)。全馬がゴールしたらそこで止める。
+ * ⚠️2026-09-16に210→300へ上げた。⭐**210秒ではダート3200mが打ち切られていた**
+ * （狙い216.3秒に対して出た値がちょうど210.0秒。`tools/measure-sim-times.mjs`で発見）。
+ * 芝3600mの基準タイムは232.3秒で、弱いメンバーだとさらに遅くなるため余裕を取る。
+ * ⚠️積分は全馬がゴールした時点で抜けるので、計算量はほぼ増えない（増えるのは
+ * `Float32Array(頭数×ステップ数)`の確保だけ。実測で事前シミュレーションは変わらず）。 */
+export const MAX_SIM_SECONDS = 300;
 /** 基準タイム(秒)＝この距離を倍率1.0のペースで走ったときの所要時間。2400mで2:24.0。
  * ⚠️2026-09-16に基準速度の決め方が変わり、この定数はもう`vPar`を決めていない
  * （`fieldSpeedFactor`と`data/parTimes.js`が決める）。⭐まだ`sim/pace.js`の
@@ -90,11 +96,11 @@ export const SAFETY_TIME_MAX_RATIO = 1.14;
  * `FIELD_SPEED_SPAN`は「芝2000mで重賞と新馬・未勝利の勝ちタイム差を約4秒にする」という
  * ユーザー決定から逆算した値（実測3.99秒。較正は同§6。⚠️§7で芝ダ適性を広げたとき
  * 3.85秒に縮んだので0.43→0.46に戻した——**適性の係数を触ったらここも測り直す**）。 */
-const FIELD_LEVEL_REF = 0.5195;
-const FIELD_SPEED_SPAN = 0.46;
+export const FIELD_LEVEL_REF = 0.39;
+export const FIELD_SPEED_SPAN = 0.165;
 /** 倍率の上下限。⚠️出走頭数が5頭のレースは平均がぶれるので、端を切る。 */
-const FIELD_FACTOR_MIN = 0.93;
-const FIELD_FACTOR_MAX = 1.05;
+export const FIELD_FACTOR_MIN = 0.93;
+export const FIELD_FACTOR_MAX = 1.05;
 
 /** simが実際に出す勝ちタイムを、狙った基準タイムに合わせるための2つの較正値。
  * ⭐`勝ちタイム ≒ 発走の遅れ + 距離 / (効率 × vPar)`。
@@ -103,7 +109,7 @@ const FIELD_FACTOR_MAX = 1.05;
  * （`tools/measure-sim-times.mjs`。狙いとのずれが1%を超えたら`SIM_SPEED_EFFICIENCY`を
  * `現在値 ÷ ずれ率`に置き換える）。 */
 const SIM_START_OVERHEAD_SECONDS = 1.8;
-const SIM_SPEED_EFFICIENCY = 0.970;
+const SIM_SPEED_EFFICIENCY = 0.961;
 
 const DASH_SECONDS = 3.6; // 発走の加速区間（一番遅い馬が走行速度に届くまで）
 const STRETCH_METERS = 600; // 最終直線として扱う残り距離
@@ -255,18 +261,23 @@ function jockeyAptitudeFactor(jockey, strategy, distance, surface) {
  * 未勝利0.5976・重賞0.6180で差が0.02しかないが（強い馬は未勝利戦にも紛れている）、
  * 出走馬の平均は0.4779と0.5195で差が0.042ある。クラスの差がタイムに出るのは平均のほう。
  */
-function fieldLevelOf(entries) {
+export function fieldLevelOf(entries, surface, distance) {
   let sum = 0;
   for (const e of entries) {
     const a = normalizedAbilities(e.horse);
-    sum += (a.speed + a.stamina + a.sharpness + a.grit + a.power + a.mentalStrength) / 6;
+    const raw = (a.speed + a.stamina + a.sharpness + a.grit + a.power + a.mentalStrength) / 6;
+    // ⭐**そのレースでの強さ**にする——6軸の平均だけでは足りない。
+    // ⚠️距離適性を掛けないと、長距離向きの馬ばかりの1600mのレースが「強いメンバー」に
+    // 見えてしまう（実測：着順との相関は距離適性が−0.708で他の全部を上回る）。
+    // ⚠️芝ダ適性を掛けないと、その馬場に向いていない馬の集まりが速く走ることになる。
+    sum += raw * distanceAptitude(e.horse, distance) * surfaceFactorFor(e.horse.surfaceAptitude, surface);
   }
   return entries.length > 0 ? sum / entries.length : FIELD_LEVEL_REF;
 }
 
 /** 出走馬の強さから、基準速度に掛ける倍率を出す。重賞の平均で1.00になる。 */
-function fieldSpeedFactor(entries) {
-  const level = fieldLevelOf(entries);
+export function fieldSpeedFactor(entries, surface, distance) {
+  const level = fieldLevelOf(entries, surface, distance);
   return clamp(
     1 + FIELD_SPEED_SPAN * (level - FIELD_LEVEL_REF),
     FIELD_FACTOR_MIN,
@@ -306,15 +317,17 @@ export function runRaceSim(input) {
   } = input;
   const n = entries.length;
   const dtRaw = SIM_DT;
-  const steps = Math.ceil(MAX_SIM_SECONDS / dtRaw) + 1;
   // ⭐基準速度(m/s)。⚠️2026-09-16まで全レース共通の固定値（16.44m/s）だった
   // ——実測すると芝2000mの300本の勝ちタイムの幅が**0.00秒**、生タイムと出走馬の能力平均の
   // 相関は**0.085**（ほぼ無相関）で、強い馬が揃っても弱い馬が揃ってもタイムが同じだった。
   // 今は「その馬場・距離の基準タイム（史実）」を「出走馬の強さ」で割ったものを狙う。
-  const fieldFactor = input.fieldFactor ?? fieldSpeedFactor(entries);
+  const fieldFactor = input.fieldFactor ?? fieldSpeedFactor(entries, surface, distance);
   const targetSeconds = parSecondsFor(surface, distance) / fieldFactor;
   const vPar =
     distance / (SIM_SPEED_EFFICIENCY * Math.max(targetSeconds - SIM_START_OVERHEAD_SECONDS, 1));
+  // ⭐ステップ数はこのレースの狙いのタイムから決める（距離が短いほど配列が小さくて済む）。
+  // 打ち切りは`MAX_SIM_SECONDS`。1.6倍の余裕は、全馬が距離不足で垂れても届く幅として置いた。
+  const steps = Math.ceil(Math.min(MAX_SIM_SECONDS, targetSeconds * 1.6) / dtRaw) + 1;
   const dStretch = distance - STRETCH_METERS;
 
   const strategyList = entries.map((e) => plan.strategies[e.num] ?? "senko");
