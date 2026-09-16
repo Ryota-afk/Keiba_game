@@ -170,8 +170,13 @@ function Scoreboard({ schoolRecord }) {
  *           dreamChoiceIds: { midRace?: string|null, stretch?: string|null },
  *           onComplete: (state: { roster: object, player: object }) => void }} props
  */
-export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceIds, onComplete }) {
-  const roster = useMemo(() => createInitialRoster(saveSeed), [saveSeed]);
+export function GraduationScreen({ saveSeed, startYear, difficulty, dreamChoiceIds, initialRoster, onComplete }) {
+  // ⭐開始前の事前シミュレーション（`domain/bootstrap.js`・`arch/race-program.md`§11）が
+  // 夢のダービーの間に裏で組んだロースターを使う——クラス・戦績・収得賞金・年齢・繁殖プールが
+  // 揃った状態でキャリアが始まる（通しプレイ①「全員初出走」の解消）。`initialRoster`が
+  // まだ来ていなければ（呼び出し元が渡していない・タイミングの都合）、素の`createInitialRoster`
+  // にフォールバックする（従来どおりの「全員初出走」の状態。安全網であって本来の経路ではない）。
+  const roster = useMemo(() => initialRoster ?? createInitialRoster(saveSeed), [initialRoster, saveSeed]);
   const schoolRecord = useMemo(() => generateSchoolRecord(saveSeed), [saveSeed]);
   const stableOffers = useMemo(
     () => offerStables(saveSeed, roster.stables, schoolRecord),

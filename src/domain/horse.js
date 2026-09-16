@@ -276,6 +276,7 @@ export function isDueForNextRace(horse, currentWeek) {
 export function canDebutThisWeek(horse, week, year) {
   if (horse.bornYear == null) return true;
   const age = year - horse.bornYear;
-  if (age !== 2) return true;
+  if (age < 2) return false; // 0歳・1歳はまだ出走できない
+  if (age > 2) return true;
   return weekOfYear(week) >= TWO_YEAR_OLD_DEBUT_WEEK;
 }

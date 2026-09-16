@@ -10,6 +10,7 @@ import { createSaveSeed } from "./core/rng.js";
 import { cssMs, scheduleOnce, afterNextPaint } from "./screens/motionTiming.js";
 import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "./domain/dreamDerby.js";
 import { commentaryVars, pickCommentaryLine } from "./view/dreamDerbyCommentary.js";
+import { bootstrapRosterAsync } from "./domain/bootstrap.js";
 
 // 画面遷移の起点。タイトル→夢のダービー→卒業式→週の進行（1年目の終わりまで）。
 // ⚠️週の進行画面（WeekScreen）は見た目が仮（ARCHITECTURE.md「第2弾の範囲」）。
@@ -42,6 +43,9 @@ export function App() {
   const [career, setCareer] = useState(null); // { saveSeed, year, difficulty }
   const [dreamResult, setDreamResult] = useState(null); // { dreamHorseId, choiceIds, won }
   const [gameState, setGameState] = useState(null); // { roster, player }
+  // 開始前の事前シミュレーション（`domain/bootstrap.js`）が組んだロースター。
+  // 夢のダービーの間に裏で進み、卒業式で使う（`arch/race-program.md`§11）。
+  const [bootstrappedRoster, setBootstrappedRoster] = useState(null);
 
   const [phase, setPhase] = useState("title");
 
@@ -62,6 +66,10 @@ export function App() {
     setCareer({ saveSeed, year, difficulty });
     setIntroLine(pickDerbyIntroLine(saveSeed));
     setDerbyReady(false);
+    setBootstrappedRoster(null);
+    // ⭐夢のダービーの間に裏で進める（`arch/race-program.md`§11）。コマ切れ実行なので
+    // レースの描画を大きく止めない。実測1.3秒（`devlog/wave07.md`「実装③」）。
+    bootstrapRosterAsync(saveSeed, year).then(({ roster }) => setBootstrappedRoster(roster));
     setPhase("m1");
     setM1Step("mount");
   }
@@ -177,6 +185,7 @@ export function App() {
             startYear={career.year}
             difficulty={career.difficulty}
             dreamChoiceIds={dreamResult.choiceIds}
+            initialRoster={bootstrappedRoster}
             onComplete={handleGraduationComplete}
           />
         </div>
