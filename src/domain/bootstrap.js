@@ -22,6 +22,27 @@ import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
 export const BOOTSTRAP_YEARS = 2;
 export const BOOTSTRAP_WEEKS = BOOTSTRAP_YEARS * WEEKS_PER_YEAR; // 104
 
+/**
+ * ⚠️⚠️**2026-09-17に発見・修正した欠陥への対処**（`devlog/wave09.md`§13）。
+ * 事前シミュレーションは週を1〜104で数え、走った馬の`horse.lastRaceWeek`にその週番号
+ * （1〜104）をそのまま書き込む。ところが本編は`player.currentWeek`を1から数え直すため、
+ * 直さずに渡すと`isDueForNextRace`（`currentWeek - lastRaceWeek >= interval`）が
+ * 本編のかなり後（実測：前走週の中央値88週）まで真にならず、事前に走った馬の大半が
+ * 本編序盤に出走できなかった（実測：本編1〜12週目の出走予定馬は新馬のみ）。
+ * ⭐**事前シミュレーションの最終週（104週）を本編の0週目とみなし、全馬の`lastRaceWeek`から
+ * `BOOTSTRAP_WEEKS`を引いて本編の週番号に揃え直す。**
+ * @param {{ horses: object[] }} roster
+ * @returns {{ horses: object[] }}
+ */
+function rebaseLastRaceWeekToMainTimeline(roster) {
+  return {
+    ...roster,
+    horses: roster.horses.map((h) =>
+      h.lastRaceWeek == null ? h : { ...h, lastRaceWeek: h.lastRaceWeek - BOOTSTRAP_WEEKS }
+    ),
+  };
+}
+
 // Y−2時点の馬齢分布。104週（2年）ぶん歳を取った後の開始年Yの分布が、1974年の実測
 // （重賞に出た405頭：2歳13%・3歳45%・4歳22%・5歳14%・6歳5%・7歳以上1%）に近づくよう、
 // **実測の年齢からそのまま2を引いた値**で置く（`arch/race-program.md`§11・
@@ -114,7 +135,7 @@ export function bootstrapRoster(saveSeed, startYear) {
     }
   }
 
-  return { roster };
+  return { roster: rebaseLastRaceWeekToMainTimeline(roster) };
 }
 
 /**
@@ -150,5 +171,5 @@ export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
     }
   }
 
-  return { roster };
+  return { roster: rebaseLastRaceWeekToMainTimeline(roster) };
 }
