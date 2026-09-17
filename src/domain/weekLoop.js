@@ -23,16 +23,59 @@ import {
   jockeyIdForHorse,
 } from "./jockeyAssignment.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
+import { trustFor, adjustTrust } from "./player.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
+import { DAY } from "../data/weekDays.js";
 import {
   fatigueDangerNotification,
   lostMainMountNotification,
   newRequestNotification,
+  bigTrustChangeNotification,
+  isBigTrustChange,
 } from "./notifications.js";
 
 // 主戦の座を持つが今週乗らなかった馬に、他騎手が勝つ確率（暫定。仮simの平均勝率
 // （約1/12＝8.3%）に近い値を置く。ARCHITECTURE.md §15の数値の一つとして実測して調整する）。
 export const RIVAL_WIN_PROBABILITY = 0.08;
+
+// ⚠️⚠️**断るコスト**（2026-09-16のユーザー決定・`devlog/wave09.md`§1④）：
+// 主戦を張っている馬の依頼を断ったときだけ、その厩舎の信頼が下がる。それ以外の依頼は
+// 断っても下がらない——週6件で3件しか乗れず毎週3件は必ず断るので、全件で下げると
+// 信頼が一方的に減り続けてしまう（実測`devlog/wave09.md`§3）。
+// ⚠️値に根拠は無い（暫定）。`domain/weekResults.js`の`RIDE_TRAINER_TRUST_GAIN`(1)・
+// `WIN_TRAINER_TRUST_GAIN`(3)の間に置いた——「乗るだけ」より重く「勝つ」より軽い罰。
+export const DECLINE_MAIN_MOUNT_TRUST_LOSS = 2;
+
+/**
+ * ⭐既定の競馬場選び（`options.chooseCourse`を渡さないヘッドレス実行での既定動作。
+ * `domain/bootstrap.js`のような、プレイヤー無しの実行では使わない——`advanceWeek`
+ * 自体を呼ばないため）。土曜・日曜それぞれで、その日の依頼の質の合計が一番高い
+ * 競馬場を選ぶ。⚠️「一番有力な場へ行く」という素朴な既定値で、根拠は無い。
+ * @param {{ sat: string[], sun: string[] }} coursesByDay
+ * @param {{day:string, courseId:string, quality:number}[]} requests
+ * @returns {{ sat: string|null, sun: string|null }}
+ */
+function defaultChooseCourse(coursesByDay, requests) {
+  const pickBestCourse = (day, courseIds) => {
+    if (courseIds.length === 0) return null;
+    let best = null;
+    let bestQuality = -Infinity;
+    for (const courseId of courseIds) {
+      const total = requests
+        .filter((r) => r.day === day && r.courseId === courseId)
+        .reduce((sum, r) => sum + r.quality, 0);
+      if (total > bestQuality) {
+        bestQuality = total;
+        best = courseId;
+      }
+    }
+    return best;
+  };
+  return {
+    [DAY.SAT]: pickBestCourse(DAY.SAT, coursesByDay[DAY.SAT]),
+    [DAY.SUN]: pickBestCourse(DAY.SUN, coursesByDay[DAY.SUN]),
+  };
+}
 
 /**
  * 週を1つ進める。
@@ -41,7 +84,8 @@ export const RIVAL_WIN_PROBABILITY = 0.08;
  * @param {object} player
  * @param {{
  *   previousRequestHorseIds?: Set<string>,
- *   chooseCourse?: (courseIds: string[], requests: object[]) => string,
+ *   chooseCourse?: (coursesByDay: {sat:string[], sun:string[]}, requests: object[]) =>
+ *     {sat: string|null, sun: string|null},
  *   chooseStrategy?: (mount: object, horse: object) => string,
  *   maxMounts?: number,
  * }} [options]
@@ -69,16 +113,15 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     }
   }
 
-  // 金曜：競馬場→鞍→脚質の確定（依頼は既に週の番組表からレースが結びついている＝
-  // 競馬場・馬場・距離・クラスは`weeklyRequests.js`が付けた値をそのまま使う）
-  const courses = courseIdsAvailable(requests);
-  const chosenCourse = courses.length
-    ? options.chooseCourse
-      ? options.chooseCourse(courses, requests)
-      : courses[0]
-    : null;
+  // 金曜：土曜・日曜それぞれの競馬場→鞍→脚質の確定（依頼は既に週の番組表からレースが
+  // 結びついている＝競馬場・馬場・距離・クラスは`weeklyRequests.js`が付けた値をそのまま
+  // 使う）。⭐**1日1場**（2026-09-16のユーザー決定）——土曜・日曜で別々の競馬場へ行ける。
+  const coursesByDay = courseIdsAvailable(requests);
+  const courseByDay = options.chooseCourse
+    ? options.chooseCourse(coursesByDay, requests)
+    : defaultChooseCourse(coursesByDay, requests);
   const maxMounts = options.maxMounts ?? RIDABLE_SLOTS_PER_WEEK;
-  const confirmedRaw = chosenCourse ? confirmMounts(requests, chosenCourse, maxMounts) : [];
+  const confirmedRaw = confirmMounts(requests, courseByDay, maxMounts);
   const mounts = confirmedRaw
     .filter((m) => !isSidelined(horsesById.get(m.horseId))) // 離脱中は乗れない
     .map((m) => {
@@ -99,6 +142,23 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     horsesById.set(horse.id, res.horse);
     notifications.push(...res.notifications);
   }
+
+  // ⭐断るコスト（`DECLINE_MAIN_MOUNT_TRUST_LOSS`のコメント参照）：
+  // 主戦を張っている馬の依頼が来たのに乗らなかった（＝断った）場合だけ、
+  // その厩舎の調教師への信頼を下げる。
+  const riddenHorseIds = new Set(mounts.map((m) => m.horseId));
+  for (const request of requests) {
+    if (riddenHorseIds.has(request.horseId)) continue; // 乗った依頼は対象外
+    if (!isMainMount(nextPlayer.mainMounts, request.horseId)) continue; // 主戦以外は下がらない
+    const before = trustFor(nextPlayer.trainerTrust, request.stableId);
+    const trainerTrust = adjustTrust(nextPlayer.trainerTrust, request.stableId, -DECLINE_MAIN_MOUNT_TRUST_LOSS);
+    const after = trustFor(trainerTrust, request.stableId);
+    nextPlayer = { ...nextPlayer, trainerTrust };
+    if (isBigTrustChange(after - before)) {
+      notifications.push(bigTrustChangeNotification("trainer", request.stableId, after - before));
+    }
+  }
+
   nextPlayer = { ...nextPlayer, fatigue: applyWeeklyFatigue(fatigueBefore, mounts.length) };
   if (crossedDangerThreshold(fatigueBefore, nextPlayer.fatigue)) {
     notifications.push(fatigueDangerNotification(nextPlayer.fatigue));

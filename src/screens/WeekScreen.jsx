@@ -1,12 +1,15 @@
 // 週の進行の最小画面（第2弾の範囲：「デビュー→1年目の終わり」を人が通せる形まで）。
 // ⚠️見た目は仮（ARCHITECTURE.md「第2弾の範囲」）。騎乗依頼を面で見せる本番のUI
-// （`design/mocks/riding-offers-v2.html`）は番組表と同じく第3弾・第4弾へ送った
-// （`TODO.md` #23・#24）。ここは「週を進めれば何が起きるかが分かる」ことだけを満たす。
+// （`design/mocks/week-offers-v3.html`の案2で2026-09-17に合意済み）は、見た目の実装を
+// Fableが担当する本筋3・手順5でここへ移す（CLAUDE.md §8・`devlog/wave09.md`§9）。
+// ここは土日それぞれの競馬場選択・1レース1頭・断るコストなど、本筋3で決まった
+// 背後のロジックが正しく動くことだけを満たす仮の見た目のまま。
 
 import React, { useMemo, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
 import { courseIdsAvailable } from "../domain/fridayConfirmation.js";
+import { DAY } from "../data/weekDays.js";
 import { weekOfYear } from "../data/calendar.js";
 import { findCourse } from "../data/courses.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
@@ -45,7 +48,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const [roster, setRoster] = useState(initialRoster);
   const [player, setPlayer] = useState(initialPlayer);
   const [log, setLog] = useState([]); // { week, year, notifications: [] }[]
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedCourseByDay, setSelectedCourseByDay] = useState({ [DAY.SAT]: null, [DAY.SUN]: null });
   // 出馬表を開いている依頼（質問25＝(ア)：月曜の依頼の段階から見せる）。
   const [entryListRequest, setEntryListRequest] = useState(null);
 
@@ -57,8 +60,19 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     () => generateWeeklyRequests(saveSeed, week, roster, player),
     [saveSeed, week, roster, player]
   );
-  const courses = useMemo(() => courseIdsAvailable(requests), [requests]);
-  const chosenCourse = selectedCourse && courses.includes(selectedCourse) ? selectedCourse : courses[0] ?? null;
+  const coursesByDay = useMemo(() => courseIdsAvailable(requests), [requests]);
+  // ⭐**1日1場**（2026-09-16のユーザー決定）——土曜・日曜それぞれで競馬場を選べる。
+  // 選んだ場が今週の一覧に無ければ、その日の最初の候補に戻す。
+  const courseByDay = {
+    [DAY.SAT]:
+      selectedCourseByDay[DAY.SAT] && coursesByDay[DAY.SAT].includes(selectedCourseByDay[DAY.SAT])
+        ? selectedCourseByDay[DAY.SAT]
+        : coursesByDay[DAY.SAT][0] ?? null,
+    [DAY.SUN]:
+      selectedCourseByDay[DAY.SUN] && coursesByDay[DAY.SUN].includes(selectedCourseByDay[DAY.SUN])
+        ? selectedCourseByDay[DAY.SUN]
+        : coursesByDay[DAY.SUN][0] ?? null,
+  };
 
   const yearCompleted = player.currentYear > startYear;
 
@@ -80,12 +94,12 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
 
   function handleAdvance() {
     const res = advanceWeek(saveSeed, roster, player, {
-      chooseCourse: chosenCourse ? () => chosenCourse : undefined,
+      chooseCourse: () => courseByDay,
     });
     setRoster(res.roster);
     setPlayer(res.player);
     setLog((prev) => [{ week, year: player.currentYear, notifications: res.notifications }, ...prev]);
-    setSelectedCourse(null);
+    setSelectedCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
   }
 
   return (
@@ -130,7 +144,8 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
               <li key={r.horseId}>
                 {horse?.name} （{stable?.trainerName}厩舎） — {raceLabel}
                 {r.grade ? `（${r.grade.toUpperCase()}）` : ""}{" "}
-                {course?.name ?? r.courseId} {SURFACE_LABELS[r.surface] ?? r.surface}
+                {r.day === DAY.SAT ? "土曜" : "日曜"} {course?.name ?? r.courseId}{" "}
+                {SURFACE_LABELS[r.surface] ?? r.surface}
                 {r.distance}m{" "}
                 <button type="button" onClick={() => setEntryListRequest(r)}>
                   出馬表を見る
@@ -141,21 +156,27 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         </ul>
       </section>
 
-      {courses.length > 1 && (
-        <section>
-          <h2 style={{ fontSize: 15 }}>行く競馬場を選ぶ（週末に乗れるのは1つ）</h2>
-          {courses.map((cid) => (
-            <label key={cid} style={{ marginRight: 12 }}>
-              <input
-                type="radio"
-                name="course"
-                checked={chosenCourse === cid}
-                onChange={() => setSelectedCourse(cid)}
-              />
-              {findCourse(cid)?.name ?? cid}
-            </label>
-          ))}
-        </section>
+      {[DAY.SAT, DAY.SUN].map((day) =>
+        coursesByDay[day].length > 1 ? (
+          <section key={day}>
+            <h2 style={{ fontSize: 15 }}>
+              {day === DAY.SAT ? "土曜" : "日曜"}に行く競馬場を選ぶ
+            </h2>
+            {coursesByDay[day].map((cid) => (
+              <label key={cid} style={{ marginRight: 12 }}>
+                <input
+                  type="radio"
+                  name={`course-${day}`}
+                  checked={courseByDay[day] === cid}
+                  onChange={() =>
+                    setSelectedCourseByDay((prev) => ({ ...prev, [day]: cid }))
+                  }
+                />
+                {findCourse(cid)?.name ?? cid}
+              </label>
+            ))}
+          </section>
+        ) : null
       )}
 
       <button type="button" onClick={handleAdvance} style={{ marginTop: 16, padding: "10px 20px" }}>

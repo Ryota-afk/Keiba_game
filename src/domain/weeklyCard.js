@@ -9,6 +9,7 @@
 
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 import { weekOfYear, WEEKS_PER_YEAR } from "../data/calendar.js";
+import { DAY, weekdayOfDateString } from "../data/weekDays.js";
 import { coursesOpenInWeek } from "../data/jraMeetingSchedule.js";
 import { drawShapeAtCourse } from "../data/courses.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
@@ -59,12 +60,28 @@ function drawShapeFor(rand01, courseId) {
 }
 
 /**
+ * ⭐その重賞が土曜・日曜どちらだったかを、史実の日付から決める（2026-09-17。`TODO.md` #86）。
+ * `data/gradedRacesByYear.js`の各レースは`historicalDate`（例："1976-09-12"）を持つ
+ * ——推測ではなく実データから曜日が計算できる。
+ *
+ * 実測（1972〜1989年の重賞1,400本・日付の欠けは0本。`devlog/wave09.md`§9）：
+ * 日曜92.4%・土曜3.9%・平日（月〜金）合計3.7%。
+ * ⚠️**平日3.7%の置き場所だけは実データが無い決定**——本作は土曜・日曜しか持たないため、
+ * 多数派（日曜）へ寄せる。
+ */
+function dayOfGradedRace(historicalDate) {
+  if (!historicalDate) return DAY.SUN; // 保険（実測では0件だが、欠けていた場合の既定値）
+  const weekday = weekdayOfDateString(historicalDate);
+  return weekday === DAY.SAT ? DAY.SAT : DAY.SUN;
+}
+
+/**
  * その週1週間ぶんの番組表を組む。自己完結の純関数——同じ引数なら常に同じ一覧を返す。
  * @param {number|string} saveSeed
  * @param {number} week - 絶対週（`player.currentWeek`と同じ数え方）
  * @param {number} year - 番組表の実測値・実データを引くための暦年（`player.currentYear`）
  * @returns {{ raceId: string, classId: string, courseId: string, surface: string,
- *   distance: number, fillyOnly: boolean, source: string, name?: string,
+ *   distance: number, fillyOnly: boolean, source: string, day: string, name?: string,
  *   grade?: string|null, prize1?: number|null }[]}
  */
 export function buildWeeklyCard(saveSeed, week, year) {
@@ -88,6 +105,7 @@ export function buildWeeklyCard(saveSeed, week, year) {
       distance: r.distance,
       fillyOnly: r.fillyOnly,
       source: RACE_SOURCE.GRADED,
+      day: dayOfGradedRace(r.historicalDate),
       name: r.name,
       grade: r.grade,
       prize1: r.prize1,
@@ -109,6 +127,7 @@ export function buildWeeklyCard(saveSeed, week, year) {
       distance,
       fillyOnly,
       source: RACE_SOURCE.OPEN_STAKES,
+      day: pick(rand01, [DAY.SAT, DAY.SUN]),
     });
   }
 
@@ -128,6 +147,7 @@ export function buildWeeklyCard(saveSeed, week, year) {
       distance,
       fillyOnly,
       source: RACE_SOURCE.GENERAL,
+      day: pick(rand01, [DAY.SAT, DAY.SUN]),
     });
   }
 

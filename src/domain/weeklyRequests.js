@@ -14,7 +14,8 @@ import { rankIndex } from "../data/ranks.js";
 import { gradeToNumber } from "../data/grades.js";
 import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
 import { isEligibleForRaceClass } from "../data/classes.js";
-import { buildWeeklyCard } from "./weeklyCard.js";
+import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
+import { canRideGradedRace } from "./rideEligibility.js";
 
 // 乗れる鞍数（暫定・ARCHITECTURE.md §15「依頼の件数」）。週末に乗れる競馬場は1つなので、
 // その1場での想定レース数として仮に置く。
@@ -33,13 +34,16 @@ export function horsesDueThisWeek(horses, week, year) {
  * その馬が出られるレースを週の番組表から1つ選ぶ。合う物が無ければ`null`。
  * 複数合う場合は`(saveSeed, week, horse.id)`から決まる乱数で1つに絞る
  * （月曜に見せた依頼と週末のレースを一致させるため、呼ぶたびに同じ結果になる）。
+ * ⚠️**重賞は`canRideGradedRace`が通らないと候補に入らない**（2026-09-16のユーザー決定・
+ * `domain/rideEligibility.js`）。プレイヤーが乗れない重賞の依頼を月曜に見せない。
  */
-function matchRaceForHorse(saveSeed, week, card, horse) {
+function matchRaceForHorse(saveSeed, week, card, horse, player) {
   const matches = card.filter(
     (race) =>
       isEligibleForRaceClass(horse.classId, race.classId) &&
       canRaceOnSurface(horse.surfaceAptitude, race.surface) &&
-      (!race.fillyOnly || horse.gender === "filly")
+      (!race.fillyOnly || horse.gender === "filly") &&
+      (race.source !== RACE_SOURCE.GRADED || canRideGradedRace(player, horse))
   );
   if (matches.length === 0) return null;
   // ⭐その馬が得意な馬場（◎か○）のレースを優先する。無ければ苦手な馬場でも出す
@@ -74,8 +78,8 @@ export function requestQuality(stable, trainerTrust, playerRank) {
  * @param {{ trainerTrust: object, jockey: object, currentYear: number }} player
  * @returns {{ horseId: string, stableId: string, ownerId: string, quality: number,
  *   isFromOwnStable: boolean, raceId: string, classId: string, courseId: string,
- *   surface: string, distance: number, fillyOnly: boolean, raceName: string|null,
- *   grade: string|null }[]}
+ *   day: string, surface: string, distance: number, fillyOnly: boolean,
+ *   raceName: string|null, grade: string|null }[]}
  */
 export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const stableById = new Map(roster.stables.map((s) => [s.id, s]));
@@ -86,7 +90,7 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
 
   const candidates = [];
   for (const horse of dueHorses) {
-    const race = matchRaceForHorse(saveSeed, week, card, horse);
+    const race = matchRaceForHorse(saveSeed, week, card, horse, player);
     if (!race) continue; // 合う物が無い馬は依頼にならない（`arch/race-program.md`§10）
     const stable = stableById.get(horse.stableId);
     const trust = trustFor(player.trainerTrust, horse.stableId);
@@ -101,6 +105,7 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
       raceId: race.raceId,
       classId: race.classId,
       courseId: race.courseId,
+      day: race.day,
       surface: race.surface,
       distance: race.distance,
       fillyOnly: race.fillyOnly,
