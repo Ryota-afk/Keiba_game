@@ -5,20 +5,16 @@
 // 無い）、実装するには推定生成の設計が要る——重賞の実データだけを先に本筋2へ入れる
 // （2026-09-15にユーザーが選んだ優先順位）。
 // ⭐2026-09-16：着順を本物のsim（`src/sim/`）で決めるようにした（`devlog/wave08.md`）。
+// ⭐⭐**2026-09-17（第10弾）：出走登録を`horse.plan`ベースへ作り直した**（`devlog/wave10.md`・
+// `domain/npcWeeklyRace.js`と同じ変更）。トライアルの優先出走権（`priorityIds`）は
+// これまでどおり計画とは無関係に効く——トライアル上位馬は目標がこの重賞でなくても入れる。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
 
-import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { weekOfYear } from "../data/calendar.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
 import { classIndex } from "../data/classes.js";
-import {
-  appendRaceResultWithEarnings,
-  pickRotationIntervalWeeks,
-  isDueForNextRace,
-  canDebutThisWeek,
-  placePrizeShare,
-} from "./horse.js";
+import { appendRaceResultWithEarnings, canDebutThisWeek, placePrizeShare } from "./horse.js";
 import { runRaceSim, buildPlan } from "../sim/index.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
@@ -95,7 +91,11 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
       if (!canRaceOnSurface(horse.surfaceAptitude, race.surface)) continue;
       if (race.fillyOnly && horse.gender !== "filly") continue;
       if (!canDebutThisWeek(horse, week, year)) continue;
-      if (!isDueForNextRace(horse, week) && !priorityIds.has(horse.id)) continue;
+      // ⭐計画（`horse.plan`）がこの重賞を目標か前哨戦にしているか。トライアルの
+      // 優先出走権を持つ馬は、計画がこの重賞でなくても入れる（従来どおり）。
+      const isPlanned =
+        horse.plan && (horse.plan.targetRaceId === race.id || horse.plan.prepRaceId === race.id);
+      if (!isPlanned && !priorityIds.has(horse.id)) continue;
       candidates.push(horse);
     }
     if (candidates.length < MIN_FIELD_SIZE) continue; // 出走できる馬が少なすぎる週はレースが成立しない
@@ -133,7 +133,7 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
       const position = idx + 1;
       topFinishers.push(h.id);
       const earningsGain = (race.prize1 ?? 0) * placePrizeShare(position);
-      const intervalRand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, "interval", week, h.id);
+      const wasTarget = h.plan?.targetRaceId === race.id;
 
       let updated = {
         ...h,
@@ -154,8 +154,9 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
           earningsGain,
           true
         ),
-        lastRaceWeek: week,
-        nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
+        // 目標だったなら計画は完了（`null`にして次の計画待ちに）。優先出走権で
+        // 出た馬（自分の計画外の重賞）や前哨戦を走っただけの馬は計画をそのまま持ち越す。
+        plan: wasTarget ? null : h.plan,
       };
 
       const fall = checkFall(saveSeed, week, h.id, h.abilities.health, 0);

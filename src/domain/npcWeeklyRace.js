@@ -4,13 +4,13 @@
 //
 // ⭐2026-09-15：レースの中身（クラス・競馬場・馬場・距離）を、`domain/weeklyCard.js`が
 // 組んだその週の番組表からそのまま引くように変えた（`arch/race-program.md`§10）。
-// それまではクラスごとの目標本数をこのファイルの中で毎週計算し直し、競馬場・馬場・距離も
-// ここで独立に無作為抽選していた——依頼側（`weeklyRequests.js`旧`fridayConfirmation.js`）が
-// 同じ抽選をさらに別に行っていたため、プレイヤーの依頼とNPCのレースが同じ「番組表」を
-// 見ていない状態だった（通しプレイ①の指摘）。
-//
 // ⭐2026-09-16：着順を本物のsim（`src/sim/`）で決めるようにした（`devlog/wave08.md`）。
-// それまでは`raceOutcome.js`のhorseStrengthScoreを使った強さ比べだった。
+// ⭐⭐**2026-09-17（第10弾）：出走登録を`horse.plan`ベースへ作り直した**（`devlog/wave10.md`）。
+// 以前は「クラスが合う・出走間隔が来ている馬」を毎週クラス別プールから機械的に集めていたが、
+// `isDueForNextRace`は走らせるほど全頭が「出走できる状態」のまま積み上がる欠陥があった
+// （`devlog/wave09.md`§15）。今は**そのレースを目標か前哨戦にしている馬だけ**が登録される
+// ——`domain/rotation.js`の`planNextTarget`が事前に決めた計画を読むだけで、ここでは
+// 「合う馬を探す」処理そのものが要らなくなった。
 // ⚠️**このファイルは一般競走＋オープン特別だけを扱う。** 重賞のNPC出走（史実の実データ・
 // 優先出走権が絡む）は`domain/npcGradedRace.js`が別に行う。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
@@ -18,20 +18,35 @@
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { drawFieldSize } from "../data/raceProgram.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
-import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
-import {
-  classAfterWin,
-  classAfterDebutLoss,
-  pickRotationIntervalWeeks,
-  isDueForNextRace,
-  canDebutThisWeek,
-  appendRaceResult,
-} from "./horse.js";
+import { classAfterWin, classAfterDebutLoss, appendRaceResult } from "./horse.js";
 import { runRaceSim, buildPlan } from "../sim/index.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { rollActualCondition } from "./weather.js";
+
+// 登録が集まらない週はレースが成立しない（`FIELD_SIZE_BUCKETS`の最小5頭に合わせる）。
+const MIN_FIELD_SIZE = 5;
+
+/**
+ * 計画（`horse.plan`）を読んで、今週の各レースに登録している馬を`raceId`ごとに束ねる。
+ * @param {object[]} horses
+ * @param {Set<string>} excludeHorseIds - 今週プレイヤーが乗った馬
+ * @returns {Map<string, object[]>}
+ */
+function groupByPlannedRace(horses, excludeHorseIds) {
+  const byRaceId = new Map();
+  for (const horse of horses) {
+    if (horse.isRetired || excludeHorseIds.has(horse.id) || isSidelined(horse) || !horse.plan) continue;
+    const { targetRaceId, prepRaceId } = horse.plan;
+    for (const raceId of [targetRaceId, prepRaceId]) {
+      if (!raceId) continue;
+      if (!byRaceId.has(raceId)) byRaceId.set(raceId, []);
+      byRaceId.get(raceId).push(horse);
+    }
+  }
+  return byRaceId;
+}
 
 /**
  * 一般競走（新馬〜3勝クラス）＋オープン特別のNPC週次レースを全部走らせる。自己完結の純関数。
@@ -62,44 +77,31 @@ export function runNpcWeeklyRaces(
   );
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
-  const poolByClass = new Map();
-  for (const horse of horses) {
-    if (horse.isRetired) continue;
-    if (excludeHorseIds.has(horse.id)) continue;
-    if (isSidelined(horse)) continue; // 離脱中（怪我）は出走候補にしない
-    if (!isDueForNextRace(horse, week)) continue;
-    if (!canDebutThisWeek(horse, week, year)) continue; // 2歳の解禁前
-    if (!poolByClass.has(horse.classId)) poolByClass.set(horse.classId, []);
-    poolByClass.get(horse.classId).push(horse);
-  }
+  const byRaceId = groupByPlannedRace(horses, excludeHorseIds);
 
   let racesRun = 0;
   let startsRun = 0;
 
   for (const race of card) {
-    const classPool = poolByClass.get(race.classId);
-    if (!classPool || classPool.length < 5) continue; // 出走頭数の最小（`FIELD_SIZE_BUCKETS`）に届かない
+    const registered = byRaceId.get(race.raceId);
+    if (!registered || registered.length < MIN_FIELD_SIZE) continue; // 登録が集まらなかった
 
     // 収得賞金の多い順（質問15「条件戦も同じ」）。同額（新馬戦など多くは0円）に
     // ごく小さな乱数を足して割り切る——厳密な同額順のままだと、同額どうしが毎週
     // 同じ並び順のまま固定され、後ろに並んだ馬がいつまでも出走できなくなる。
-    const eligible = classPool
-      .filter((h) => canRaceOnSurface(h.surfaceAptitude, race.surface))
-      .filter((h) => !race.fillyOnly || h.gender === "filly")
+    const ordered = registered
       .map((h) => ({ h, key: h.record.earnings + rand01() * 0.001 }))
       .sort((a, b) => b.key - a.key)
       .map((x) => x.h);
-    if (eligible.length < 5) continue;
 
     const desired = drawFieldSize(rand01);
-    // ⭐その馬場に向いた馬（◎か○）を先に取り、足りなければ△で埋める
-    // （`data/surfaceAptitude.js`の`preferSuitedRunners`。理由はそちらのコメント）。
-    const ordered = preferSuitedRunners(eligible, race.surface, desired);
     const fieldSize = Math.min(desired, ordered.length);
     const field = ordered.slice(0, fieldSize); // 既に収得賞金の多い順＝人気順の仮の指標
+    // ⚠️**枠から漏れた馬（`ordered.slice(fieldSize)`）はここでは何もしない。**
+    // `plan`をそのままにしておけば、目標だった馬は`domain/rotation.js`の`isPlanStale`が
+    // 「今週で期限切れ」と判定して次の計画を立て直す（前哨戦止まりの馬は目標がまだ先なので
+    // 立て直さない＝前哨戦を1回逃しても目標へ向かい続ける）。
     const popularityByHorseId = new Map(field.map((h, i) => [h.id, i + 1]));
-    const fieldIds = new Set(field.map((h) => h.id));
-    poolByClass.set(race.classId, classPool.filter((h) => !fieldIds.has(h.id)));
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
     // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
@@ -119,7 +121,7 @@ export function runNpcWeeklyRaces(
       const position = idx + 1;
       const won = position === 1;
       const nextClassId = won ? classAfterWin(h.classId) : classAfterDebutLoss(h.classId);
-      const intervalRand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, "interval", week, h.id);
+      const wasTarget = h.plan?.targetRaceId === race.raceId;
 
       let updated = {
         ...h,
@@ -135,8 +137,10 @@ export function runNpcWeeklyRaces(
           distance: race.distance,
           condition,
         }),
-        lastRaceWeek: week,
-        nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
+        // 目標レースを走り終えたら計画は完了——`null`にして次の計画待ちにする
+        // （`domain/rotation.js`の`replanStaleHorses`が週の締めくくりで立て直す）。
+        // 前哨戦を走っただけなら、計画（目標）はそのまま持ち越す。
+        plan: wasTarget ? null : h.plan,
       };
 
       // 落馬・怪我（⚠️簡略化：この週の着順そのものには反映せず、次週以降の離脱と

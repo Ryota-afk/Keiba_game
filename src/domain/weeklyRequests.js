@@ -1,57 +1,47 @@
 // 月曜の騎乗依頼一覧の生成（ARCHITECTURE.md §2「週の流れ」・§3「出走馬の決定（H）」）。
 // 純ロジック（JSX無し。`data/`・`core/`・`domain/`の他ファイルだけに依存）。
 //
-// ⭐依頼は`domain/weeklyCard.js`が組んだその週の番組表から、クラス一致・馬場に出られる・
-// 牝馬限定の条件が合うレースを1つ選んで結びつく（`arch/race-program.md`§10）。合う物が
-// 無い馬は依頼にならない。⚠️2026-09-15までは競馬場・馬場・距離をレースと無関係に
-// 手続き的に仮生成しており（`fridayConfirmation.js`の旧`resolveRaceContext`）、開催の
-// 無い競馬場が依頼に出る不整合があった（通しプレイ①の指摘）。
+// ⭐⭐**2026-09-17（第10弾）：`horse.plan`ベースへ作り直した**（`devlog/wave10.md`）。
+// 以前は「出走間隔が来ている馬」に、週の番組表から合うレースを乱数で1つ選んで結びつけて
+// いたが、`domain/rotation.js`の`planNextTarget`が既に「目標のレース」を決めているので、
+// ここでは**今週が目標か前哨戦の馬から、その決まったレースをそのまま引く**だけになった。
+// ⚠️重賞は`canRideGradedRace`が通らないと依頼に出さない（2026-09-16のユーザー決定・
+// `domain/rideEligibility.js`）——NPC騎手が乗ってレース自体は行われるが、プレイヤーへは
+// 見せない。
 
-import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
-import { isDueForNextRace, canDebutThisWeek } from "./horse.js";
+import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { trustFor } from "./player.js";
 import { rankIndex } from "../data/ranks.js";
 import { gradeToNumber } from "../data/grades.js";
-import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
-import { isEligibleForRaceClass } from "../data/classes.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
 import { canRideGradedRace } from "./rideEligibility.js";
 
-// 乗れる鞍数（暫定・ARCHITECTURE.md §15「依頼の件数」）。週末に乗れる競馬場は1つなので、
-// その1場での想定レース数として仮に置く。
-export const RIDABLE_SLOTS_PER_WEEK = 3;
+// 乗れる鞍数（2026-09-17にユーザーが決定・`devlog/wave10.md`§2）。
+export const RIDABLE_SLOTS_PER_WEEK = 6;
 // 依頼は乗れる鞍数より多く来る（§2「週の流れ」：新人でも選択が成立する数にする）。
 export const REQUEST_COUNT_MULTIPLIER = 2;
 
-/** その週に出走候補となる馬（H：出走馬の決定）。引退馬・2歳の解禁前は除く。 */
-export function horsesDueThisWeek(horses, week, year) {
+/** その週に依頼の候補となる馬（H・第10弾）。計画が今週を目標か前哨戦にしている馬。 */
+export function horsesDueThisWeek(horses, week) {
   return horses.filter(
-    (horse) => !horse.isRetired && isDueForNextRace(horse, week) && canDebutThisWeek(horse, week, year)
+    (horse) =>
+      !horse.isRetired && horse.plan && (horse.plan.targetWeek === week || horse.plan.prepWeek === week)
   );
 }
 
 /**
- * その馬が出られるレースを週の番組表から1つ選ぶ。合う物が無ければ`null`。
- * 複数合う場合は`(saveSeed, week, horse.id)`から決まる乱数で1つに絞る
- * （月曜に見せた依頼と週末のレースを一致させるため、呼ぶたびに同じ結果になる）。
- * ⚠️**重賞は`canRideGradedRace`が通らないと候補に入らない**（2026-09-16のユーザー決定・
- * `domain/rideEligibility.js`）。プレイヤーが乗れない重賞の依頼を月曜に見せない。
+ * その馬が今週出走を計画しているレースを、週の番組表から引く。
+ * @returns {object|null} 見つからなければ`null`（通常は起きないはずの整合性エラー）
  */
-function matchRaceForHorse(saveSeed, week, card, horse, player) {
-  const matches = card.filter(
-    (race) =>
-      isEligibleForRaceClass(horse.classId, race.classId) &&
-      canRaceOnSurface(horse.surfaceAptitude, race.surface) &&
-      (!race.fillyOnly || horse.gender === "filly") &&
-      (race.source !== RACE_SOURCE.GRADED || canRideGradedRace(player, horse))
-  );
-  if (matches.length === 0) return null;
-  // ⭐その馬が得意な馬場（◎か○）のレースを優先する。無ければ苦手な馬場でも出す
-  // （`data/surfaceAptitude.js`の`preferSuitedRunners`と同じ理由）。
-  const suited = matches.filter((race) => isSuitedToSurface(horse.surfaceAptitude, race.surface));
-  const pool = suited.length > 0 ? suited : matches;
-  const rand01 = streamRandom(saveSeed, RNG_STREAMS.REQUESTS, week, horse.id, "race-pick");
-  return pick(rand01, pool);
+function plannedRaceThisWeek(card, horse, week) {
+  const raceId =
+    horse.plan.targetWeek === week
+      ? horse.plan.targetRaceId
+      : horse.plan.prepWeek === week
+        ? horse.plan.prepRaceId
+        : null;
+  if (!raceId) return null;
+  return card.find((race) => race.raceId === raceId) ?? null;
 }
 
 /** 厩舎の強さ＝3軸（育てる力・見抜く力・仕上げ）の平均をG〜Sの数値(0〜7)で表す。 */
@@ -85,13 +75,14 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const stableById = new Map(roster.stables.map((s) => [s.id, s]));
   const year = player.currentYear;
   const card = buildWeeklyCard(saveSeed, week, year);
-  const dueHorses = horsesDueThisWeek(roster.horses, week, year);
+  const dueHorses = horsesDueThisWeek(roster.horses, week);
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.REQUESTS, week);
 
   const candidates = [];
   for (const horse of dueHorses) {
-    const race = matchRaceForHorse(saveSeed, week, card, horse, player);
-    if (!race) continue; // 合う物が無い馬は依頼にならない（`arch/race-program.md`§10）
+    const race = plannedRaceThisWeek(card, horse, week);
+    if (!race) continue; // 整合性エラー（通常は起きない）——依頼にしない
+    if (race.source === RACE_SOURCE.GRADED && !canRideGradedRace(player, horse)) continue;
     const stable = stableById.get(horse.stableId);
     const trust = trustFor(player.trainerTrust, horse.stableId);
     const quality =
@@ -117,9 +108,9 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const requestCount = RIDABLE_SLOTS_PER_WEEK * REQUEST_COUNT_MULTIPLIER;
 
   // 所属厩舎の馬は優先的に回る（断れる、という性質は選択側=呼び出し元が扱う）が、
-  // ⚠️上限を付けないと所属頭数（40頭前後）がそのまま依頼件数になり、他厩舎が
-  // 締め出される（2026-09-04・実測で判明。`TODO.md` #16）。所属枠も`requestCount`で
-  // 頭打ちにする——枠を独立に確保するのではなく、質の高い順に他厩舎と同じ上限を共有する。
+  // ⚠️⚠️**上限を`requestCount`と同じにすると、所属厩舎の馬が`requestCount`頭以上
+  // 出走候補になった時点で依頼が100%所属厩舎になる**（2026-09-17に実測で発見・
+  // `devlog/wave09.md`§14）。`TODO.md` #94（上限をいくつにするかは未決）。
   const own = candidates
     .filter((c) => c.isFromOwnStable)
     .sort((a, b) => b.quality - a.quality)

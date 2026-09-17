@@ -117,3 +117,70 @@ plan: {
    1週に走る頭数／依頼の厩舎の内訳／`tools/measure-trust-growth.mjs`
 
 ⚠️**7で狙いから外れたら、3.4の「6週前・3週前」と3.3の減点の係数で合わせる。**
+
+## 5. 段1〜6を実装した（2026-09-17・`/model claude-sonnet-5`）
+
+### 実装した内容
+- `src/data/surfaceAptitude.js`：両方×を作らない直し（段1・別コミットで先行実装済み）。
+- `src/domain/career.js`：厩舎150×35頭＝5,250頭（段1・別コミットで先行実装済み）。
+- `src/data/calendar.js`：`yearForWeek`を追加（絶対週から暦年を求める。§3.2の索引が
+  52週先まで暦年をまたぐため）。
+- `src/domain/weeklyCard.js`：`buildYearIndex`（クラス×馬場で52週ぶんを索引化）を追加。
+  ⚠️`buildWeeklyCard`自体にもメモ化を追加（後述の性能問題への対処、道半ば）。
+- `src/domain/rotation.js`（新規）：`planNextTarget`（目標→前哨戦→帰厩の逆算）・
+  `isPlanStale`・`replanStaleHorses`。
+- `src/domain/horse.js`：`lastRaceWeek`・`nextRaceIntervalWeeks`・`isDueForNextRace`・
+  `pickRotationIntervalWeeks`・`ROTATION_INTERVAL_MIN/MAX_WEEKS`を撤去し`horse.plan`へ。
+- `src/domain/npcWeeklyRace.js`・`src/domain/npcGradedRace.js`：出走登録を
+  「そのレースを目標か前哨戦にしている馬」（`horse.plan`）ベースへ作り直した。
+  重賞のトライアル優先出走権（`entryPriority.js`）は従来どおり計画と無関係に効く。
+- `src/domain/weeklyRequests.js`：依頼の元になる馬を`horse.plan`から引くよう作り直した。
+  `RIDABLE_SLOTS_PER_WEEK` 3→6・依頼12件（ユーザー決定）。
+- `src/domain/weekResults.js`・`src/domain/weekLoop.js`：プレイヤーが乗った鞍も
+  目標完了で`plan: null`にする。`weekLoop.js`が週の締めくくりで`buildYearIndex`＋
+  `replanStaleHorses`を呼ぶ（除外された馬・期限切れの馬をその週のうちに立て直す）。
+- `src/domain/bootstrap.js`：事前シミュレーションも同じ仕組みで計画を回し、
+  本編へ渡す前に全馬の`plan`を`null`にリセットする（週番号の対応を考える必要が
+  無くなった——§13の週ずれ問題自体が起きない設計）。
+
+### ⭐良い結果：同じレース・同じ厩舎の重なりが解消した
+52週の通し（実測・`saveSeed`固定1通り）で、**実際に組まれた出走枠**（着順履歴から
+逆算）の同一厩舎頭数：
+
+| 頭数 | 組数 | 割合 |
+|---|---|---|
+| 1頭 | 8,052組 | 94.2% |
+| 2頭 | 475組 | 5.6% |
+| 3頭 | 22組 | 0.3% |
+| 4頭 | 2組 | 0.02% |
+
+⚠️**登録段階**（枠の絞り込み前・目標＋前哨戦を合わせた候補）では4頭以上が2,351件
+あったが、既存の収得賞金順の絞り込みが機能し、**実際に同じレースを走る枠では
+4頭以上はほぼ消えた**（52週で2件のみ）。§13で報告した「1レースに5〜6頭」の状態は解消。
+
+### ⚠️⚠️深刻な問題：性能が大幅に悪化した
+| | 直す前 | 直した後 |
+|---|---|---|
+| 事前シミュレーション（104週） | 実測約2秒（`devlog/wave07.md`） | **実測23.6秒** |
+| 本編52週の通し | 目安1週1ms未満 | **実測23.5秒（1週あたり平均452ms）** |
+
+⭐**原因を特定した**：`domain/rotation.js`の目標選び（`scoreAsTarget`・`scoreAsPrep`）が
+候補レース1つごとに`sim/stamina.js`の`distanceAptitude(horse, distance)`を呼ぶ。
+この関数は呼ばれるたびに`optimalDistance(horse)`・`aptitudeWidth(horse)`を**内部で
+毎回計算し直し**、どちらも`normalizedAbilities(horse)`（オブジェクトを新規に組み立て、
+等級を7個変換する処理）を呼ぶ。1頭の計画に候補が170〜1,170件（索引のクラス×馬場に
+よる）あり、的の馬に対して同じ計算を候補の数だけ繰り返している。
+
+⚠️**この関数は`src/sim/`にあり、CLAUDE.md §2により実装・計測は`claude-opus-5`が
+担当する**。直すには`distanceAptitude`を「馬から先に`optimalDistance`・`aptitudeWidth`を
+1回だけ求め、それを使って距離ごとに繰り返し計算できる」形に分けるのが素直な直し方だが、
+これは`src/sim/`への変更（新しい関数が増える）にあたるため、Sonnetの持ち場の外——
+ユーザーへの確認が必要。
+
+### 測定できたこと・できなかったこと
+- 計画を持てた現役馬：5,091/5,096（99.9%）。持てなかった5頭は生後間もない等の端境。
+- 依頼の所属厩舎の割合：76.2%（52週・1通り）。#94（上限の値）は本改修に含めていない
+  ——性能問題を先に解決しないと多通りでの実測ができないため。
+- 1頭あたりの出走回数：52週で2.12回（年換算4.2回）。狙いの年6.3走にはまだ届いていないが、
+  本編開始直後で計画の1巡目がまだ終わっていない馬が多いことが影響している可能性がある
+  ——複数年の通しで測り直す必要がある（性能問題を解決してから）。

@@ -8,8 +8,7 @@
 // 自体は流用できるはず。
 
 import { runPlaceholderRace } from "./raceOutcome.js";
-import { nextClassAfterRace, appendRaceResult, pickRotationIntervalWeeks } from "./horse.js";
-import { streamRandom, RNG_STREAMS } from "../core/rng.js";
+import { nextClassAfterRace, appendRaceResult } from "./horse.js";
 import { checkFall, applyInjuryToHorse } from "./fall.js";
 import { rollActualCondition } from "./weather.js";
 import { fatiguePenaltyFactor } from "./fatigue.js";
@@ -94,10 +93,13 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
 
   // 開示：プレイヤーが自分で判断した鞍なので、レースプールが進む（§3「能力の開示」）。
   let nextHorse = attemptReveal(saveSeed, week, horse, "race");
-  const intervalRand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, "interval", week, horse.id);
+  // ⭐第10弾（2026-09-17）：目標レースを走り終えたら計画は完了（`null`にして
+  // `domain/rotation.js`の`replanStaleHorses`に次の計画を立て直させる）。
+  // 前哨戦を走っただけなら、計画（目標）はそのまま持ち越す（`devlog/wave10.md`）。
+  const wasTarget = horse.plan?.targetRaceId === mount.raceId;
   nextHorse = {
     ...nextHorse,
-    lastRaceWeek: week,
+    plan: wasTarget ? null : horse.plan,
     // クラスの昇降（J）：勝てば1段（新馬の勝ちは1勝クラスへ）、新馬を負ければ未勝利へ。
     // ⚠️2026-09-04まで呼び出し元が無く、全馬が新馬のまま固定されていた。
     classId: nextClassAfterRace(horse.classId, result.won),
@@ -116,7 +118,6 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
       distance: mount.distance ?? null,
       condition,
     }),
-    nextRaceIntervalWeeks: pickRotationIntervalWeeks(intervalRand01),
   };
 
   return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result };

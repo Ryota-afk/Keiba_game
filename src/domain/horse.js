@@ -60,7 +60,7 @@ function createInitialAdaptability(bloodlineFamily) {
  * @param {string|number} key - 一意なキー（例: `${生成年}-${連番}`）
  * @param {{ ownerPrefix?: string, sireId?: string|null, damId?: string|null,
  *           bloodlineFamily?: string, bornYear?: number,
- *           stableId?: string|null, ownerId?: string|null, lastRaceWeek?: number|null }} [opts]
+ *           stableId?: string|null, ownerId?: string|null }} [opts]
  */
 export function generateHorse(saveSeed, key, opts = {}) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "horse", key);
@@ -118,12 +118,11 @@ export function generateHorse(saveSeed, key, opts = {}) {
     // jockeyAssignment.js`）。条件戦の馬はnullのまま——厩舎の主戦をそのつど使う。
     primaryJockeyId: null,
     adaptability: createInitialAdaptability(bloodlineFamily),
-    // 前走の週。⚠️新規キャリア開始時は`opts.lastRaceWeek`で散らす（career.js参照）——
-    // 全頭nullのままだと初週に全馬が一斉に出走候補になってしまう。
-    lastRaceWeek: opts.lastRaceWeek ?? null,
-    // 次走までの間隔（週）。穴9・質問27＝(ア)：⚠️仮の形（前走から2〜7週）。
-    // 戦績表を取り終えたら実測して差し替える（`devlog/wave07.md`）。
-    nextRaceIntervalWeeks: opts.nextRaceIntervalWeeks ?? pickRotationIntervalWeeks(rand01),
+    // ⭐**第10弾（2026-09-17）でローテーションを作り直した**（`devlog/wave10.md`）。
+    // `lastRaceWeek`・`nextRaceIntervalWeeks`（前走からの週数で機械的に引く方式）は廃止し、
+    // 目標のレースから逆算する`plan`に置き換えた。`domain/rotation.js`の`planNextTarget`が
+    // 決め、`replanStaleHorses`が毎週立て直す。生成直後は`null`（次に呼ばれたときに立つ）。
+    plan: null,
     // 能力の開示（§3「能力の開示（確率式）」）。2プールそれぞれの開示済み項目と
     // 連続で開かなかった回数を持つ。詳細は`domain/disclosure.js`。
     disclosure: {
@@ -251,25 +250,10 @@ export function appendRaceResult(record, classId, historyEntry) {
   return appendRaceResultWithEarnings(record, entry, earningsForResult(classId, entry.position), false);
 }
 
-// 厩舎のローテの型（穴9・質問27＝(ア)・2026-09-15にユーザー決定）。⚠️**仮の形**：
-// 前走から2〜7週の間隔で次走を決める。戦績表を取り終えたら実測して差し替える
-// （`devlog/wave07.md`）。⚠️前提工事①（`arch/horse.md`「出来」）：固定8週をやめ、
-// 馬ごとに`nextRaceIntervalWeeks`を持たせる形にした（2026-09-15）。
-export const ROTATION_INTERVAL_MIN_WEEKS = 2;
-export const ROTATION_INTERVAL_MAX_WEEKS = 7;
-
-/** 次走までの間隔（週）を1つ引く。 */
-export function pickRotationIntervalWeeks(rand01) {
-  const span = ROTATION_INTERVAL_MAX_WEEKS - ROTATION_INTERVAL_MIN_WEEKS + 1;
-  return ROTATION_INTERVAL_MIN_WEEKS + Math.floor(rand01() * span);
-}
-
-/** その馬が次走の候補として挙がる週かどうか（H・調教師の選定は別途domainに置く）。 */
-export function isDueForNextRace(horse, currentWeek) {
-  if (horse.lastRaceWeek == null) return true;
-  const interval = horse.nextRaceIntervalWeeks ?? ROTATION_INTERVAL_MIN_WEEKS;
-  return currentWeek - horse.lastRaceWeek >= interval;
-}
+// ⚠️**ローテーションの間隔を機械的に引く旧方式（`pickRotationIntervalWeeks`・
+// `isDueForNextRace`・`ROTATION_INTERVAL_MIN/MAX_WEEKS`）は第10弾で撤去した**
+// （2026-09-17・`devlog/wave10.md`）。目標のレースから逆算する`domain/rotation.js`の
+// `planNextTarget`・`isPlanStale`・`replanStaleHorses`に置き換わった。
 
 /**
  * 2歳馬は第`TWO_YEAR_OLD_DEBUT_WEEK`週より前は出走候補にしない

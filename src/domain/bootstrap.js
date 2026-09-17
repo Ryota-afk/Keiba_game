@@ -18,28 +18,29 @@ import {
 import { processYearBoundary } from "./yearBoundary.js";
 import { WEEKS_PER_YEAR } from "../data/calendar.js";
 import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
+import { buildYearIndex } from "./weeklyCard.js";
+import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
 
 export const BOOTSTRAP_YEARS = 2;
 export const BOOTSTRAP_WEEKS = BOOTSTRAP_YEARS * WEEKS_PER_YEAR; // 104
 
 /**
- * ⚠️⚠️**2026-09-17に発見・修正した欠陥への対処**（`devlog/wave09.md`§13）。
- * 事前シミュレーションは週を1〜104で数え、走った馬の`horse.lastRaceWeek`にその週番号
- * （1〜104）をそのまま書き込む。ところが本編は`player.currentWeek`を1から数え直すため、
- * 直さずに渡すと`isDueForNextRace`（`currentWeek - lastRaceWeek >= interval`）が
- * 本編のかなり後（実測：前走週の中央値88週）まで真にならず、事前に走った馬の大半が
- * 本編序盤に出走できなかった（実測：本編1〜12週目の出走予定馬は新馬のみ）。
- * ⭐**事前シミュレーションの最終週（104週）を本編の0週目とみなし、全馬の`lastRaceWeek`から
- * `BOOTSTRAP_WEEKS`を引いて本編の週番号に揃え直す。**
+ * ⚠️⚠️**2026-09-17に発見した欠陥への対処**（`devlog/wave09.md`§13・第10弾で作り直し）。
+ * 事前シミュレーションは週を1〜104で数える。以前は走った馬の`lastRaceWeek`にその週番号を
+ * そのまま書き込んでいたため、本編（`player.currentWeek`が1から始まる）へそのまま渡すと
+ * 出走間隔の判定が本編のかなり後まで真にならない不整合があった。
+ * ⭐**`horse.plan`（第10弾）は週番号をそのまま埋め込む形をやめたので、この不整合自体が
+ * 起きない**——事前シミュレーションが計画した`targetWeek`等は事前シミュレーション自身の
+ * 週番号（1〜104）のままだが、本編へ渡す前に**全馬の計画を`null`にリセットする**。
+ * 本編の第1週に`domain/rotation.js`の`replanStaleHorses`が本編の週番号で計画を
+ * 立て直すので、ずれようがない。
  * @param {{ horses: object[] }} roster
  * @returns {{ horses: object[] }}
  */
-function rebaseLastRaceWeekToMainTimeline(roster) {
+function resetPlansForMainTimeline(roster) {
   return {
     ...roster,
-    horses: roster.horses.map((h) =>
-      h.lastRaceWeek == null ? h : { ...h, lastRaceWeek: h.lastRaceWeek - BOOTSTRAP_WEEKS }
-    ),
+    horses: roster.horses.map((h) => (h.plan == null ? h : { ...h, plan: null })),
   };
 }
 
@@ -106,7 +107,15 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     new Set(),
     getJockey
   );
-  const advancedHorses = npcResult.horses.map((h) => advanceInjuryByWeek(h));
+
+  // ⭐第10弾：計画が今週で期限切れ・まだ計画の無い馬に、次の計画を立て直す
+  // （本編と同じ仕組み・`domain/weekLoop.js`と対称）。事前シミュレーション自身の
+  // 週番号（1〜104）で計画するので、ここでは本編の週とのずれを気にしなくてよい
+  // （本編へ渡す前に`resetPlansForMainTimeline`が全部`null`に戻す）。
+  const yearIndex = buildYearIndex(saveSeed, week, year, ROTATION_SEARCH_WEEKS);
+  const replannedHorses = replanStaleHorses(npcResult.horses, yearIndex, week, year);
+
+  const advancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
   const jockeyedHorses = assignHorsePrimaryJockeys(advancedHorses, primaryJockeyByStable, roster.npcJockeys);
   return { roster: { ...roster, horses: jockeyedHorses, trialResults: gradedResult.trialResults } };
 }
@@ -135,7 +144,7 @@ export function bootstrapRoster(saveSeed, startYear) {
     }
   }
 
-  return { roster: rebaseLastRaceWeekToMainTimeline(roster) };
+  return { roster: resetPlansForMainTimeline(roster) };
 }
 
 /**
@@ -171,5 +180,5 @@ export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
     }
   }
 
-  return { roster: rebaseLastRaceWeekToMainTimeline(roster) };
+  return { roster: resetPlansForMainTimeline(roster) };
 }

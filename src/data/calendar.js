@@ -43,3 +43,17 @@ export function buildCalendarSkeleton() {
 export function weekOfYear(absoluteWeek) {
   return ((absoluteWeek - 1) % WEEKS_PER_YEAR) + 1;
 }
+
+/**
+ * 任意の絶対週の暦年を求める（第10弾・ローテーションが52週先まで番組表を見るために追加）。
+ * `domain/weekLoop.js`の`wrapsToNextYear`（`week % WEEKS_PER_YEAR === 0`で繰り上げ）と
+ * 同じ規則——52で割り切れる週で年が変わる（週52は今年・週53は来年）。
+ * @param {number} absoluteWeek - 求めたい週
+ * @param {number} referenceWeek - 年が分かっている基準の絶対週（例：`player.currentWeek`）
+ * @param {number} referenceYear - `referenceWeek`の暦年（例：`player.currentYear`）
+ */
+export function yearForWeek(absoluteWeek, referenceWeek, referenceYear) {
+  const refYearIndex = Math.floor((referenceWeek - 1) / WEEKS_PER_YEAR);
+  const yearIndex = Math.floor((absoluteWeek - 1) / WEEKS_PER_YEAR);
+  return referenceYear + (yearIndex - refYearIndex);
+}

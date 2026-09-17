@@ -8,11 +8,12 @@
 // 純ロジック（JSX無し。`data/`・`core/`だけに依存）。
 
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
-import { weekOfYear, WEEKS_PER_YEAR } from "../data/calendar.js";
+import { weekOfYear, WEEKS_PER_YEAR, yearForWeek } from "../data/calendar.js";
 import { DAY, weekdayOfDateString } from "../data/weekDays.js";
 import { coursesOpenInWeek } from "../data/jraMeetingSchedule.js";
 import { drawShapeAtCourse } from "../data/courses.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
+import { classIndex } from "../data/classes.js";
 import {
   racesPerDay,
   estimateOpenStakesCount,
@@ -75,6 +76,14 @@ function dayOfGradedRace(historicalDate) {
   return weekday === DAY.SAT ? DAY.SAT : DAY.SUN;
 }
 
+// ⭐**第10弾（2026-09-17）で追加したメモ化**（`devlog/wave10.md`§3.2）。
+// `buildYearIndex`が52週ぶんの番組表を毎週組み直すため、同じ`(saveSeed, week, year)`が
+// 週をまたいで何度も呼ばれる（窓が1週ずつ動くだけで51週ぶんが重複する）。
+// ⚠️**実測：メモ化を入れる前は事前シミュレーション104週が約26秒**——`buildWeeklyCard`が
+// 純関数（同じ引数なら常に同じ結果）であることを利用してキャッシュを足した。
+// 呼び出し側から見た挙動は変わらない（純関数のまま）。
+const weeklyCardCache = new Map();
+
 /**
  * その週1週間ぶんの番組表を組む。自己完結の純関数——同じ引数なら常に同じ一覧を返す。
  * @param {number|string} saveSeed
@@ -85,6 +94,15 @@ function dayOfGradedRace(historicalDate) {
  *   grade?: string|null, prize1?: number|null }[]}
  */
 export function buildWeeklyCard(saveSeed, week, year) {
+  const cacheKey = `${saveSeed}|${week}|${year}`;
+  const cached = weeklyCardCache.get(cacheKey);
+  if (cached) return cached;
+  const races = buildWeeklyCardUncached(saveSeed, week, year);
+  weeklyCardCache.set(cacheKey, races);
+  return races;
+}
+
+function buildWeeklyCardUncached(saveSeed, week, year) {
   const thisWeek = weekOfYear(week);
   const openCourses = coursesOpenInWeek(thisWeek);
   if (openCourses.length === 0) return []; // 開催が無い週（原則無いはずだが念のため）
@@ -152,4 +170,48 @@ export function buildWeeklyCard(saveSeed, week, year) {
   }
 
   return races;
+}
+
+/** オープン以上（重賞・オープン特別）をまとめて指す索引の鍵（第10弾・`domain/rotation.js`用）。 */
+export const OPEN_AND_ABOVE_BUCKET = "open+";
+
+/**
+ * 馬のクラスidから、`buildYearIndex`が使う索引の鍵を出す。オープン以上
+ * （`open`・`listed`・`g3`・`g2`・`g1`）は`OPEN_AND_ABOVE_BUCKET`にまとめる——
+ * 馬の`classId`は`open`止まりだが（`domain/horse.js`の`WIN_PROMOTION_CAP`）、
+ * `isEligibleForRaceClass`と同じ規則で「オープン以上ならどの格でも出走資格がある」。
+ * @param {string} classId
+ */
+export function yearIndexBucketFor(classId) {
+  const openIdx = classIndex("open");
+  return classIndex(classId) >= openIdx ? OPEN_AND_ABOVE_BUCKET : classId;
+}
+
+/**
+ * ⭐**目標レースからの逆算（第10弾・`devlog/wave10.md`）のために、指定した週から先
+ * `weeksAhead`週ぶんの番組表を1回だけ組み、クラス×馬場で索引を作る。**
+ * ⚠️**性能の要**（`devlog/wave10.md`§3.2）：素朴に「馬ごとに52週分の番組表を毎回組み直す」
+ * と1週あたり数百万回の照合になる。この関数を週に1回だけ呼び、返った索引を
+ * その週の全馬の`planNextTarget`呼び出しで使い回すこと。
+ * @param {number|string} saveSeed
+ * @param {number} startWeek - 索引の起点となる絶対週（通常は「今週」）
+ * @param {number} startYear - `startWeek`の暦年（`player.currentYear`）
+ * @param {number} [weeksAhead] - 何週先まで組むか（既定52＝ユーザー決定・`devlog/wave10.md`§2）
+ * @returns {{ byBucketSurface: Map<string, object[]> }} `${bucket}|${surface}`をキーに、
+ *   週の昇順に並んだレースの配列を持つ索引
+ */
+export function buildYearIndex(saveSeed, startWeek, startYear, weeksAhead = 52) {
+  const byBucketSurface = new Map();
+  for (let i = 0; i < weeksAhead; i += 1) {
+    const week = startWeek + i;
+    const year = yearForWeek(week, startWeek, startYear);
+    const card = buildWeeklyCard(saveSeed, week, year);
+    for (const race of card) {
+      const bucket = yearIndexBucketFor(race.classId);
+      const key = `${bucket}|${race.surface}`;
+      if (!byBucketSurface.has(key)) byBucketSurface.set(key, []);
+      byBucketSurface.get(key).push({ ...race, week, year });
+    }
+  }
+  return { byBucketSurface };
 }

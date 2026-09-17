@@ -10,6 +10,8 @@
 
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK, horsesDueThisWeek } from "./weeklyRequests.js";
 import { WEEKS_PER_YEAR } from "../data/calendar.js";
+import { buildYearIndex } from "./weeklyCard.js";
+import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
 import { courseIdsAvailable, confirmMounts } from "./fridayConfirmation.js";
 import { declareStrategy, deriveFavoredStrategy } from "./strategy.js";
 import { processMountResult } from "./weekResults.js";
@@ -167,7 +169,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // 主戦の座を持つが今週乗らなかった馬：他騎手が勝てば失う（§6「主戦の座」）。
   const riddenThisWeek = new Set(mounts.map((m) => m.horseId));
   const riddenRaceIds = new Set(mounts.map((m) => m.raceId).filter(Boolean));
-  const dueHorseIds = new Set(horsesDueThisWeek(roster.horses, week, player.currentYear).map((h) => h.id));
+  const dueHorseIds = new Set(horsesDueThisWeek(roster.horses, week).map((h) => h.id));
   for (const horseId of Object.keys(nextPlayer.mainMounts)) {
     if (!isMainMount(nextPlayer.mainMounts, horseId)) continue;
     if (riddenThisWeek.has(horseId)) continue;
@@ -184,7 +186,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
 
   // プレイヤーが乗らなかった残り約5,250頭も、NPC騎手が乗って実際にレースを走る
   // （質問14＝(A)「現役馬を全部持ち毎週ローテを回す」）。
-  // ⚠️2026-09-04時点では`lastRaceWeek`を進めるだけの仮処理だった（`TODO.md` #16）。
+  // ⚠️第10弾（2026-09-17）：どの馬がどのレースに出るかは`horse.plan`（目標レースからの
+  // 逆算・`domain/rotation.js`）が事前に決めている（`devlog/wave10.md`）。
   // まず重賞（`domain/npcGradedRace.js`・実データ）を走らせ、その週に重賞へ出た馬を除いてから
   // 一般競走＋オープン特別（`domain/npcWeeklyRace.js`）を走らせる——同じ馬が同じ週に
   // 2つのレースへ出ないようにするため。⭐両方とも`domain/weeklyCard.js`が組んだ同じ週の
@@ -211,24 +214,33 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   );
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 
-  // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。
-  const injuryAdvancedHorses = roster.horses.map((h) => {
-    // プレイヤーが乗った馬は`processMountResult`の結果（`horsesById`）を使い、
-    // それ以外はNPC週次レースの結果（クラス・戦績・次走間隔が更新済み）を使う。
-    // ⚠️`horsesById`は全頭ぶんのMapなので、`riddenThisWeek`で明示的に判定する
-    // （そうしないと未更新の元の馬がヒットしてしまい、NPC側の結果が反映されない）。
+  // プレイヤーが乗った馬は`processMountResult`の結果（`horsesById`）を使い、
+  // それ以外はNPC週次レースの結果（クラス・戦績・計画が更新済み）を使う。
+  // ⚠️`horsesById`は全頭ぶんのMapなので、`riddenThisWeek`で明示的に判定する
+  // （そうしないと未更新の元の馬がヒットしてしまい、NPC側の結果が反映されない）。
+  const mergedHorses = roster.horses.map((h) => {
     const horse = riddenThisWeek.has(h.id) ? horsesById.get(h.id) : npcHorsesById.get(h.id);
-    return advanceInjuryByWeek(horse ?? h);
+    return horse ?? h;
   });
+
+  // ⭐第10弾：計画が今週で期限切れ・またはまだ計画の無い馬に、次の計画を立て直す
+  // （`devlog/wave10.md`§3.5「除外された馬は、その週のうちに目標を組み直す」・
+  // `domain/rotation.js`の`replanStaleHorses`）。⚠️これが無いと#95（走りたい馬が
+  // 積み上がる）が再発する。
+  const yearIndex = buildYearIndex(saveSeed, week, nextPlayer.currentYear, ROTATION_SEARCH_WEEKS);
+  const replannedHorses = replanStaleHorses(mergedHorses, yearIndex, week, nextPlayer.currentYear);
+
+  // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。
+  const injuryAdvancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
 
   // 馬ごとの主戦騎手（質問23＝(ウ)）：オープン以上に上がった時点で、まだ付いていなければ付ける。
   const advancedHorses = assignHorsePrimaryJockeys(injuryAdvancedHorses, stableJockeys, roster.npcJockeys);
 
   // ⚠️`currentWeek`は折り返さない絶対値のまま進める（ARCHITECTURE.md §1「1年分を
   // 週×競馬場で固定して30年使い回す」の対象は番組表の中身であって、週カウンタそのもの
-  // ではない）。`isDueForNextRace`が「currentWeek - lastRaceWeek」の差分で出走間隔を
-  // 判定するため、年境界で1へ戻すと差分が負に転落し、年をまたいだ馬が二度と出走候補に
-  // ならなくなる（2026-09-04・実測で発見。折り返す実装を先に書いて自分で壊した）。
+  // ではない）。⭐第10弾以降も`horse.plan.targetWeek`等が絶対週のまま比較されるため
+  // （`domain/rotation.js`）、年境界で1へ戻すと同様の破綻が起きる（2026-09-04に
+  // `lastRaceWeek`方式で実測発見・`isDueForNextRace`は撤去済みだが理由は変わらない）。
   // 年は52週ごとに繰り上げる。週×競馬場の暦を引くときは`weekOfYear`で1〜52へ変換する。
   const wrapsToNextYear = week % WEEKS_PER_YEAR === 0;
   nextPlayer = {
