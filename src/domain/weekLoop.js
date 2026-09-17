@@ -182,7 +182,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     }
   }
 
-  // プレイヤーが乗らなかった残り約7,600頭も、NPC騎手が乗って実際にレースを走る
+  // プレイヤーが乗らなかった残り約5,250頭も、NPC騎手が乗って実際にレースを走る
   // （質問14＝(A)「現役馬を全部持ち毎週ローテを回す」）。
   // ⚠️2026-09-04時点では`lastRaceWeek`を進めるだけの仮処理だった（`TODO.md` #16）。
   // まず重賞（`domain/npcGradedRace.js`・実データ）を走らせ、その週に重賞へ出た馬を除いてから

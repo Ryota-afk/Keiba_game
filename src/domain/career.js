@@ -9,10 +9,17 @@ import { generateHorse, ROTATION_INTERVAL_MAX_WEEKS } from "./horse.js";
 import { generateJockey } from "./jockey.js";
 
 // JRAの実数（ARCHITECTURE.md §3「馬の供給」・§6「調教師」「NPC騎手」）。
-export const STABLE_COUNT = 190;
+// ⚠️⚠️**2026-09-17にユーザーが決定**：190厩舎×40頭は現代のJRAの規模で、1976年の
+// レース供給（年2,860本・1976年の実測）に対して現役馬が多すぎた（`devlog/wave10.md`§2）。
+// **150厩舎×35頭＝5,250頭**へ縮小する（5,250頭×年6.3走＝33,075出走／収容力31,517出走で
+// 超過5%・許容範囲）。
+export const STABLE_COUNT = 150;
 export const OWNER_COUNT = 100;
-export const HORSE_COUNT = 7600; // 190厩舎 × 平均40頭
-export const NPC_JOCKEY_COUNT = 160;
+export const HORSE_COUNT = 5250; // 150厩舎 × 平均35頭
+// ⚠️NPC_JOCKEY_COUNTは`devlog/wave10.md`§2で「未定」としていたが、厩舎数と同じ比率
+// （160/190）で比例縮小した（150×160/190≈126.3→126）。根拠：厩舎数が減ればその厩舎に
+// 出入りする騎手の需要も比例して減ると見込んだだけで、実測に基づく値ではない。
+export const NPC_JOCKEY_COUNT = 126;
 
 /**
  * 新しいキャリアの初期ロースターを作る。自己完結の純関数

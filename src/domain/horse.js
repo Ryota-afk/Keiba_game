@@ -214,7 +214,7 @@ export function earningsForResult(classId, position) {
  * `appendRaceResult`（一般競走用）・`domain/npcGradedRace.js`（重賞用・実際の`prize1`を渡す）の
  * 両方がこれを共通で呼ぶ。
  * ⚠️`recentFinishes`は「直近◯走」の詳細を持つ——**生涯の全レースではない**（質問16は生涯の
- * 全レースを持つ決定だが、7,600頭超が常時それを保持するとメモリを圧迫するため、実装では
+ * 全レースを持つ決定だが、5,250頭超が常時それを保持するとメモリを圧迫するため、実装では
  * 直近`RECENT_FINISHES_WINDOW`走だけを持つ形にした。生涯の全レースはセーブ層
  * （IndexedDB・未実装）で追記型に持たせる想定——`TODO.md`へ棚上げ）。
  * @param {{starts:number,wins:number,seconds:number,thirds:number,earnings:number,

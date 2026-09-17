@@ -30,6 +30,12 @@ function pickBellLevel(rand01) {
  * 「芝得意とダート得意をほぼ半々」（番組表の芝50.2%・ダート49.8%）を満たすため、
  * 先にどちらを得意側にするかを50.2/49.8で引き、その面の段が必ずもう一方以上になる
  * ように振り分ける（互角＝両方おなじ段のときはそのまま）。
+ * ⚠️⚠️**両方×にはしない**（2026-09-17に発見・`devlog/wave09.md`§16）。`canRaceOnSurface`は
+ * 芝もダートも×だとどちらもfalseを返すため、その馬はどのレースにも出走できず一生を終える
+ * （確率計算：×の段になる確率0.125の2乗＝1.56%・実測139頭）。**得意なほう
+ * （`dominantLevel`）だけを×(0)→△(1)へ底上げする**——苦手なほうは×のままでよい
+ * （出走できる面が1つあれば十分なため）。両方が×の乱数を引いたときだけ発動するので、
+ * 発動率は上と同じ約1.56%。
  * @param {() => number} rand01
  * @returns {{ turf: string, dirt: string }}
  */
@@ -37,7 +43,8 @@ export function generateSurfaceAptitude(rand01) {
   const dominantIsTurf = rand01() < 0.502;
   const levelA = pickBellLevel(rand01);
   const levelB = pickBellLevel(rand01);
-  const dominantLevel = Math.max(levelA, levelB);
+  const dominantLevelRaw = Math.max(levelA, levelB);
+  const dominantLevel = dominantLevelRaw === 0 ? 1 : dominantLevelRaw; // ×(0)は△(1)へ底上げ
   const otherLevel = Math.min(levelA, levelB);
   const turfLevel = dominantIsTurf ? dominantLevel : otherLevel;
   const dirtLevel = dominantIsTurf ? otherLevel : dominantLevel;
