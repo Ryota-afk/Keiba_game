@@ -24,6 +24,7 @@ import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../src/domain/we
 import { courseIdsAvailable, confirmMounts, defaultChooseMounts } from "../src/domain/fridayConfirmation.js";
 import { DAY } from "../src/data/weekDays.js";
 import { isMainMount } from "../src/domain/mainMount.js";
+import { isSidelined } from "../src/domain/fall.js";
 
 const WEEKS = Number(process.argv[2] ?? 52);
 const SEEDS = Number(process.argv[3] ?? 5);
@@ -76,11 +77,18 @@ function runOneSeed(saveSeed) {
     }
 
     // ⭐`defaultChooseMounts`を薄いラッパーで渡し、選び方は変えずに誰が選ばれたかを観測する。
+    // ⚠️`weekLoop.js`の実際の断るコスト判定は「選ばれて、かつ離脱中でない馬」だけを
+    // 乗ったとみなす（`mounts = confirmedRaw.filter((m) => !isSidelined(...))`）。
+    // ここも同じ条件で揃えないと、離脱中で選ばれた主戦馬を「乗った」と誤って数えてしまう
+    // （2026-09-17の検証で見つかった見落とし・`devlog/wave10.md`§9）。
+    const horsesByIdThisWeek = new Map(roster.horses.map((h) => [h.id, h]));
     let selectedHorseIds = new Set();
     const res = advanceWeek(saveSeed, roster, player, {
       chooseMounts: (candidates, maxSlots) => {
         const selected = defaultChooseMounts(candidates, maxSlots);
-        selectedHorseIds = new Set(selected.map((m) => m.horseId));
+        selectedHorseIds = new Set(
+          selected.filter((m) => !isSidelined(horsesByIdThisWeek.get(m.horseId))).map((m) => m.horseId)
+        );
         return selected;
       },
     });
