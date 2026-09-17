@@ -1,16 +1,24 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>今週の騎乗依頼 v3（案Cの完成形・3案）</title>
+<title>今週の騎乗依頼 v3（案2・レースが主役）</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /*
- * 今週の騎乗依頼（月曜）— riding-offers-v2.html 案C「1場ずつ・1行を大きく」の完成形を3通り。
+ * 今週の騎乗依頼（月曜）— riding-offers-v2.html 案Cの完成形。
+ * 2026-09-16に3案（馬名が主役／レースが主役／3つの枠が主役）を出し、ユーザーが
+ * 案2「レースが主役・1レース＝1つの表」を選んだ。却下した2案はこのファイルから消した
+ * （経緯は devlog 側に控えてある）。
  * 文字の段は src/styles/type.css、余白は src/styles/space.css、色は DreamDerbyScreen.css と同じ値。
  * 生のpxを font-size に書かない。縦線を引かない。絵文字を使わない。
  * レースが土曜か日曜かというデータはまだ無い。ここでは
  *   京都 芝1800m 新馬 ＝ 土曜、中山 芝2400m 新馬 ＝ 日曜 と置いている。
+ *
+ * 行は <button> ではなく <div role="button"> にしている——Chromiumは <button> に
+ * display:grid を適用しないため、列が馬名の長さに押されて行ごとにずれた（2026-09-17に実測）。
+ * ◎○△× はフォントの字形だと「○」が「△」より小さく見えるため、同じ20px枠・同じ2pxの線で
+ * 描いた4つのSVG（下の <symbol>）にした。
  */
 :root{
   --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px;
@@ -20,28 +28,26 @@
   --fg:#f2ede0; --muted:#9fb896; --dim:#5f7659;
   --accent:#ffd83d; --action:#2f7fe6; --turf:#8fd07e;
   --rule:rgba(255,255,255,.1);
+  /* 表の列。馬名の列は残り全部（390px幅で158px、360px幅で128px＝9文字×14pxの126pxが入る） */
+  --col-sex:28px; --col-run:36px; --col-sym:32px; --col-tr:80px; --col-gap:6px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6)}
+@media (max-width:480px){body{padding-inline:0}.intro,h1,.shot .cap{padding-inline:var(--s2)}}
 .wrap{max-width:1320px;margin:0 auto}
 h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
 .intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:56em;margin-top:var(--s1)}
 .intro b{color:var(--fg);font-weight:500}
-.plan{margin-top:var(--s6);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
-.plan h2{font-size:var(--fs-lead);font-weight:700}
-.plan .desc{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:56em;margin-top:var(--s1)}
-.plan .desc b{color:var(--accent);font-weight:500}
-.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s2)}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
 .shot{width:390px;flex:none}
 .shot .cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
 .shot .cap b{color:var(--fg);font-weight:500}
 .frame{width:390px;background:var(--panel);color:var(--fg);box-shadow:0 0 0 1px #000;padding-bottom:var(--s3)}
 .frame.tall{min-height:720px}
 .view{display:none}.view.on{display:block}
-/* 390px幅の端末では、モックの外側の余白を消して枠をそのまま画面幅に合わせる */
-@media (max-width:480px){body{padding-inline:0}.intro,.plan h2,.plan .desc,.shot .cap{padding-inline:var(--s2)}}
+.sf{color:var(--turf)}
 
-/* ── 共通：上部 ── */
+/* ── 上部 ── */
 .hd{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) var(--s1)}
 .hd .wk{font-size:var(--fs-body)}
 .hd .left{font-size:var(--fs-caption);color:var(--muted)}
@@ -54,189 +60,56 @@ h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
 .courses button{all:unset;box-sizing:border-box;cursor:pointer;min-height:var(--tap);padding:0 var(--s2);display:flex;align-items:center;gap:6px;font-size:var(--fs-body);color:var(--muted);background:var(--panel2)}
 .courses button.on{background:var(--action);color:#fff}
 .courses button .n{font-size:var(--fs-caption);font-weight:700}
-.courses button.zero{background:transparent;color:var(--dim);box-shadow:inset 0 0 0 1px var(--rule)}
+.courses button.lock{opacity:.4}
 .fc{padding:var(--s2) var(--s2) 0;font-size:var(--fs-caption);color:var(--muted)}
 .empty{padding:var(--s4) var(--s2);font-size:var(--fs-body);color:var(--muted);line-height:1.8}
-/* 同じ日に別の競馬場で乗る馬を決めた後：もう行けない競馬場（数字は残す・薄くする） */
-.courses button.lock,.chip.lock{opacity:.4}
 .empty.lock{padding-bottom:var(--s2)}
-.sf{color:var(--turf)}
 
-/* ── 案1：馬名が主役 ── */
-.race{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) var(--s1)}
-.race .cond{font-size:var(--fs-body);font-weight:700}
-.race .cond .cls{font-weight:400;color:var(--muted);margin-left:var(--s1)}
-.race .one{font-size:var(--fs-caption);color:var(--muted)}
-.r1{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;padding:var(--s1) var(--s2) 10px;min-height:56px;box-shadow:inset 0 1px 0 var(--rule)}
-.r1 .top{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1)}
-.r1 .name{font-size:var(--fs-lead);font-weight:700;line-height:1.3}
-.r1 .apt{font-size:var(--fs-caption);color:var(--muted);flex:none}
-.r1 .apt b{font-size:var(--fs-lead);color:var(--fg);font-weight:700;margin-left:2px}
-.r1 .meta{font-size:var(--fs-caption);color:var(--muted);margin-top:2px;line-height:1.6}
-.r1 .meta .main{color:var(--accent);font-weight:700;margin-right:var(--s1)}
-.r1 .warn{font-size:var(--fs-caption);color:var(--accent);margin-top:2px}
-.r1.on{background:var(--action);color:#fff}
-.r1.on .meta,.r1.on .apt{color:#dbe8ff}.r1.on .apt b{color:#fff}
-.r1.on .name::after{content:"　乗ります";font-size:var(--fs-caption);font-weight:400;color:#dbe8ff}
-.r1.off{opacity:.4}
+/* ── レースの見出し ── */
+.race{padding:var(--s2) var(--s2) 0}
+.race .big{font-size:var(--fs-title);font-weight:700;line-height:1.1}
+.race .big .cls{font-size:var(--fs-body);font-weight:400;color:var(--muted);margin-left:var(--s1)}
 
-/* ── 案2：レースが主役（比べる表） ── */
-.race2{padding:var(--s2) var(--s2) 0}
-.race2 .big{font-size:var(--fs-title);font-weight:700;line-height:1.1}
-.race2 .big .cls{font-size:var(--fs-body);font-weight:400;color:var(--muted);margin-left:var(--s1)}
-.race2 .sub{font-size:var(--fs-caption);color:var(--muted);margin-top:4px}
-.t2{padding:var(--s1) var(--s2) 0}
-.t2 .th{display:grid;grid-template-columns:1fr 28px 40px 32px 92px;gap:6px;font-size:var(--fs-caption);color:var(--dim);padding:var(--s1) 0 4px}
-.t2 .th .c{text-align:center}.t2 .th .tr{text-align:right}
-.r2{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:1fr 28px 40px 32px 92px;gap:6px;align-items:center;min-height:52px;padding:6px 0;box-shadow:inset 0 1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted)}
-.r2 .name{font-size:var(--fs-body);font-weight:700;color:var(--fg);line-height:1.3}
-.r2 .name small{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
-.r2 .name small .main{color:var(--accent);font-weight:700;margin-right:6px}
-.r2 .sym{font-size:var(--fs-lead);font-weight:700;color:var(--fg);text-align:center}
-.r2 .tr{text-align:right;line-height:1.4}
-.r2 .tr small{display:block}
-.r2.on{background:var(--action);color:#dbe8ff;margin:0 calc(var(--s2) * -1);padding:6px var(--s2)}
-.r2.on .name,.r2.on .sym{color:#fff}.r2.on .name small{color:#dbe8ff}
-.r2.off{opacity:.4}
-.warn2{padding:4px var(--s2) 0;font-size:var(--fs-caption);color:var(--accent)}
+/* ── 表（1レース＝1つ）。見出し行と各行が同じ列の型を使うので縦に揃う ── */
+.t{padding:var(--s1) var(--s2) 0}
+.th,.r{display:grid;grid-template-columns:minmax(0,1fr) var(--col-sex) var(--col-run) var(--col-sym) var(--col-tr);gap:var(--col-gap);align-items:center}
+.th{font-size:var(--fs-caption);color:var(--dim);padding:var(--s1) 0 4px}
+.th .c{text-align:center}.th .tr{text-align:right}
+.r{cursor:pointer;min-height:52px;padding:6px 0;box-shadow:inset 0 1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted)}
+.r .name{font-size:var(--fs-body);font-weight:700;color:var(--fg);line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.r .name small{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.r .name small .main{color:var(--accent);font-weight:700;margin-right:6px}
+.r .sym{display:block;width:20px;height:20px;margin:0 auto;color:var(--fg)}
+.r .tr{text-align:right;line-height:1.4}
+.r .tr small{display:block}
+.r .warn{grid-column:1 / -1;font-size:var(--fs-caption);color:var(--accent);padding-top:2px}
+.r.on{background:var(--action);color:#dbe8ff;margin:0 calc(var(--s2) * -1);padding:6px var(--s2)}
+.r.on .name,.r.on .sym{color:#fff}.r.on .name small{color:#dbe8ff}
+.r.off{opacity:.4}
+</style></head><body>
+<!-- 芝の相性の4段。同じ枠・同じ線の太さで描く（フォントの字形だと○が△より小さく見える） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="m-2" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="m-1" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="m-3" viewBox="0 0 20 20"><path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="m-x" viewBox="0 0 20 20"><path d="M3 3 L17 17 M17 3 L3 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+<div class="wrap">
 
-/* ── 案3：3つの枠が主役 ── */
-.tray{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s1);padding:var(--s1) var(--s2) 0}
-.slot{all:unset;box-sizing:border-box;cursor:pointer;min-height:var(--s6);background:var(--panel2);padding:6px;display:flex;flex-direction:column;justify-content:center;gap:2px}
-.slot .k{font-size:var(--fs-caption);color:var(--dim)}
-.slot .v{font-size:var(--fs-caption);color:var(--dim)}
-.slot.on{background:var(--action)}
-.slot.on .k{color:#dbe8ff}
-.slot.on .v{color:#fff;font-weight:700}
-.strip{display:flex;gap:var(--s1);padding:var(--s2) var(--s2) 0;overflow-x:auto}
-.chip{all:unset;box-sizing:border-box;cursor:pointer;flex:none;min-height:var(--tap);padding:6px 12px;display:flex;flex-direction:column;justify-content:center;gap:1px;background:var(--panel2);color:var(--muted)}
-.chip .d{font-size:var(--fs-caption)}
-.chip .c{font-size:var(--fs-body);font-weight:700}
-.chip .c b{font-size:var(--fs-caption);font-weight:700;margin-left:4px}
-.chip.on{background:var(--action);color:#fff}
-.chip.zero{background:transparent;color:var(--dim);box-shadow:inset 0 0 0 1px var(--rule)}
-.r3{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;padding:var(--s1) var(--s2);min-height:52px;box-shadow:inset 0 1px 0 var(--rule)}
-.r3 .top{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1)}
-.r3 .name{font-size:var(--fs-body);font-weight:700;line-height:1.4}
-.r3 .apt{font-size:var(--fs-caption);color:var(--muted);flex:none}
-.r3 .apt b{font-size:var(--fs-body);color:var(--fg);font-weight:700;margin-left:2px}
-.r3 .meta{font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
-.r3 .meta .main{color:var(--accent);font-weight:700;margin-right:var(--s1)}
-.r3 .warn{font-size:var(--fs-caption);color:var(--accent)}
-.r3.on{background:var(--action);color:#fff}
-.r3.on .meta,.r3.on .apt{color:#dbe8ff}.r3.on .apt b{color:#fff}
-.r3.off{opacity:.4}
-</style></head><body><div class="wrap">
-
-<h1>今週の騎乗依頼（月曜）— 案Cの完成形を3通り</h1>
+<h1>今週の騎乗依頼（月曜）— 案2「レースが主役・1レース＝1つの表」</h1>
 <div class="intro">
 1976年1月1週の実際の依頼6件。京都 芝1800m 新馬に5頭、中山 芝2400m 新馬に1頭。
 1つのレースには1頭しか乗れないので、この週に乗れるのは2鞍まで。
 これは珍しい週（52週のうち、3件とも乗れる週が44週＝85%。依頼が2レースに収まる週は7週）。
-ふつうの週は依頼が平均3.5レースに散るので、<b>「この2件は同じレース」が分かれば足りる</b>。それを前提に組んだ。
-レースが土曜か日曜かというデータはまだ無いため、ここでは<b>京都＝土曜・中山＝日曜</b>と置いた
-（土曜の中山と日曜の京都に依頼が無い＝空のタブが実データで出る。開催している競馬場の22%には依頼が無く、
-そういう場所がある週は56%）。
-もう1つ、依頼が3か所以上の競馬場に散る週が27%ある。1日1場なので、同じ日に2か所から来た依頼は片方にしか
-乗れない。各案の4枚目に、<b>京都も中山も土曜だったら</b>と置いて、片方を決めた後に残りがどう見えるかを描いた。
+依頼の41%は別の依頼と同じレースに入るので、<b>レースの条件を一番大きく書いて依頼を束ね、その下に頼まれた馬を表で並べる</b>。
+同じレースに何頭並んでいても、表が1つなら「この中から1頭」は形で伝わる（説明の行は置かない）。
+競馬場タブは依頼のある場所だけ（開催している競馬場の22%には依頼が無いので、空のタブを最初から作らない）。依頼の無い日は日付のタブが薄くなる。
+レースが土曜か日曜かというデータはまだ無いため、<b>京都＝土曜・中山＝日曜</b>と置いた。
+依頼が3か所以上の競馬場に散る週が27%あり、1日1場なので同じ日に2か所から来た依頼は片方にしか乗れない。5枚目に、<b>京都も中山も土曜だったら</b>と置いて、片方を決めた後を描いた。
+馬場の予報は「画面に出す項目」の一覧には無いが、依頼文の「予報であることを示す必要」に従って競馬場ごとに1行だけ入れた。要らなければ消す。
 上部のタブは押すと切り替わる。行を押した先（馬の詳細）はこのモックには含めない。
-馬場の予報は「画面に出す項目」の一覧には無いが、依頼文の「予報であることを示す必要」に従って
-競馬場ごとに1行だけ入れた。要らなければ消す。
 </div>
 
-<!-- ═══════════════════ 案1 ═══════════════════ -->
-<section class="plan" id="p1">
-<h2>案1　馬名が主役</h2>
-<div class="desc">
-土日タブの下に、その日に開いている競馬場を全部並べる（依頼の無い競馬場が22%あるので、そこは数字なしで薄くする）。
-レースの条件は見出し1行に畳み、<b>馬名を一番大きく</b>して、性別・走り方・戦績・調教師は1行の補足に落とす。
-自分の厩舎の馬は調教師名の後ろに「（自分の厩舎）」、主戦の馬は補足行の先頭に「主戦」と、断ったときに起きることを1行。
-</div>
-<div class="gallery">
-
-<div class="shot"><div class="cap"><b>月曜に開いたところ</b>（土曜・京都。タブは押せる）</div>
-<div class="frame tall" data-live>
-<div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>3</b>件</div></div>
-<div class="days"><button class="on" data-day="sat">土曜</button><button data-day="sun">日曜</button></div>
-<div class="view on" data-view="sat">
-  <div class="courses"><button class="on" data-course="kyoto">京都<span class="n">5</span></button><button class="zero" data-course="nakayama">中山</button></div>
-  <div class="view on" data-view="sat-kyoto">
-    <div class="fc">馬場の予報　重</div>
-    <div class="race"><div class="cond"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div><div class="one">乗れるのは1頭です</div></div>
-    <button class="r1"><div class="top"><span class="name">レイクロスブレイズ</span><span class="apt">芝<b>○</b></span></div><div class="meta">セン／差し／0戦0勝／篠原昭夫</div></button>
-    <button class="r1"><div class="top"><span class="name">コスモシャドウ</span><span class="apt">芝<b>△</b></span></div><div class="meta">セン／先行／0戦0勝／篠原昭夫</div></button>
-    <button class="r1"><div class="top"><span class="name">リュウジンミスティ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-    <button class="r1"><div class="top"><span class="name">セイウンノヴァ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-    <button class="r1"><div class="top"><span class="name">アカネブレイズ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牡／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-  </div>
-  <div class="view" data-view="sat-nakayama"><div class="empty">中山からの依頼はありません。</div></div>
-</div>
-<div class="view" data-view="sun">
-  <div class="courses"><button class="on" data-course="nakayama">中山<span class="n">1</span></button><button class="zero" data-course="kyoto">京都</button></div>
-  <div class="view on" data-view="sun-nakayama">
-    <div class="fc">馬場の予報　稍重</div>
-    <div class="race"><div class="cond"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
-    <button class="r1"><div class="top"><span class="name">セイウンフェザー</span><span class="apt">芝<b>○</b></span></div><div class="meta">牡／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-  </div>
-  <div class="view" data-view="sun-kyoto"><div class="empty">京都からの依頼はありません。</div></div>
-</div>
-</div></div>
-
-<div class="shot"><div class="cap"><b>空：その日、その競馬場に依頼が無い</b>（土曜・中山）。数字の無い薄いタブを押したとき</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>3</b>件</div></div>
-<div class="days"><button class="on">土曜</button><button>日曜</button></div>
-<div class="courses"><button>京都<span class="n">5</span></button><button class="zero on" style="background:var(--action);color:#fff;box-shadow:none">中山</button></div>
-<div class="empty">中山からの依頼はありません。</div>
-</div></div>
-
-<div class="shot"><div class="cap"><b>空：週に依頼が1件も来なかった</b>。両日とも薄く、競馬場の段は出ない</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>3</b>件</div></div>
-<div class="days"><button class="zero on" style="color:var(--action)">土曜</button><button class="zero">日曜</button></div>
-<div class="empty">今週は依頼が来ませんでした。</div>
-</div></div>
-
-<div class="shot"><div class="cap"><b>乗る馬を決めた後</b>（土曜・京都でレイクロスブレイズ、日曜・中山でセイウンフェザー）。同じレースの残り4頭は薄くなる。この週は依頼が2レースに集中した珍しい週なので3件目は決められない。3件目が決まると数字が0になり、決めていないレースの行もこの薄さになる。外すには青い行を押す</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>1</b>件</div></div>
-<div class="days"><button class="on">土曜</button><button>日曜</button></div>
-<div class="courses"><button class="on">京都<span class="n">5</span></button><button class="zero">中山</button></div>
-<div class="fc">馬場の予報　重</div>
-<div class="race"><div class="cond"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div><div class="one">乗れるのは1頭です</div></div>
-<button class="r1 on"><div class="top"><span class="name">レイクロスブレイズ</span><span class="apt">芝<b>○</b></span></div><div class="meta">セン／差し／0戦0勝／篠原昭夫</div></button>
-<button class="r1 off"><div class="top"><span class="name">コスモシャドウ</span><span class="apt">芝<b>△</b></span></div><div class="meta">セン／先行／0戦0勝／篠原昭夫</div></button>
-<button class="r1 off"><div class="top"><span class="name">リュウジンミスティ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-<button class="r1 off"><div class="top"><span class="name">セイウンノヴァ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-<button class="r1 off"><div class="top"><span class="name">アカネブレイズ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牡／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-</div></div>
-
-<div class="shot"><div class="cap"><b>同じ日に2か所から依頼が来て、片方を決めた後</b>（京都も中山も土曜だったら、と置いた）。京都でレイクロスブレイズを決めると、土曜の中山は数字を残したまま薄くなる。押すと理由と、乗れなくなった馬が見える</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>2</b>件</div></div>
-<div class="days"><button class="on">土曜</button><button class="zero">日曜</button></div>
-<div class="courses"><button>京都<span class="n">5</span></button><button class="on lock" style="opacity:1;background:var(--action);color:#fff">中山<span class="n">1</span></button></div>
-<div class="empty lock">土曜は京都へ行きます。中山の依頼には乗れません。</div>
-<div class="race"><div class="cond"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
-<button class="r1 off"><div class="top"><span class="name">セイウンフェザー</span><span class="apt">芝<b>○</b></span></div><div class="meta">牡／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-</div></div>
-
-<div class="shot"><div class="cap"><b>主戦の馬から依頼が来たときの行</b>（見本：セイウンフェザーに5回乗って1勝した後。第1週にはまだ主戦がいない）</div>
-<div class="frame">
-<button class="r1"><div class="top"><span class="name">セイウンフェザー</span><span class="apt">芝<b>○</b></span></div><div class="meta"><span class="main">主戦</span>牡／先行／5戦1勝／桐山竜也（自分の厩舎）</div><div class="warn">断ると信頼が下がります</div></button>
-</div></div>
-
-</div>
-</section>
-
-<!-- ═══════════════════ 案2 ═══════════════════ -->
-<section class="plan" id="p2">
-<h2>案2　レースが主役（1レース＝1つの表）</h2>
-<div class="desc">
-依頼の41%は別の依頼と同じレースに入っているので、<b>レースの条件を一番大きく</b>書いて束ね、その下に頼まれた馬を表で並べる。
-同じレースの中で比べるのは走り方と芝の相性なので、それを列にして縦に揃える。レースが4つある週は表が4つ縦に並ぶ。
-競馬場タブは依頼のある場所だけ（依頼の無い競馬場が22%あるので、空のタブを最初から作らない）。依頼の無い日は日付のタブが薄くなる。
-</div>
 <div class="gallery">
 
 <div class="shot"><div class="cap"><b>月曜に開いたところ</b>（土曜・京都。タブは押せる）</div>
@@ -247,14 +120,14 @@ h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
   <div class="courses"><button class="on" data-course="kyoto">京都<span class="n">5</span></button></div>
   <div class="view on" data-view="sat-kyoto">
     <div class="fc">馬場の予報　重</div>
-    <div class="race2"><div class="big"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div><div class="sub">乗れるのは1頭です</div></div>
-    <div class="t2">
+    <div class="race"><div class="big"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div></div>
+    <div class="t">
       <div class="th"><span>馬名</span><span>性</span><span>走り方</span><span class="c">芝</span><span class="tr">調教師</span></div>
-      <button class="r2"><span class="name">レイクロスブレイズ<small>0戦0勝</small></span><span>セン</span><span>差し</span><span class="sym">○</span><span class="tr">篠原昭夫</span></button>
-      <button class="r2"><span class="name">コスモシャドウ<small>0戦0勝</small></span><span>セン</span><span>先行</span><span class="sym">△</span><span class="tr">篠原昭夫</span></button>
-      <button class="r2"><span class="name">リュウジンミスティ<small>0戦0勝</small></span><span>牝</span><span>差し</span><span class="sym">△</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
-      <button class="r2"><span class="name">セイウンノヴァ<small>0戦0勝</small></span><span>牝</span><span>先行</span><span class="sym">△</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
-      <button class="r2"><span class="name">アカネブレイズ<small>0戦0勝</small></span><span>牡</span><span>差し</span><span class="sym">△</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
+      <div class="r" role="button" tabindex="0"><span class="name">レイクロスブレイズ<small>0戦0勝</small></span><span>セン</span><span>差し</span><svg class="sym"><use href="#m-1"/></svg><span class="tr">篠原昭夫</span></div>
+      <div class="r" role="button" tabindex="0"><span class="name">コスモシャドウ<small>0戦0勝</small></span><span>セン</span><span>先行</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">篠原昭夫</span></div>
+      <div class="r" role="button" tabindex="0"><span class="name">リュウジンミスティ<small>0戦0勝</small></span><span>牝</span><span>差し</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
+      <div class="r" role="button" tabindex="0"><span class="name">セイウンノヴァ<small>0戦0勝</small></span><span>牝</span><span>先行</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
+      <div class="r" role="button" tabindex="0"><span class="name">アカネブレイズ<small>0戦0勝</small></span><span>牡</span><span>差し</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
     </div>
   </div>
 </div>
@@ -262,16 +135,16 @@ h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
   <div class="courses"><button class="on" data-course="nakayama">中山<span class="n">1</span></button></div>
   <div class="view on" data-view="sun-nakayama">
     <div class="fc">馬場の予報　稍重</div>
-    <div class="race2"><div class="big"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
-    <div class="t2">
+    <div class="race"><div class="big"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
+    <div class="t">
       <div class="th"><span>馬名</span><span>性</span><span>走り方</span><span class="c">芝</span><span class="tr">調教師</span></div>
-      <button class="r2"><span class="name">セイウンフェザー<small>0戦0勝</small></span><span>牡</span><span>先行</span><span class="sym">○</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
+      <div class="r" role="button" tabindex="0"><span class="name">セイウンフェザー<small>0戦0勝</small></span><span>牡</span><span>先行</span><svg class="sym"><use href="#m-1"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
     </div>
   </div>
 </div>
 </div></div>
 
-<div class="shot"><div class="cap"><b>空：その日に依頼が無い</b>。この案は依頼のある競馬場だけをタブにするので、「日に依頼が無い」が空の形になる（日曜を薄くしたもの。実データでは日曜に中山の1件がある）</div>
+<div class="shot"><div class="cap"><b>空：その日に依頼が無い</b>。競馬場タブは依頼のある場所だけなので、「日に依頼が無い」が空の形になる（日曜を薄くしたもの。実データでは日曜に中山の1件がある）</div>
 <div class="frame">
 <div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>3</b>件</div></div>
 <div class="days"><button>土曜</button><button class="zero on" style="color:var(--action)">日曜</button></div>
@@ -285,20 +158,20 @@ h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
 <div class="empty">今週は依頼が来ませんでした。</div>
 </div></div>
 
-<div class="shot"><div class="cap"><b>乗る馬を決めた後</b>（土曜・京都でレイクロスブレイズ、日曜・中山でセイウンフェザー）。この週は依頼が2レースに集中した珍しい週なので3件目は決められない。3件目が決まると数字が0になり、決めていないレースの行もこの薄さになる。外すには青い行を押す</div>
+<div class="shot"><div class="cap"><b>乗る馬を決めた後</b>（土曜・京都でレイクロスブレイズ、日曜・中山でセイウンフェザー）。同じレースの残り4頭は薄くなる。この週は依頼が2レースに集中した珍しい週なので3件目は決められない。3件目が決まると数字が0になり、決めていないレースの行もこの薄さになる。外すには青い行を押す</div>
 <div class="frame">
 <div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>1</b>件</div></div>
 <div class="days"><button class="on">土曜</button><button>日曜</button></div>
 <div class="courses"><button class="on">京都<span class="n">5</span></button></div>
 <div class="fc">馬場の予報　重</div>
-<div class="race2"><div class="big"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div><div class="sub">乗れるのは1頭です</div></div>
-<div class="t2">
+<div class="race"><div class="big"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div></div>
+<div class="t">
   <div class="th"><span>馬名</span><span>性</span><span>走り方</span><span class="c">芝</span><span class="tr">調教師</span></div>
-  <button class="r2 on"><span class="name">レイクロスブレイズ<small>乗ります</small></span><span>セン</span><span>差し</span><span class="sym">○</span><span class="tr">篠原昭夫</span></button>
-  <button class="r2 off"><span class="name">コスモシャドウ<small>0戦0勝</small></span><span>セン</span><span>先行</span><span class="sym">△</span><span class="tr">篠原昭夫</span></button>
-  <button class="r2 off"><span class="name">リュウジンミスティ<small>0戦0勝</small></span><span>牝</span><span>差し</span><span class="sym">△</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
-  <button class="r2 off"><span class="name">セイウンノヴァ<small>0戦0勝</small></span><span>牝</span><span>先行</span><span class="sym">△</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
-  <button class="r2 off"><span class="name">アカネブレイズ<small>0戦0勝</small></span><span>牡</span><span>差し</span><span class="sym">△</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
+  <div class="r on" role="button" tabindex="0"><span class="name">レイクロスブレイズ<small>乗ります</small></span><span>セン</span><span>差し</span><svg class="sym"><use href="#m-1"/></svg><span class="tr">篠原昭夫</span></div>
+  <div class="r off" role="button" tabindex="0"><span class="name">コスモシャドウ<small>0戦0勝</small></span><span>セン</span><span>先行</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">篠原昭夫</span></div>
+  <div class="r off" role="button" tabindex="0"><span class="name">リュウジンミスティ<small>0戦0勝</small></span><span>牝</span><span>差し</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
+  <div class="r off" role="button" tabindex="0"><span class="name">セイウンノヴァ<small>0戦0勝</small></span><span>牝</span><span>先行</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
+  <div class="r off" role="button" tabindex="0"><span class="name">アカネブレイズ<small>0戦0勝</small></span><span>牡</span><span>差し</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
 </div>
 </div></div>
 
@@ -306,144 +179,41 @@ h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
 <div class="frame">
 <div class="hd"><div class="wk">1976年 1月1週</div><div class="left">あと<b>2</b>件</div></div>
 <div class="days"><button class="on">土曜</button><button class="zero">日曜</button></div>
-<div class="courses"><button>京都<span class="n">5</span></button><button class="on lock" style="opacity:1;background:var(--action);color:#fff">中山<span class="n">1</span></button></div>
+<div class="courses"><button>京都<span class="n">5</span></button><button class="on lock" style="opacity:1">中山<span class="n">1</span></button></div>
 <div class="empty lock">土曜は京都へ行きます。中山の依頼には乗れません。</div>
-<div class="race2"><div class="big"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
-<div class="t2">
+<div class="race"><div class="big"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
+<div class="t">
   <div class="th"><span>馬名</span><span>性</span><span>走り方</span><span class="c">芝</span><span class="tr">調教師</span></div>
-  <button class="r2 off"><span class="name">セイウンフェザー<small>0戦0勝</small></span><span>牡</span><span>先行</span><span class="sym">○</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
+  <div class="r off" role="button" tabindex="0"><span class="name">セイウンフェザー<small>0戦0勝</small></span><span>牡</span><span>先行</span><svg class="sym"><use href="#m-1"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
 </div>
 </div></div>
 
-<div class="shot"><div class="cap"><b>主戦の馬から依頼が来たときの行</b>（見本：セイウンフェザーに5回乗って1勝した後）</div>
+<div class="shot"><div class="cap"><b>主戦の馬から依頼が来たときの行</b>（見本：セイウンフェザーに5回乗って1勝した後。第1週にはまだ主戦がいない）。断ったときに起きることは、その馬の行の中に1行。下の行は芝の相性4段の見本（◎○△×を同じ枠・同じ線で描いたもの）</div>
 <div class="frame">
-<div class="t2">
+<div class="t">
   <div class="th"><span>馬名</span><span>性</span><span>走り方</span><span class="c">芝</span><span class="tr">調教師</span></div>
-  <button class="r2"><span class="name">セイウンフェザー<small><span class="main">主戦</span>5戦1勝</small></span><span>牡</span><span>先行</span><span class="sym">○</span><span class="tr">桐山竜也<small>自分の厩舎</small></span></button>
+  <div class="r" role="button" tabindex="0"><span class="name">セイウンフェザー<small><span class="main">主戦</span>5戦1勝</small></span><span>牡</span><span>先行</span><svg class="sym"><use href="#m-1"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span><span class="warn">断ると信頼が下がります</span></div>
 </div>
-<div class="warn2">断ると信頼が下がります</div>
+<div class="fc">芝の相性の4段（見本）</div>
+<div class="t" style="padding-top:var(--s1)">
+  <div class="r" style="cursor:default;min-height:var(--s5)"><span class="name" style="font-weight:400;color:var(--muted)">とても合う</span><span></span><span></span><svg class="sym"><use href="#m-2"/></svg><span></span></div>
+  <div class="r" style="cursor:default;min-height:var(--s5)"><span class="name" style="font-weight:400;color:var(--muted)">合う</span><span></span><span></span><svg class="sym"><use href="#m-1"/></svg><span></span></div>
+  <div class="r" style="cursor:default;min-height:var(--s5)"><span class="name" style="font-weight:400;color:var(--muted)">普通</span><span></span><span></span><svg class="sym"><use href="#m-3"/></svg><span></span></div>
+  <div class="r" style="cursor:default;min-height:var(--s5)"><span class="name" style="font-weight:400;color:var(--muted)">合わない</span><span></span><span></span><svg class="sym"><use href="#m-x"/></svg><span></span></div>
+</div>
 </div></div>
 
 </div>
-</section>
-
-<!-- ═══════════════════ 案3 ═══════════════════ -->
-<section class="plan" id="p3">
-<h2>案3　3つの枠が主役・日と競馬場を1本の帯に</h2>
-<div class="desc">
-「あと3件」を数字ではなく<b>3つの枠</b>にして一番上に置く。決めた馬の名前がそこに入り、空きが目で分かる。
-土日タブと競馬場タブの2段を、<b>「土曜 京都」「日曜 中山」という組み合わせ1段</b>に畳む（1日1場なので、選ぶのは本当はこの組み合わせ）。
-依頼の無い組み合わせは薄い枠だけで残す。行は馬名を本文の大きさにして、枠より目立たせない。
-</div>
-<div class="gallery">
-
-<div class="shot"><div class="cap"><b>月曜に開いたところ</b>（土曜・京都。帯は押せる）</div>
-<div class="frame tall" data-live>
-<div class="hd"><div class="wk">1976年 1月1週</div></div>
-<div class="tray"><button class="slot"><span class="k">1</span><span class="v">空き</span></button><button class="slot"><span class="k">2</span><span class="v">空き</span></button><button class="slot"><span class="k">3</span><span class="v">空き</span></button></div>
-<div class="strip">
-  <button class="chip on" data-pair="sat-kyoto"><span class="d">土曜</span><span class="c">京都<b>5</b></span></button>
-  <button class="chip zero" data-pair="sat-nakayama"><span class="d">土曜</span><span class="c">中山</span></button>
-  <button class="chip" data-pair="sun-nakayama"><span class="d">日曜</span><span class="c">中山<b>1</b></span></button>
-  <button class="chip zero" data-pair="sun-kyoto"><span class="d">日曜</span><span class="c">京都</span></button>
-</div>
-<div class="view on" data-view="sat-kyoto">
-  <div class="fc">馬場の予報　重</div>
-  <div class="race"><div class="cond"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div><div class="one">乗れるのは1頭です</div></div>
-  <button class="r3"><div class="top"><span class="name">レイクロスブレイズ</span><span class="apt">芝<b>○</b></span></div><div class="meta">セン／差し／0戦0勝／篠原昭夫</div></button>
-  <button class="r3"><div class="top"><span class="name">コスモシャドウ</span><span class="apt">芝<b>△</b></span></div><div class="meta">セン／先行／0戦0勝／篠原昭夫</div></button>
-  <button class="r3"><div class="top"><span class="name">リュウジンミスティ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-  <button class="r3"><div class="top"><span class="name">セイウンノヴァ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-  <button class="r3"><div class="top"><span class="name">アカネブレイズ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牡／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-</div>
-<div class="view" data-view="sat-nakayama"><div class="empty">中山からの依頼はありません。</div></div>
-<div class="view" data-view="sun-nakayama">
-  <div class="fc">馬場の予報　稍重</div>
-  <div class="race"><div class="cond"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
-  <button class="r3"><div class="top"><span class="name">セイウンフェザー</span><span class="apt">芝<b>○</b></span></div><div class="meta">牡／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-</div>
-<div class="view" data-view="sun-kyoto"><div class="empty">京都からの依頼はありません。</div></div>
-</div></div>
-
-<div class="shot"><div class="cap"><b>空：その日、その競馬場に依頼が無い</b>（土曜・中山）。薄い枠の組み合わせを押したとき</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div></div>
-<div class="tray"><button class="slot"><span class="k">1</span><span class="v">空き</span></button><button class="slot"><span class="k">2</span><span class="v">空き</span></button><button class="slot"><span class="k">3</span><span class="v">空き</span></button></div>
-<div class="strip">
-  <button class="chip"><span class="d">土曜</span><span class="c">京都<b>5</b></span></button>
-  <button class="chip on"><span class="d">土曜</span><span class="c">中山</span></button>
-  <button class="chip"><span class="d">日曜</span><span class="c">中山<b>1</b></span></button>
-  <button class="chip zero"><span class="d">日曜</span><span class="c">京都</span></button>
-</div>
-<div class="empty">中山からの依頼はありません。</div>
-</div></div>
-
-<div class="shot"><div class="cap"><b>空：週に依頼が1件も来なかった</b>。帯は薄い枠だけになり、3つの枠は空きのまま</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div></div>
-<div class="tray"><button class="slot"><span class="k">1</span><span class="v">空き</span></button><button class="slot"><span class="k">2</span><span class="v">空き</span></button><button class="slot"><span class="k">3</span><span class="v">空き</span></button></div>
-<div class="strip">
-  <button class="chip zero"><span class="d">土曜</span><span class="c">京都</span></button>
-  <button class="chip zero"><span class="d">土曜</span><span class="c">中山</span></button>
-  <button class="chip zero"><span class="d">日曜</span><span class="c">京都</span></button>
-  <button class="chip zero"><span class="d">日曜</span><span class="c">中山</span></button>
-</div>
-<div class="empty">今週は依頼が来ませんでした。</div>
-</div></div>
-
-<div class="shot"><div class="cap"><b>乗る馬を決めた後</b>（枠1にレイクロスブレイズ、枠2にセイウンフェザー）。同じレースの残り4頭は薄くなる。この週は依頼が2レースに集中した珍しい週なので枠3は埋まらない。3つとも埋まると、決めていないレースの行もこの薄さになる。外すには上の枠を押す</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div></div>
-<div class="tray"><button class="slot on"><span class="k">1　土曜 京都</span><span class="v">レイクロスブレイズ</span></button><button class="slot on"><span class="k">2　日曜 中山</span><span class="v">セイウンフェザー</span></button><button class="slot"><span class="k">3</span><span class="v">空き</span></button></div>
-<div class="strip">
-  <button class="chip on"><span class="d">土曜</span><span class="c">京都<b>5</b></span></button>
-  <button class="chip zero"><span class="d">土曜</span><span class="c">中山</span></button>
-  <button class="chip"><span class="d">日曜</span><span class="c">中山<b>1</b></span></button>
-  <button class="chip zero"><span class="d">日曜</span><span class="c">京都</span></button>
-</div>
-<div class="fc">馬場の予報　重</div>
-<div class="race"><div class="cond"><span class="sf">芝</span>1800m<span class="cls">新馬</span></div><div class="one">乗れるのは1頭です</div></div>
-<button class="r3 on"><div class="top"><span class="name">レイクロスブレイズ</span><span class="apt">芝<b>○</b></span></div><div class="meta">セン／差し／0戦0勝／篠原昭夫</div></button>
-<button class="r3 off"><div class="top"><span class="name">コスモシャドウ</span><span class="apt">芝<b>△</b></span></div><div class="meta">セン／先行／0戦0勝／篠原昭夫</div></button>
-<button class="r3 off"><div class="top"><span class="name">リュウジンミスティ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-<button class="r3 off"><div class="top"><span class="name">セイウンノヴァ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牝／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-<button class="r3 off"><div class="top"><span class="name">アカネブレイズ</span><span class="apt">芝<b>△</b></span></div><div class="meta">牡／差し／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-</div></div>
-
-<div class="shot"><div class="cap"><b>同じ日に2か所から依頼が来て、片方を決めた後</b>（京都も中山も土曜だったら、と置いた）。枠1が「土曜 京都」で埋まると、帯の「土曜 中山」は数字を残したまま薄くなる。押すと理由と、乗れなくなった馬が見える</div>
-<div class="frame">
-<div class="hd"><div class="wk">1976年 1月1週</div></div>
-<div class="tray"><button class="slot on"><span class="k">1　土曜 京都</span><span class="v">レイクロスブレイズ</span></button><button class="slot"><span class="k">2</span><span class="v">空き</span></button><button class="slot"><span class="k">3</span><span class="v">空き</span></button></div>
-<div class="strip">
-  <button class="chip"><span class="d">土曜</span><span class="c">京都<b>5</b></span></button>
-  <button class="chip on lock" style="opacity:1"><span class="d">土曜</span><span class="c">中山<b>1</b></span></button>
-  <button class="chip zero"><span class="d">日曜</span><span class="c">京都</span></button>
-  <button class="chip zero"><span class="d">日曜</span><span class="c">中山</span></button>
-</div>
-<div class="empty lock">土曜は京都へ行きます。中山の依頼には乗れません。</div>
-<div class="race"><div class="cond"><span class="sf">芝</span>2400m<span class="cls">新馬</span></div></div>
-<button class="r3 off"><div class="top"><span class="name">セイウンフェザー</span><span class="apt">芝<b>○</b></span></div><div class="meta">牡／先行／0戦0勝／桐山竜也（自分の厩舎）</div></button>
-</div></div>
-
-<div class="shot"><div class="cap"><b>主戦の馬から依頼が来たときの行</b>（見本：セイウンフェザーに5回乗って1勝した後）</div>
-<div class="frame">
-<button class="r3"><div class="top"><span class="name">セイウンフェザー</span><span class="apt">芝<b>○</b></span></div><div class="meta"><span class="main">主戦</span>牡／先行／5戦1勝／桐山竜也（自分の厩舎）</div><div class="warn">断ると信頼が下がります</div></button>
-</div></div>
-
-</div>
-</section>
-
 </div>
 <script>
 // 上部のタブを押して切り替えられるようにするだけ（乗る馬を決める操作はこのモックには無い）。
 document.querySelectorAll('.frame[data-live]').forEach(frame => {
   const show = (sel, key) => frame.querySelectorAll(sel).forEach(v => v.classList.toggle('on', v.dataset.view === key));
-  const firstCourse = (dayEl) => dayEl.querySelector('.courses button:not(.zero)') || dayEl.querySelector('.courses button');
   frame.querySelectorAll('[data-day]').forEach(btn => btn.addEventListener('click', () => {
     frame.querySelectorAll('[data-day]').forEach(b => b.classList.toggle('on', b === btn));
     show(':scope > .view', btn.dataset.day);
     const dayEl = frame.querySelector(`:scope > .view[data-view="${btn.dataset.day}"]`);
-    const c = firstCourse(dayEl);
+    const c = dayEl.querySelector('.courses button');
     dayEl.querySelectorAll('[data-course]').forEach(b => b.classList.toggle('on', b === c));
     dayEl.querySelectorAll(':scope > .view').forEach(v => v.classList.toggle('on', v.dataset.view === `${btn.dataset.day}-${c.dataset.course}`));
   }));
@@ -451,10 +221,6 @@ document.querySelectorAll('.frame[data-live]').forEach(frame => {
     const dayEl = btn.closest('.view');
     dayEl.querySelectorAll('[data-course]').forEach(b => b.classList.toggle('on', b === btn));
     dayEl.querySelectorAll(':scope > .view').forEach(v => v.classList.toggle('on', v.dataset.view === `${dayEl.dataset.view}-${btn.dataset.course}`));
-  }));
-  frame.querySelectorAll('[data-pair]').forEach(btn => btn.addEventListener('click', () => {
-    frame.querySelectorAll('[data-pair]').forEach(b => b.classList.toggle('on', b === btn));
-    show(':scope > .view', btn.dataset.pair);
   }));
 });
 </script>
