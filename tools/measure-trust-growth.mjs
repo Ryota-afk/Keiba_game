@@ -7,13 +7,23 @@
 //
 // ⚠️**週番号は`player.currentWeek`から読む。** ループ変数を週として渡すと、`advanceWeek`が
 // 内部で進める週とずれる（2026-09-17に実際にこれで誤った結論を出した）。
+//
+// ⚠️⚠️**断るコストの検出方法を2026-09-17に直した**（`devlog/wave10.md`§9）。
+// 以前は`bigTrustChange`通知（差が`BIG_TRUST_CHANGE_THRESHOLD`(4)以上のときだけ出る）を
+// 数えていたが、断るコスト`DECLINE_MAIN_MOUNT_TRUST_LOSS`は2で、単発では通知の閾値に
+// 届かない。⭐**通知が0件でも、断るコスト自体は発動している場合がある**——この取り違えで
+// 「断るコストが1度も発動しなかった」という誤った結論を出しかけた。今は`defaultChooseMounts`を
+// `chooseMounts`へ薄いラッパーで渡し、誰が実際に乗ったかを直接観測して、主戦の馬の依頼が
+// 来たのに乗らなかった回数を数える（`declineOfMainMountCount`）。挙動は従来と完全に同じ
+// （`defaultChooseMounts`を呼ぶだけ）——観測を増やしただけで選び方は変えていない。
 
 import { bootstrapRoster } from "../src/domain/bootstrap.js";
 import { createPlayer } from "../src/domain/player.js";
 import { advanceWeek } from "../src/domain/weekLoop.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../src/domain/weeklyRequests.js";
-import { courseIdsAvailable, confirmMounts } from "../src/domain/fridayConfirmation.js";
+import { courseIdsAvailable, confirmMounts, defaultChooseMounts } from "../src/domain/fridayConfirmation.js";
 import { DAY } from "../src/data/weekDays.js";
+import { isMainMount } from "../src/domain/mainMount.js";
 
 const WEEKS = Number(process.argv[2] ?? 52);
 const SEEDS = Number(process.argv[3] ?? 5);
@@ -65,12 +75,22 @@ function runOneSeed(saveSeed) {
       if (firstGradedOfferWeek === null) firstGradedOfferWeek = week;
     }
 
-    const res = advanceWeek(saveSeed, roster, player);
+    // ⭐`defaultChooseMounts`を薄いラッパーで渡し、選び方は変えずに誰が選ばれたかを観測する。
+    let selectedHorseIds = new Set();
+    const res = advanceWeek(saveSeed, roster, player, {
+      chooseMounts: (candidates, maxSlots) => {
+        const selected = defaultChooseMounts(candidates, maxSlots);
+        selectedHorseIds = new Set(selected.map((m) => m.horseId));
+        return selected;
+      },
+    });
 
-    // ⚠️`advanceWeek`は確定した鞍を返さないので、実際に何鞍乗ったかはここでは数えない
-    // （代わりに上の「埋まる上限」を見る）。断るコストの発動は通知から数える。
-    for (const n of res.notifications) {
-      if (n.type === "bigTrustChange" && n.delta < 0) declineOfMainMountCount += 1;
+    // 主戦の馬に依頼が来たのに（＝主戦のまま）今週乗らなかった回数を直接数える
+    // （通知には頼らない——理由は冒頭のコメント）。
+    for (const r of requests) {
+      if (selectedHorseIds.has(r.horseId)) continue; // 乗った
+      if (!isMainMount(player.mainMounts, r.horseId)) continue; // 主戦以外は対象外
+      declineOfMainMountCount += 1;
     }
 
     roster = res.roster;
@@ -86,7 +106,7 @@ function runOneSeed(saveSeed) {
     ceilingAvg: ceilingSum / weeksCounted,
     weeksWithGradedOffer,
     firstGradedOfferWeek,
-    bigTrustDrops: declineOfMainMountCount,
+    declineOfMainMountCount,
     trainer: summarize(trainerTrusts),
     owner: summarize(ownerTrusts),
     trainerNegative: trainerTrusts.filter((v) => v < 0).length,
@@ -120,7 +140,7 @@ console.log(`1週に埋められる鞍数の上限の平均：${avg((r) => r.cei
 console.log(`厩舎への信頼：最大の平均${avg((r) => r.trainer.max).toFixed(1)}・相手数の平均${avg((r) => r.trainerCount).toFixed(1)}`);
 console.log(`馬主への信頼：最大の平均${avg((r) => r.owner.max).toFixed(1)}・相手数の平均${avg((r) => r.ownerCount).toFixed(1)}`);
 console.log(`信頼が負に落ちた相手：合計${rows.reduce((a, r) => a + r.trainerNegative + r.ownerNegative, 0)}件`);
-console.log(`信頼が大きく下がった通知：合計${rows.reduce((a, r) => a + r.bigTrustDrops, 0)}件`);
+console.log(`主戦の馬の依頼を断った回数：合計${rows.reduce((a, r) => a + r.declineOfMainMountCount, 0)}件`);
 const reached = rows.filter((r) => r.firstGradedOfferWeek !== null);
 console.log(
   `重賞の依頼に届いた初期値：${reached.length}/${rows.length}通り` +

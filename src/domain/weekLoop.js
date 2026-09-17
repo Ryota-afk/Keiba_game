@@ -88,6 +88,7 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   previousRequestHorseIds?: Set<string>,
  *   chooseCourse?: (coursesByDay: {sat:string[], sun:string[]}, requests: object[]) =>
  *     {sat: string|null, sun: string|null},
+ *   chooseMounts?: (candidates: object[], maxSlots: number) => object[],
  *   chooseStrategy?: (mount: object, horse: object) => string,
  *   maxMounts?: number,
  * }} [options]
@@ -123,7 +124,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     ? options.chooseCourse(coursesByDay, requests)
     : defaultChooseCourse(coursesByDay, requests);
   const maxMounts = options.maxMounts ?? RIDABLE_SLOTS_PER_WEEK;
-  const confirmedRaw = confirmMounts(requests, courseByDay, maxMounts);
+  const confirmedRaw = confirmMounts(requests, courseByDay, maxMounts, options.chooseMounts);
   const mounts = confirmedRaw
     .filter((m) => !isSidelined(horsesById.get(m.horseId))) // 離脱中は乗れない
     .map((m) => {
