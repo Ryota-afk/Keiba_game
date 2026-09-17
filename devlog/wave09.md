@@ -99,8 +99,11 @@
 2. ⚠️**開催の回次・日次（「3回中山6日目」）のデータが無い。**
    `data/jraMeetingSchedule.js`が持つのは「その週にどの競馬場が開いているか」だけ。
    モック（`riding-offers-v2.html`）のヘッダはこれを出しているが、実データでは埋まらない。
-3. ⚠️**馬主ごとの信頼値をプレイヤーが持っていない。** `player.ownerTrust`は空のまま。
-   §1②（重賞の判定に馬主の信頼を入れる）はこれが無いと成立しない。
+3. ⚠️⚠️**訂正（2026-09-17）**：ここに「馬主ごとの信頼値をプレイヤーが持っていない」と
+   書いたが**誤りだった**。`createPlayer`で`{}`なのを見て、grepせずに結論を書いた。
+   実際は増える——勝ったとき`+3`（`domain/weekResults.js`の`WIN_OWNER_TRUST_GAIN`）、
+   平日に人に会ったとき（`domain/weekdayActions.js`の`MEET_PEOPLE_TRUST_GAIN`）。
+   ⭐**本当に無いのは、信頼を読んで「この重賞に乗れるか」を決める関数**（`TODO.md` #88）。
 4. ⚠️**馬の年齢が依頼から取れない。** `horse.bornYear`と`player.currentYear`から計算する。
 
 
@@ -201,3 +204,66 @@
 最下段）。⚠️ユーザーが消させた「乗れるのは1頭です」と同じ型の説明文に見えるが、⭐**こちらは
 「主戦」という状態表示だけでは分からない結果を書いている**（束ねという形では伝わらない）。
 残すか消すかはユーザーに確認する。
+
+## 8. 見た目が合意（2026-09-17）
+
+ユーザーの言葉：「残していいよ」＝主戦の行の「断ると信頼が下がります」は**残す**。
+⭐**`design/mocks/week-offers-v3.html`（案2・直し後）で見た目は確定。**
+これ以降、この画面の見た目を変えるときは改めてCLAUDE.md §8の手順を通すこと。
+
+## 9. 実装の設計図（`/model claude-sonnet-5`へ渡すもの）
+
+⚠️**この順でやること。** 前の段が終わっていないと次が測れない。
+
+### 段1：レースに土曜／日曜を割り当てる（`TODO.md` #86）
+**無いと1日1場が成立しない。** `domain/weeklyCard.js`が返すレースに`day: "sat" | "sun"`を足す。
+
+- 本数の数え方は今も「開催中の競馬場の数 × 2日 × `racesPerDay(year)`」なので、
+  **1競馬場あたり`racesPerDay(year)`本ずつを土曜と日曜に割る**のが素直。
+- ⚠️重賞は`data/gradedRacesByYear.js`の実データに日付が無い。⭐**史実のG1は日曜**が原則
+  なので、**重賞は日曜に置く**（`source === RACE_SOURCE.GRADED`）。
+  ⚠️それ以外の根拠は無い。`devlog`に「根拠の無い仮置き」と明記すること。
+- 乱数は`RNG_STREAMS.NPC_RACE`ではなく**番組表と同じ`rand01`**を使う（同じ週なら毎回同じ割り）。
+- **測ること**：52週で土曜と日曜の本数がほぼ半々か／重賞が日曜に寄ったか。
+
+### 段2：土日で2つの競馬場を選べるようにする（#89の土台）
+`domain/fridayConfirmation.js`の`confirmMounts(requests, courseId, maxSlots)`が
+**週に1つの`courseId`しか受け取らない**。`{ sat: courseId|null, sun: courseId|null }`を
+受け取る形へ変える。
+
+- `courseIdsAvailable(requests)`も日ごとに返す形（`{ sat: [...], sun: [...] }`）へ。
+- ⚠️**同じレースには1頭しか乗れない**——確定するとき`raceId`の重複を落とす。
+  ⚠️今の`confirmMounts`は`quality`順に`slice`するだけで、この判定が無い。
+- ⚠️呼び出し元は`domain/weekLoop.js`と`screens/WeekScreen.jsx`。
+- **測ること**：52週で実際に確定できた鞍数の平均（3件に届くか。§3の実測では85%の週で3件可能）。
+
+### 段3：断るコストを入れる（§1④）
+⭐**主戦を張っている馬の依頼を断ったときだけ**、その厩舎の信頼が下がる。
+
+- 主戦かどうかは`player.mainMounts[horseId].isMain`（`domain/player.js`）。
+- 下げ幅は**未決**。`domain/weekResults.js`の`RIDE_TRAINER_TRUST_GAIN`（乗ると上がる量）と
+  `WIN_TRAINER_TRUST_GAIN`（勝つと上がる量）を見て置き、⚠️**置いたら測る**——
+  52週で信頼が積み上がるか、一方的に減らないか。
+- ⚠️「断った」の判定は、金曜に確定しなかった依頼のうち主戦のもの。
+
+### 段4：重賞に乗れるかの判定を作る（#88）
+⭐**調教師への信頼と馬主への信頼で決める。ランクは使わない**（§1①②）。
+
+- 置き場所は`domain/`の新しいファイル（`rideEligibility.js`）。
+  ⚠️`data/ranks.js`には置かない（ランクを使わないと決めたため）。
+- 信頼は既に増える（勝ち`+3`／人に会う）。⚠️**閾値は未決。** 置いたら測る——
+  新人が何週目に初めて重賞に乗れるか。⚠️早すぎても遅すぎても壊れる。
+- ⚠️この判定は`domain/weeklyRequests.js`が依頼を作る段で使う（重賞の依頼を出すかどうか）。
+
+### 段5：画面を作る（Fable）
+`design/mocks/week-offers-v3.html`（案2）を`src/screens/WeekScreen.jsx`＋
+`WeekScreen.css`へ移す。⚠️**見た目の実装はFable**（CLAUDE.md §8手順4・`arch/ui-fable.md`）。
+
+- ⚠️⚠️**行を`<button>`で作らないこと**（§7。列が崩れる）。
+- ⚠️モックの固定幅をそのまま持ち込まないこと（CLAUDE.md §8の2026-09-04の失敗）。
+- 「行けない競馬場」の見せ方（同じ日の他の競馬場を薄くし、押すと諦めた馬を見せる）も移す。
+
+### 段6：通しで測る
+判断カードの1着率・勝ちタイム・安全網の発動は`tools/`の3本で測り直す
+（`measure-card-winrate.mjs`・`measure-sim-times.mjs`・`measure-aptitude-vs-speed.mjs`）。
+⚠️段3と段4は信頼の増減に触るので、**52週の通しで信頼が積み上がるかを必ず測る**。
