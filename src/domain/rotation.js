@@ -11,7 +11,7 @@
 
 import { classIndex } from "../data/classes.js";
 import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
-import { distanceAptitude } from "../sim/stamina.js";
+import { aptitudeParamsOf, distanceAptitudeFrom } from "../sim/stamina.js";
 import { yearIndexBucketFor } from "./weeklyCard.js";
 import { canDebutThisWeek } from "./horse.js";
 import { isSidelined } from "./fall.js";
@@ -58,9 +58,11 @@ function collectCandidates(horse, yearIndex, week) {
   return result;
 }
 
-/** 目標候補としての点数。格・賞金を主に、距離・馬場の適性で減点し、遠い週をわずかに減点する。 */
-function scoreAsTarget(race, horse, week) {
-  const distMismatch = 1 - distanceAptitude(horse, race.distance);
+/** 目標候補としての点数。格・賞金を主に、距離・馬場の適性で減点し、遠い週をわずかに減点する。
+ * ⚠️`aptParams`は`aptitudeParamsOf(horse)`の値——**1頭につき1回だけ求めて使い回すこと**
+ * （`TODO.md` #98。候補1件ごとに求め直すと、1頭あたり数百回の同じ計算になる）。 */
+function scoreAsTarget(race, horse, aptParams, week) {
+  const distMismatch = 1 - distanceAptitudeFrom(aptParams, race.distance);
   const surfaceMismatch = isSuitedToSurface(horse.surfaceAptitude, race.surface) ? 0 : 1;
   return (
     classIndex(race.classId) * RANK_WEIGHT +
@@ -71,11 +73,12 @@ function scoreAsTarget(race, horse, week) {
   );
 }
 
-/** 前哨戦の候補としての点数。目標の`PREP_LEAD_WEEKS`週前に近いほど・距離適性が高いほど良い。 */
-function scoreAsPrep(race, horse, targetWeek) {
+/** 前哨戦の候補としての点数。目標の`PREP_LEAD_WEEKS`週前に近いほど・距離適性が高いほど良い。
+ * ⚠️`aptParams`は`scoreAsTarget`と同じ——1頭につき1回だけ求めた値を渡す。 */
+function scoreAsPrep(race, aptParams, targetWeek) {
   const idealWeek = targetWeek - PREP_LEAD_WEEKS;
   const weekGap = Math.abs(race.week - idealWeek);
-  const distMismatch = 1 - distanceAptitude(horse, race.distance);
+  const distMismatch = 1 - distanceAptitudeFrom(aptParams, race.distance);
   return -weekGap * 2 - distMismatch * DISTANCE_MISMATCH_WEIGHT;
 }
 
@@ -88,15 +91,15 @@ function scoreAsPrep(race, horse, targetWeek) {
  * 一番近い週のレースを選ぶ。
  * @returns {object|null}
  */
-function pickPrepRace(candidates, target, horse) {
+function pickPrepRace(candidates, target, aptParams) {
   const before = candidates.filter((r) => r.raceId !== target.raceId && r.week < target.week);
   if (before.length === 0) return null;
   const notHarder = before.filter((r) => classIndex(r.classId) <= classIndex(target.classId));
   const pool = notHarder.length > 0 ? notHarder : before;
   let best = pool[0];
-  let bestScore = scoreAsPrep(best, horse, target.week);
+  let bestScore = scoreAsPrep(best, aptParams, target.week);
   for (const race of pool.slice(1)) {
-    const s = scoreAsPrep(race, horse, target.week);
+    const s = scoreAsPrep(race, aptParams, target.week);
     if (s > bestScore) {
       best = race;
       bestScore = s;
@@ -117,17 +120,23 @@ export function planNextTarget(horse, yearIndex, week) {
   const candidates = collectCandidates(horse, yearIndex, week);
   if (candidates.length === 0) return null;
 
+  // ⭐距離適性のもと（最適距離・適性の幅）は、比べる距離が変わっても同じ値になる。
+  // 1頭につき1回だけ求めて使い回す（`TODO.md` #98の性能問題の原因がここだった）。
+  // ⚠️**配列を作らない形（候補を1件ずつ渡す書き方）も試したが速くならなかった**
+  // ——`devlog/wave10.md`§6に実測を残してある。
+  const aptParams = aptitudeParamsOf(horse);
+
   let target = candidates[0];
-  let bestScore = scoreAsTarget(target, horse, week);
+  let bestScore = scoreAsTarget(target, horse, aptParams, week);
   for (const race of candidates.slice(1)) {
-    const s = scoreAsTarget(race, horse, week);
+    const s = scoreAsTarget(race, horse, aptParams, week);
     if (s > bestScore) {
       target = race;
       bestScore = s;
     }
   }
 
-  const prep = pickPrepRace(candidates, target, horse);
+  const prep = pickPrepRace(candidates, target, aptParams);
   const prepWeek = prep ? prep.week : null;
   const returnWeek = (prepWeek ?? target.week) - RETURN_LEAD_WEEKS;
 

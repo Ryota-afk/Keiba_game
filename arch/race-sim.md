@@ -326,6 +326,11 @@ SVGマークアップ）・`src/view/dreamDerbyCommentary.js`（実況の文組�
   **非対称**：短い側は幅を`APT_UNDER_SCALE=1.1`倍に緩める。この式は消耗（`staminaCapacity`）には
   `staminaAptitude`経由で渡る——**短い側は1.0固定**（脚は減らさない。短距離での不利は下記の
   `shortfallOf`が位置取りと直線速度に負わせる）。
+  ⭐**1頭に対して多数の距離を比べるときは`aptitudeParamsOf(horse)`で最適距離と幅を1回だけ取り、
+  `distanceAptitudeFrom(params, 距離)`を呼ぶこと**（第10弾・`TODO.md` #98）。`distanceAptitude`は
+  呼ばれるたびに`optimalDistance`・`aptitudeWidth`を計算し直す（どちらも`normalizedAbilities`で
+  9軸のオブジェクトを新しく作る）ので、`domain/rotation.js`が候補レース1件ごとに呼んでいた結果、
+  事前シミュレーション104週が2秒→23.8秒に悪化していた。値は3つとも完全に同じ（式は共有）。
 - **適正帯の表示**＝`aptitudeBand`。適性0.9になる距離を100m単位に丸めて返す
   （最適距離自体は丸めない——丸めるとスタミナ28種類が距離8種類に潰れる）。
 - **短距離での不利**＝`shortfallOf`。適正帯の下限を下回った量を0〜1.5の1つの数にし、

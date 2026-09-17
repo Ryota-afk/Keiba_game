@@ -30,6 +30,8 @@ export {
 } from "./pace.js";
 export {
   distanceAptitude,
+  aptitudeParamsOf,
+  distanceAptitudeFrom,
   staminaAptitude,
   optimalDistance,
   aptitudeWidth,

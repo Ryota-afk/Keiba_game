@@ -121,8 +121,31 @@ function aptitudeLowerBound(horse) {
  * @returns {number} 0超〜1.0
  */
 export function distanceAptitude(horse, raceDistance) {
-  const optimal = optimalDistance(horse);
-  const width = aptitudeWidth(horse);
+  return distanceAptitudeFrom(aptitudeParamsOf(horse), raceDistance);
+}
+
+/**
+ * ⭐**同じ馬で多数の距離を比べるとき用**（第10弾・`TODO.md` #98）。
+ * `optimalDistance`・`aptitudeWidth`はどちらも`normalizedAbilities`（9軸のオブジェクトを
+ * 新しく組み立て、記号を7個数値へ変換する処理）を呼ぶ。⚠️**距離が変わっても、この2つの値は
+ * 同じ馬なら変わらない。** `distanceAptitude`はこれを呼ばれるたびに計算し直すので、
+ * 1頭に対して候補の距離を何百通りも比べる場所（`domain/rotation.js`のローテーション作り）で
+ * 同じ計算を数百回繰り返していた。⭐**先に1回だけここで取り出し、`distanceAptitudeFrom`へ
+ * 渡すこと。** 計算結果は`distanceAptitude`と完全に同じ（式は共有）。
+ * @param {object} horse
+ * @returns {{ optimal: number, width: number }}
+ */
+export function aptitudeParamsOf(horse) {
+  return { optimal: optimalDistance(horse), width: aptitudeWidth(horse) };
+}
+
+/**
+ * 距離適性の本体。`aptitudeParamsOf`で取り出した値から出す。
+ * @param {{ optimal: number, width: number }} params
+ * @param {number} raceDistance - m
+ * @returns {number} 0超〜1.0
+ */
+export function distanceAptitudeFrom({ optimal, width }, raceDistance) {
   const over = raceDistance > optimal;
   const x = over
     ? (raceDistance - optimal) / width
