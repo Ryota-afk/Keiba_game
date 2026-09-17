@@ -71,3 +71,14 @@ grep -P "[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]" <jsx/html>  # 絵文字（0が�
 ```
 Playwrightで`devices['iPhone 13']`のスクリーンショットを撮り、**絵を見る**（CLAUDE.md §14）。
 文言は`node tools/check-words.mjs`を通す（画面の文言にもA項目の言葉を使わない）。
+
+### §4の補足：この環境でスクリーンショットを撮るときの実際（2026-09-17・週の画面で確定）
+- **確認用の入口ページは`src/`の中に置く**（`src/week-harness.html`＋`src/devWeekHarness.jsx`の形）。
+  Viteの起点が`src/`なので、外に置くと本編の`index.html`に差し替えられ、タイトル画面が写る。
+  入口ページはコミットしない（撮り終えたら消す）。
+- **Playwrightは作業用フォルダに入れ、`/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`を
+  `executablePath`に渡す**（`chromium-1194`本体は`--headless=old`を受け付けない）。
+  外部フォントは証明書の都合で読めないので`waitUntil: "domcontentloaded"`にし、
+  **撮った絵は代替フォントである**と報告に書く。
+- **台本で行を押すときは行の中央ではなく馬名の部分を押す**（`row.$eval(".wk-r__name", el => el.click())`）。
+  開いた行の中央は「乗る／外す」のボタンなので、中央を押すと選択が入れ替わり、狙った状態が撮れない。

@@ -1,42 +1,85 @@
-// 週の進行の最小画面（第2弾の範囲：「デビュー→1年目の終わり」を人が通せる形まで）。
-// ⚠️見た目は仮（ARCHITECTURE.md「第2弾の範囲」）。騎乗依頼を面で見せる本番のUI
-// （`design/mocks/week-offers-v3.html`の案2で2026-09-17に合意済み）は、見た目の実装を
-// Fableが担当する本筋3・手順5でここへ移す（CLAUDE.md §8・`devlog/wave09.md`§9）。
-// ここは土日それぞれの競馬場選択・1レース1頭・断るコストなど、本筋3で決まった
-// 背後のロジックが正しく動くことだけを満たす仮の見た目のまま。
+// 今週の騎乗依頼（月曜）の画面。本筋3・手順②（2026-09-17・Fable）。
+// 見本：`design/mocks/week-offers-v3.html`（案2・レースが主役・1レース＝1つの表）と
+//       `design/mocks/week-offers-v4.html`（案B・行を押すとその行の下に「乗る」と「出馬表」が
+//       開く。「この週を進める」は一覧の末尾）。ユーザーの直し：「自分の厩舎」→「所属厩舎」。
+// 操作の決まり（見本の台本と`domain/fridayConfirmation.js`の制約をそのまま画面で守る）：
+//   ・乗れるのは週`RIDABLE_SLOTS_PER_WEEK`鞍。決めた分だけ「あと◯件」が減る
+//   ・同じレースには1頭だけ——決めた表の残りの行は薄くなる
+//   ・1日1場——その日に別の競馬場で決めると、他の競馬場のタブは薄くなり、押すと理由が出る
+//   ・薄い行は押しても開かない。開く行は同時に1つ
+// 乗る馬・行く競馬場はプレイヤーの選択をそのまま`advanceWeek`へ渡す（`chooseMounts`・
+// `chooseCourse`）。何も決めなければ、その日はどこへも行かない。
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
-import { courseIdsAvailable } from "../domain/fridayConfirmation.js";
-import { DAY } from "../data/weekDays.js";
-import { weekOfYear } from "../data/calendar.js";
-import { findCourse } from "../data/courses.js";
+import { isMainMount } from "../domain/mainMount.js";
+import { isSidelined } from "../domain/fall.js";
+import { deriveFavoredStrategy } from "../domain/strategy.js";
+import { GENDER_LABEL } from "../domain/horse.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
-import { RANK_LABELS } from "../data/ranks.js";
+import { DAY } from "../data/weekDays.js";
 import { INJURY_LABELS } from "../data/injuryLabels.js";
-import { SURFACE_LABELS } from "../data/aptitudeLabels.js";
-import { classDisplayName } from "../data/classes.js";
+import { STRATEGY_LABELS } from "../data/aptitudeLabels.js";
+import {
+  formatWeekLabel,
+  groupRequestsByDay,
+  raceHeadline,
+  recordLabel,
+  surfaceMarkId,
+  lockedCourseMessage,
+  emptyDayMessage,
+  EMPTY_WEEK_MESSAGE,
+} from "../view/weekOffersView.js";
 import { EntryListScreen } from "./EntryListScreen.jsx";
+import "./WeekScreen.css";
 
+const DAY_LABEL = Object.freeze({ [DAY.SAT]: "土曜", [DAY.SUN]: "日曜" });
+
+/** 芝・ダートの相性4段。同じ20px枠・同じ2pxの線で描く（フォントの字形だと○が△より小さく見える）。 */
+function SurfaceMarkDefs() {
+  return (
+    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+      <symbol id="wk-m2" viewBox="0 0 20 20">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+        <circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" strokeWidth="2" />
+      </symbol>
+      <symbol id="wk-m1" viewBox="0 0 20 20">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+      </symbol>
+      <symbol id="wk-m3" viewBox="0 0 20 20">
+        <path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      </symbol>
+      <symbol id="wk-mx" viewBox="0 0 20 20">
+        <path d="M3 3 L17 17 M17 3 L3 17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </symbol>
+    </svg>
+  );
+}
+
+/** 先週の出来事を1行の文にする。⚠️見本には無い行（本体の報告で要否を確認する）。 */
 function notificationText(n, horsesById, stablesById) {
   const horseName = (id) => horsesById.get(id)?.name ?? id;
   switch (n.type) {
     case NOTIFICATION_TYPES.LOST_MAIN_MOUNT:
-      return `主戦の座を失った：${horseName(n.horseId)}`;
+      return { text: `${horseName(n.horseId)}の主戦を、他の騎手に取られました。`, hot: true };
     case NOTIFICATION_TYPES.INJURY:
-      return `落馬・怪我：${horseName(n.horseId)}（${INJURY_LABELS[n.injuryType] ?? n.injuryType}・${n.weeksOut}週間乗れません）`;
+      return {
+        text: `${horseName(n.horseId)}が${INJURY_LABELS[n.injuryType] ?? n.injuryType}。${n.weeksOut}週間乗れません。`,
+        hot: true,
+      };
     case NOTIFICATION_TYPES.BIG_TRUST_CHANGE: {
-      const targetName =
-        n.targetType === "trainer" ? stablesById.get(n.targetId)?.trainerName ?? n.targetId : n.targetId;
-      return `信頼が大きく動いた：${targetName}（${n.delta > 0 ? "+" : ""}${n.delta}）`;
+      const who =
+        n.targetType === "trainer" ? `${stablesById.get(n.targetId)?.trainerName ?? n.targetId}調教師` : "馬主";
+      return {
+        text: n.delta > 0 ? `${who}からの信頼が大きく上がりました。` : `${who}からの信頼が大きく下がりました。`,
+        hot: n.delta < 0,
+      };
     }
-    case NOTIFICATION_TYPES.NEW_REQUEST:
-      return `新しい依頼：${horseName(n.horseId)}`;
     case NOTIFICATION_TYPES.FATIGUE_DANGER:
-      return `疲労が危険水域（${n.fatigue}）`;
+      return { text: "疲れがたまっています。落馬しやすくなっています。", hot: true };
     default:
-      return JSON.stringify(n);
+      return null;
   }
 }
 
@@ -47,10 +90,13 @@ function notificationText(n, horsesById, stablesById) {
 export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }) {
   const [roster, setRoster] = useState(initialRoster);
   const [player, setPlayer] = useState(initialPlayer);
-  const [log, setLog] = useState([]); // { week, year, notifications: [] }[]
-  const [selectedCourseByDay, setSelectedCourseByDay] = useState({ [DAY.SAT]: null, [DAY.SUN]: null });
-  // 出馬表を開いている依頼（質問25＝(ア)：月曜の依頼の段階から見せる）。
+  const [lastNotifications, setLastNotifications] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null); // null＝依頼のある最初の日
+  const [viewCourseByDay, setViewCourseByDay] = useState({ [DAY.SAT]: null, [DAY.SUN]: null });
+  const [pickedHorseIds, setPickedHorseIds] = useState(() => new Set());
+  const [openHorseId, setOpenHorseId] = useState(null);
   const [entryListRequest, setEntryListRequest] = useState(null);
+  const rootRef = useRef(null);
 
   const horsesById = useMemo(() => new Map(roster.horses.map((h) => [h.id, h])), [roster]);
   const stablesById = useMemo(() => new Map(roster.stables.map((s) => [s.id, s])), [roster]);
@@ -60,21 +106,81 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     () => generateWeeklyRequests(saveSeed, week, roster, player),
     [saveSeed, week, roster, player]
   );
-  const coursesByDay = useMemo(() => courseIdsAvailable(requests), [requests]);
-  // ⭐**1日1場**（2026-09-16のユーザー決定）——土曜・日曜それぞれで競馬場を選べる。
-  // 選んだ場が今週の一覧に無ければ、その日の最初の候補に戻す。
-  const courseByDay = {
-    [DAY.SAT]:
-      selectedCourseByDay[DAY.SAT] && coursesByDay[DAY.SAT].includes(selectedCourseByDay[DAY.SAT])
-        ? selectedCourseByDay[DAY.SAT]
-        : coursesByDay[DAY.SAT][0] ?? null,
-    [DAY.SUN]:
-      selectedCourseByDay[DAY.SUN] && coursesByDay[DAY.SUN].includes(selectedCourseByDay[DAY.SUN])
-        ? selectedCourseByDay[DAY.SUN]
-        : coursesByDay[DAY.SUN][0] ?? null,
-  };
+  const byDay = useMemo(() => groupRequestsByDay(requests), [requests]);
+  const requestByHorseId = useMemo(() => new Map(requests.map((r) => [r.horseId, r])), [requests]);
+
+  // その日に「行く」と決まった競馬場＝その日に乗る馬を決めた競馬場（1日1場）。
+  const goingCourseByDay = useMemo(() => {
+    const going = { [DAY.SAT]: null, [DAY.SUN]: null };
+    for (const horseId of pickedHorseIds) {
+      const r = requestByHorseId.get(horseId);
+      if (r) going[r.day] = r.courseId;
+    }
+    return going;
+  }, [pickedHorseIds, requestByHorseId]);
+
+  // 決めた表（同じレース）のraceId
+  const pickedRaceIds = useMemo(() => {
+    const ids = new Set();
+    for (const horseId of pickedHorseIds) {
+      const r = requestByHorseId.get(horseId);
+      if (r) ids.add(r.raceId);
+    }
+    return ids;
+  }, [pickedHorseIds, requestByHorseId]);
+
+  const slotsLeft = RIDABLE_SLOTS_PER_WEEK - pickedHorseIds.size;
+  const weekHasRequests = requests.length > 0;
+
+  const day =
+    selectedDay ?? (byDay[DAY.SAT].length > 0 || byDay[DAY.SUN].length === 0 ? DAY.SAT : DAY.SUN);
+  const coursesToday = byDay[day];
+  const viewCourseId =
+    viewCourseByDay[day] && coursesToday.some((c) => c.courseId === viewCourseByDay[day])
+      ? viewCourseByDay[day]
+      : coursesToday[0]?.courseId ?? null;
+  const viewCourse = coursesToday.find((c) => c.courseId === viewCourseId) ?? null;
+  const goingToday = goingCourseByDay[day];
+  const viewIsLocked = goingToday != null && viewCourseId != null && viewCourseId !== goingToday;
 
   const yearCompleted = player.currentYear > startYear;
+
+  function rowState(request) {
+    const horse = horsesById.get(request.horseId);
+    const isPicked = pickedHorseIds.has(request.horseId);
+    const sidelined = horse ? isSidelined(horse) : false;
+    const raceTaken = pickedRaceIds.has(request.raceId) && !isPicked;
+    const dayTaken = goingCourseByDay[request.day] != null && goingCourseByDay[request.day] !== request.courseId;
+    const full = slotsLeft <= 0 && !isPicked;
+    return { isPicked, isOff: !isPicked && (sidelined || raceTaken || dayTaken || full), sidelined };
+  }
+
+  function togglePick(horseId) {
+    setPickedHorseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(horseId)) next.delete(horseId);
+      else next.add(horseId);
+      return next;
+    });
+    setOpenHorseId(null);
+  }
+
+  function handleAdvance() {
+    const res = advanceWeek(saveSeed, roster, player, {
+      chooseCourse: () => ({ [DAY.SAT]: goingCourseByDay[DAY.SAT], [DAY.SUN]: goingCourseByDay[DAY.SUN] }),
+      chooseMounts: (candidates) => candidates.filter((c) => pickedHorseIds.has(c.horseId)),
+    });
+    setRoster(res.roster);
+    setPlayer(res.player);
+    setLastNotifications(res.notifications);
+    setPickedHorseIds(new Set());
+    setOpenHorseId(null);
+    setSelectedDay(null);
+    setViewCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
+    // 週が変わったら一覧の先頭へ戻す（前の週の位置のままだと見出しが画面の外に残る）。
+    rootRef.current?.closest(".screen-pane")?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }
 
   if (entryListRequest) {
     const entryHorse = horsesById.get(entryListRequest.horseId);
@@ -92,117 +198,185 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     );
   }
 
-  function handleAdvance() {
-    const res = advanceWeek(saveSeed, roster, player, {
-      chooseCourse: () => courseByDay,
-    });
-    setRoster(res.roster);
-    setPlayer(res.player);
-    setLog((prev) => [{ week, year: player.currentYear, notifications: res.notifications }, ...prev]);
-    setSelectedCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
-  }
+  const notes = lastNotifications
+    .map((n) => notificationText(n, horsesById, stablesById))
+    .filter(Boolean);
 
   return (
-    <main
-      style={{
-        // ⚠️外枠`.screen-stack`（styles/motion.css）は黒地。ここが透明だと黒地に黒文字になる
-        // （2026-09-06に人間の通しプレイで「週メニューが真っ黒」と報告された）。
-        // 暗転の覆い（`.m6-cover`）と同じクリーム色を敷き、縦にあふれた分はこの画面の中でスクロールさせる。
-        background: "#f2ede0",
-        color: "#1c1712",
-        minHeight: "100dvh",
-        boxSizing: "border-box",
-        overflowY: "auto",
-        padding: 24,
-        fontFamily: "\"M PLUS 1p\", sans-serif",
-        maxWidth: 520,
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ fontSize: 20 }}>
-        {player.currentYear}年 {weekOfYear(week)}週目
-      </h1>
-      <p>
-        騎手：{player.jockey.name}（{RANK_LABELS[player.jockey.rank] ?? player.jockey.rank}） ／ 所持金：{player.money.toLocaleString()}円
-      </p>
+    <main className="week-screen" ref={rootRef}>
+      <SurfaceMarkDefs />
 
-      {yearCompleted && (
-        <p style={{ background: "#dff5df", padding: 12, fontWeight: "bold" }}>
-          1年目が終わりました。（第2弾の範囲はここまで）
-        </p>
+      <div className="wk-hd">
+        <div className="wk-hd__week">{formatWeekLabel(player.currentYear, week)}</div>
+        <div className="wk-hd__left">
+          あと<b>{slotsLeft}</b>件
+        </div>
+      </div>
+
+      {notes.length > 0 && (
+        <div className="wk-notes">
+          {notes.map((note, i) => (
+            <p key={i} className={note.hot ? "wk-notes__hot" : undefined}>
+              {note.text}
+            </p>
+          ))}
+        </div>
       )}
 
-      <section style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15 }}>今週の依頼（{requests.length}件・乗れるのは{RIDABLE_SLOTS_PER_WEEK}鞍）</h2>
-        <ul>
-          {requests.map((r) => {
-            const horse = horsesById.get(r.horseId);
-            const stable = stablesById.get(r.stableId);
-            const course = findCourse(r.courseId);
-            const raceLabel = r.raceName ?? classDisplayName(r.classId);
+      {yearCompleted && <div className="wk-notes">1年目が終わりました。</div>}
+
+      <div className="wk-days">
+        {[DAY.SAT, DAY.SUN].map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={[d === day ? "is-on" : "", byDay[d].length === 0 ? "is-zero" : ""].join(" ").trim()}
+            onClick={() => {
+              setSelectedDay(d);
+              setOpenHorseId(null);
+            }}
+          >
+            {DAY_LABEL[d]}
+          </button>
+        ))}
+      </div>
+
+      {!weekHasRequests && <div className="wk-empty">{EMPTY_WEEK_MESSAGE}</div>}
+
+      {weekHasRequests && coursesToday.length === 0 && <div className="wk-empty">{emptyDayMessage(day)}</div>}
+
+      {coursesToday.length > 0 && (
+        <div className="wk-courses">
+          {coursesToday.map((c) => {
+            const locked = goingToday != null && c.courseId !== goingToday;
             return (
-              <li key={r.horseId}>
-                {horse?.name} （{stable?.trainerName}厩舎） — {raceLabel}
-                {r.grade ? `（${r.grade.toUpperCase()}）` : ""}{" "}
-                {r.day === DAY.SAT ? "土曜" : "日曜"} {course?.name ?? r.courseId}{" "}
-                {SURFACE_LABELS[r.surface] ?? r.surface}
-                {r.distance}m{" "}
-                <button type="button" onClick={() => setEntryListRequest(r)}>
-                  出馬表を見る
-                </button>
-              </li>
+              <button
+                key={c.courseId}
+                type="button"
+                className={[c.courseId === viewCourseId ? "is-on" : "", locked ? "is-lock" : ""].join(" ").trim()}
+                onClick={() => {
+                  setViewCourseByDay((prev) => ({ ...prev, [day]: c.courseId }));
+                  setOpenHorseId(null);
+                }}
+              >
+                {c.courseName}
+                <span className="wk-courses__n">{c.count}</span>
+              </button>
             );
           })}
-        </ul>
-      </section>
-
-      {[DAY.SAT, DAY.SUN].map((day) =>
-        coursesByDay[day].length > 1 ? (
-          <section key={day}>
-            <h2 style={{ fontSize: 15 }}>
-              {day === DAY.SAT ? "土曜" : "日曜"}に行く競馬場を選ぶ
-            </h2>
-            {coursesByDay[day].map((cid) => (
-              <label key={cid} style={{ marginRight: 12 }}>
-                <input
-                  type="radio"
-                  name={`course-${day}`}
-                  checked={courseByDay[day] === cid}
-                  onChange={() =>
-                    setSelectedCourseByDay((prev) => ({ ...prev, [day]: cid }))
-                  }
-                />
-                {findCourse(cid)?.name ?? cid}
-              </label>
-            ))}
-          </section>
-        ) : null
+        </div>
       )}
 
-      <button type="button" onClick={handleAdvance} style={{ marginTop: 16, padding: "10px 20px" }}>
-        この週を進める
-      </button>
+      {viewIsLocked && (
+        <div className="wk-empty is-lock">{lockedCourseMessage(day, goingToday, viewCourseId)}</div>
+      )}
 
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 15 }}>これまでの通知</h2>
-        {log.length === 0 && <p>まだありません。</p>}
-        {log.map((entry, i) => (
-          <div key={i} style={{ marginBottom: 8 }}>
-            <strong>
-              {entry.year}年 {weekOfYear(entry.week)}週目
-            </strong>
-            {entry.notifications.length === 0 ? (
-              <p>特になし。</p>
-            ) : (
-              <ul>
-                {entry.notifications.map((n, j) => (
-                  <li key={j}>{notificationText(n, horsesById, stablesById)}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </section>
+      {viewCourse &&
+        viewCourse.races.map((race) => {
+          const head = raceHeadline(race);
+          return (
+            <React.Fragment key={race.raceId}>
+              <div className="wk-race">
+                <div className="wk-race__big">
+                  <span className="wk-race__sf">{head.surfaceLabel}</span>
+                  {head.distanceLabel}
+                  <span className="wk-race__cls">{head.classLabel}</span>
+                </div>
+              </div>
+              <div className="wk-t">
+                <div className="wk-th">
+                  <span>馬名</span>
+                  <span>性</span>
+                  <span>走り方</span>
+                  <span className="wk-c">{head.surfaceColumnLabel}</span>
+                  <span className="wk-tr">調教師</span>
+                </div>
+                {race.requests.map((request) => {
+                  const horse = horsesById.get(request.horseId);
+                  const stable = stablesById.get(request.stableId);
+                  const { isPicked, isOff, sidelined } = rowState(request);
+                  const isOpen = openHorseId === request.horseId;
+                  const isMain = isMainMount(player.mainMounts, request.horseId);
+                  const className = ["wk-r", isPicked ? "is-on" : "", isOff ? "is-off" : "", isOpen ? "is-open" : ""]
+                    .join(" ")
+                    .trim();
+                  const openRow = () => {
+                    if (isOff) return;
+                    setOpenHorseId((prev) => (prev === request.horseId ? null : request.horseId));
+                  };
+                  return (
+                    <div
+                      key={request.horseId}
+                      className={className}
+                      role="button"
+                      tabIndex={isOff ? -1 : 0}
+                      aria-disabled={isOff || undefined}
+                      aria-expanded={isOpen}
+                      onClick={openRow}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openRow();
+                        }
+                      }}
+                    >
+                      <span className="wk-r__name">
+                        {horse?.name ?? request.horseId}
+                        <small>
+                          {isMain && <span className="wk-r__main">主戦</span>}
+                          {isPicked ? "乗ります" : horse ? recordLabel(horse) : ""}
+                        </small>
+                      </span>
+                      <span>{horse ? GENDER_LABEL[horse.gender] ?? horse.gender : ""}</span>
+                      <span>{horse ? STRATEGY_LABELS[deriveFavoredStrategy(horse)] : ""}</span>
+                      <svg className="wk-r__sym" aria-hidden="true">
+                        <use href={`#${horse ? surfaceMarkId(horse, race.surface) : "wk-m3"}`} />
+                      </svg>
+                      <span className="wk-r__tr">
+                        {stable?.trainerName ?? ""}
+                        {request.isFromOwnStable && <small>所属厩舎</small>}
+                      </span>
+                      {sidelined && !isPicked && (
+                        <span className="wk-r__warn is-muted">
+                          {INJURY_LABELS[horse.injury.type] ?? "怪我"}であと{horse.injury.weeksRemaining}週間乗れません
+                        </span>
+                      )}
+                      {isMain && !isPicked && !sidelined && <span className="wk-r__warn">断ると信頼が下がります</span>}
+                      <span className="wk-r__acts">
+                        <button
+                          type="button"
+                          className="wk-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePick(request.horseId);
+                          }}
+                        >
+                          {isPicked ? "外す" : "乗る"}
+                        </button>
+                        <button
+                          type="button"
+                          className="wk-lnk"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEntryListRequest(request);
+                          }}
+                        >
+                          出馬表
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </React.Fragment>
+          );
+        })}
+
+      <div className={["wk-adv", !weekHasRequests || coursesToday.length === 0 ? "is-tight" : ""].join(" ").trim()}>
+        <button type="button" className="wk-btn" onClick={handleAdvance}>
+          この週を進める
+        </button>
+      </div>
     </main>
   );
 }
