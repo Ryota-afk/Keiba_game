@@ -103,13 +103,39 @@ function TitleHorse({ className = "", coat, coatDark, silk }) {
   );
 }
 
-export function TitleScreen({ onStart }) {
+/** 所持金の表示。週の画面でも同じ形にする（3,395,000円）。 */
+function formatMoney(n) {
+  return `${Number(n).toLocaleString("ja-JP")}円`;
+}
+
+/**
+ * @param {object} props
+ * @param {(year:number, difficulty:string)=>void} props.onStart - 新しく始める
+ * @param {boolean} [props.hasSave] - 保存した記録があるか。偽なら記録の1枚を出さず、確認も出さない
+ * @param {()=>void} [props.onContinue] - 保存した記録から再開する
+ * @param {{name:string, weekLabel:string, money:number}|null} [props.saveSummary] -
+ *   記録の1枚に出す値。name＝騎手の姓名（姓＋名を続けて）、weekLabel＝「1974年 4月4週」の形
+ *   （`view/weekOffersView.js`の`formatWeekLabel`）、money＝所持金の数値（ここで「3,395,000円」にする）
+ */
+export function TitleScreen({ onStart, hasSave = false, onContinue, saveSummary = null }) {
   const [year, setYear] = useState(null);
   const [difficulty, setDifficulty] = useState(null);
+  // 保存がある状態で「騎手になる」を押したときの上書きの確認（案B・`design/mocks/title-continue-v2.html`）
+  const [confirming, setConfirming] = useState(false);
   const ready = year != null && difficulty != null;
+  const showContinue = hasSave && saveSummary != null;
 
   function handleStart() {
     if (!ready) return;
+    if (hasSave) {
+      setConfirming(true);
+      return;
+    }
+    onStart?.(year, difficulty);
+  }
+
+  function handleWipe() {
+    setConfirming(false);
     onStart?.(year, difficulty);
   }
 
@@ -171,6 +197,20 @@ export function TitleScreen({ onStart }) {
             騎手になる
           </button>
         </div>
+
+        {showContinue && (
+          <button type="button" className="title-screen__continue" onClick={() => onContinue?.()}>
+            <span className="title-screen__continue-left">
+              <span className="title-screen__continue-verb">つづきから</span>
+              <span className="title-screen__continue-sub">
+                <span className="title-screen__continue-name">{saveSummary.name}</span>
+                {"\u3000"}
+                <span className="title-screen__continue-week">{saveSummary.weekLabel}</span>
+              </span>
+            </span>
+            <span className="title-screen__continue-money">{formatMoney(saveSummary.money)}</span>
+          </button>
+        )}
       </div>
 
       <div className="title-screen__track" aria-hidden="true">
@@ -179,6 +219,25 @@ export function TitleScreen({ onStart }) {
         <TitleHorse className="title-horse--2" coat="#4a3020" coatDark="#2e1c12" silk="#f5f5f5" />
         <TitleHorse className="title-horse--3" coat="#b0682f" coatDark="#7a4520" silk="#8e44ad" />
       </div>
+
+      {/* 上書きの確認。`.title-screen__content`の中ではなくここに置く（中に置くと馬の帯を覆えない） */}
+      {confirming && (
+        <div className="title-screen__modal" role="dialog" aria-modal="true" aria-labelledby="title-confirm-msg">
+          <div className="title-screen__modal-box">
+            <p className="title-screen__confirm-msg" id="title-confirm-msg">
+              今の記録を消して、新しく始めますか。
+            </p>
+            <div className="title-screen__confirm-btns">
+              <button type="button" className="title-screen__ghost" onClick={() => setConfirming(false)}>
+                いいえ
+              </button>
+              <button type="button" className="title-screen__start" data-ready="true" onClick={handleWipe}>
+                はい
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

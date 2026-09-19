@@ -164,6 +164,125 @@
   outline-offset: 2px;
 }
 
+/* ===== 記録の1枚「つづきから」（案B・design/mocks/title-continue-v2.html・2026-09-19） =====
+   「騎手になる」の下。窓と同じ面に、未選択の選択肢と同じ1px枠で「押せる・主役ではない」を示す。
+   青くしない（主ボタンは「騎手になる」の1つ）。保存が無いときは描画されない。 */
+
+.title-screen__continue {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: var(--s2);
+  padding: var(--s1) var(--s2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2);
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.title-screen__continue:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.title-screen__continue:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.title-screen__continue-left {
+  display: block;
+  min-width: 0;
+}
+.title-screen__continue-verb {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #fff;
+  line-height: 1.4;
+}
+.title-screen__continue-sub {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+/* 名前と進んだところは、それぞれの途中で折り返さない（折り返してよいのは間の全角空白だけ）。
+   名前は最長8文字（data/nameRules.js：姓4＋名4）。320pxで8文字のとき「1974年 4」「月4週」と
+   週の途中で割れたので、折り返す場所を間の空白に限った（実測：2行になり1枚の高さ56→73px）。 */
+.title-screen__continue-name,
+.title-screen__continue-week {
+  white-space: nowrap;
+}
+.title-screen__continue-money {
+  flex: none;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ===== 上書きの確認：画面を覆う小窓 ===== */
+
+.title-screen__modal {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s2);
+}
+.title-screen__modal-box {
+  width: 100%;
+  max-width: 400px;
+  background: #1a2a18;
+  padding: var(--s3) var(--s2) var(--s2);
+  box-shadow: 0 2px 0 #0a120a;
+}
+.title-screen__confirm-msg {
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: #fff;
+  margin: 0 0 var(--s2);
+}
+.title-screen__confirm-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s1);
+}
+.title-screen__confirm-btns .title-screen__start {
+  min-height: var(--tap);
+}
+/* 塗らないボタン（「いいえ」）。未選択の選択肢と同じ1px枠 */
+.title-screen__ghost {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-family: "M PLUS 1p", sans-serif;
+  font-weight: 700;
+  font-size: var(--fs-body);
+  letter-spacing: 0.12em;
+}
+.title-screen__ghost:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.title-screen__ghost:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ===== 馬の帯（title-track-block.html / title-track-css.cssをそのまま） ===== */
 
 .title-screen__track {

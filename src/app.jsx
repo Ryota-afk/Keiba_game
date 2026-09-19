@@ -12,6 +12,7 @@ import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "./
 import { commentaryVars, pickCommentaryLine } from "./view/dreamDerbyCommentary.js";
 import { bootstrapRosterAsync } from "./domain/bootstrap.js";
 import { readSave, writeSave } from "./state/saveGame.js";
+import { formatWeekLabel } from "./view/weekOffersView.js";
 
 // 画面遷移の起点。タイトル→夢のダービー→卒業式→週の進行（1年目の終わりまで）。
 // ⚠️週の進行画面（WeekScreen）は見た目が仮（ARCHITECTURE.md「第2弾の範囲」）。
@@ -190,9 +191,20 @@ export function App() {
     <div className="screen-stack">
       {titleMounted && (
         <div className="screen-pane">
-          {/* ⚠️`hasSave`/`onContinue`はまだ`TitleScreen`側で受け取っていない
-              （「つづきから」の見た目はFableの手順②・CLAUDE.md §8）。 */}
-          <TitleScreen onStart={handleStart} hasSave={!!existingSave} onContinue={handleContinue} />
+          <TitleScreen
+            onStart={handleStart}
+            hasSave={!!existingSave}
+            onContinue={handleContinue}
+            saveSummary={
+              existingSave
+                ? {
+                    name: existingSave.player.jockey.name,
+                    weekLabel: formatWeekLabel(existingSave.player.currentYear, existingSave.player.currentWeek),
+                    money: existingSave.player.money,
+                  }
+                : null
+            }
+          />
         </div>
       )}
 

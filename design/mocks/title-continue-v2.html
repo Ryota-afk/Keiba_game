@@ -103,6 +103,10 @@ h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:#9fb896;ma
 .strip__left{display:block;min-width:0}
 .strip__verb{display:block;font-size:var(--fs-body);font-weight:700;letter-spacing:.12em;color:#fff;line-height:1.4}
 .strip__sub{display:block;font-size:var(--fs-caption);color:var(--muted);line-height:1.5;margin-top:2px}
+/* 名前と進んだところは、それぞれの途中で折り返さない（折り返してよいのは両者の間の全角空白だけ）。
+   名前は最長8文字（nameRules.js：姓4＋名4）。320pxで8文字のとき「1974年 4」「月4週」と週の途中で
+   割れたので、折り返す場所を間の空白に限った。 */
+.strip__name,.strip__week{white-space:nowrap}
 .strip__money{flex:none;font-size:var(--fs-body);font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* 上書きの確認：画面を覆う小窓（.title-screen の直下に置き、馬の帯まで含めて覆う） */
@@ -186,7 +190,7 @@ function renderContent(s) {
   const base = `${TITLE}<div class="title-screen__window">${rows(s)}</div><div class="title-screen__foot">${startBtn(s)}</div>`;
   if (!s.hasSave) return base;
   const strip = `<button type="button" class="strip" data-act="continue">
-<span class="strip__left"><span class="strip__verb">つづきから</span><span class="strip__sub">${SAVE.name}　${SAVE.week}</span></span>
+<span class="strip__left"><span class="strip__verb">つづきから</span><span class="strip__sub"><span class="strip__name">${SAVE.name}</span>　<span class="strip__week">${SAVE.week}</span></span></span>
 <span class="strip__money">${moneyFull(SAVE.money)}</span></button>`;
   return base + strip;
 }
