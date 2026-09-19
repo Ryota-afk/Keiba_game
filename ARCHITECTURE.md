@@ -743,10 +743,22 @@ A/B比較では各アームの直前に**全アーム共通の副シードへ張
 - **夢の馬のID**（`dreamHorseId`）は`generateDreamHorse(saveSeed)`が`saveSeed`だけから決定的に
   導出する純関数なので、`saveSeed`さえ保存されていれば`generateDreamHorse(saveSeed).id`で
   いつでも再現できる。専用フィールドは不要（配合の弾で回収するときも同じ経路を使う）。
-- タイトル画面からの再開（「つづきから」ボタン）：ロジックは`src/app.jsx`の`handleContinue`が
-  持つ（`existingSave`を起動時に読み、`hasSave`/`onContinue`を`TitleScreen`へpropsで渡す）。
-  ⚠️**ボタンの見た目は未実装**（`TitleScreen.jsx`は2026-09-06にFableの§8手順で確定済みの画面
-  なので、新しい要素を足すには同じ手順のやり直しが要る。`TODO.md` #13）。
+- タイトル画面からの再開（「つづきから」）：`src/app.jsx`が起動時に`readSave()`を呼んで
+  `existingSave`に持ち、`TitleScreen`へ4つのpropsを渡す——`onStart`・`hasSave`（真偽値）・
+  `onContinue`（`handleContinue`。保存の`roster`/`player`をそのまま`gameState`へ入れ
+  `phase`を`"week"`にする）・`saveSummary`（`{ name, weekLabel, money } | null`。
+  `weekLabel`は`formatWeekLabel(player.currentYear, player.currentWeek)`で作る）。
+- 見た目は**案B**（2026-09-19にユーザーが3案から選択。`devlog/wave10.md`§12）。
+  「騎手になる」の下に記録の1枚を置き、**青く塗らない**（主ボタンは「騎手になる」のまま＝
+  §9「主ボタンは1画面に1つ」）。所持金は`toLocaleString("ja-JP")+"円"`の形。
+  ⚠️保存がある状態で「騎手になる」を押すと**上書きの確認**を1回挟む
+  （`.title-screen__modal`。`.title-screen`直下に置く——`__content`の中だと画面の下を走る馬を
+  覆えない）。保存が無いときは確認を出さずすぐ`onStart`を呼ぶ。
+- ⚠️**触ると壊れる**：記録の1枚の名前と日付は、それぞれ`white-space: nowrap`の`<span>`で、
+  折り返してよい場所を両者の間だけに限っている。外すと320px・名前8文字（上限）のとき
+  「1974年 4」「月4週」と週の途中で割れる。
+- ⚠️**既知**：iPhone SE（320×568）では記録の1枚のぶん画面が縦に52px伸び、画面の下を走る馬の
+  一部が最初の画面より下に出る（押せるものは全部収まっている。2026-09-19に直さないと決定）。
 
 ---
 

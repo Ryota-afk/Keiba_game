@@ -225,29 +225,35 @@
   white-space: nowrap;
 }
 
-/* ===== 上書きの確認：画面を覆う小窓 ===== */
+/* ===== 上書きの確認：画面を覆う小窓 =====
+   小窓の地は、この画面で唯一の明るい面（`--muted`の淡い緑）。役割＝「手前に出て画面を止める面」。
+   最初は後ろの窓と同じ`#1a2a18`で作ったが、後ろの窓（`--panel`）と同じ色・同じ幅だったため
+   別の面に見えず、後ろの選択肢を途中で切る形が表示の崩れに見えた（2026-09-19・実アプリで確認）。
+   直し：地を明るくし、文字を暗くし、左右を後ろの窓より`--s1`ずつ狭めて後ろの窓の縁を見せ、
+   硬い影を落として浮かせた。新しい色は足していない（`--muted`は既存。文字の暗色は窓の色`#1a2a18`）。 */
 
 .title-screen__modal {
   position: absolute;
   inset: 0;
   z-index: 5;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--s2);
+  padding: var(--s3);
 }
 .title-screen__modal-box {
   width: 100%;
   max-width: 400px;
-  background: #1a2a18;
+  background: var(--muted);
+  color: #1a2a18;
   padding: var(--s3) var(--s2) var(--s2);
-  box-shadow: 0 2px 0 #0a120a;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.5);
 }
 .title-screen__confirm-msg {
   font-size: var(--fs-body);
   line-height: 1.6;
-  color: #fff;
+  color: #1a2a18;
   margin: 0 0 var(--s2);
 }
 .title-screen__confirm-btns {
@@ -258,7 +264,7 @@
 .title-screen__confirm-btns .title-screen__start {
   min-height: var(--tap);
 }
-/* 塗らないボタン（「いいえ」）。未選択の選択肢と同じ1px枠 */
+/* 塗らないボタン（「いいえ」）。明るい地の上なので、枠と文字は窓の暗色 */
 .title-screen__ghost {
   all: unset;
   box-sizing: border-box;
@@ -268,18 +274,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
+  border: 1px solid rgba(26, 42, 24, 0.5);
+  color: #1a2a18;
   font-family: "M PLUS 1p", sans-serif;
   font-weight: 700;
   font-size: var(--fs-body);
   letter-spacing: 0.12em;
 }
 .title-screen__ghost:hover {
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: #1a2a18;
 }
-.title-screen__ghost:focus-visible {
-  outline: 2px solid var(--accent);
+.title-screen__ghost:focus-visible,
+.title-screen__modal-box .title-screen__start:focus-visible {
+  outline: 2px solid #1a2a18;
   outline-offset: 2px;
 }
 
