@@ -12,6 +12,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
+import { writeSave } from "../state/saveGame.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
 import { isMainMount } from "../domain/mainMount.js";
 import { isSidelined } from "../domain/fall.js";
@@ -173,6 +174,9 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     setRoster(res.roster);
     setPlayer(res.player);
     setLastNotifications(res.notifications);
+    // ⭐週を進めるたびに自動で保存する（本筋4・`TODO.md` #13）。失敗しても
+    // プレイは止めない（`writeSave`は例外を投げない）。
+    writeSave(saveSeed, startYear, res.roster, res.player);
     setPickedHorseIds(new Set());
     setOpenHorseId(null);
     setSelectedDay(null);

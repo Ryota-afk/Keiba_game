@@ -362,3 +362,64 @@ plan: {
   `FIELD_SIZE_BUCKETS`（19〜26頭が4.9%）どおりで仕様の範囲——問題ではない。
 - `TODO.md` #87（見出しの「3回中山6日目」のデータが無い）は、合意済みの見本の見出しが
   「1976年 1月4週」＋「あと◯件」だけなので、そのまま締めた。
+
+## §11 本筋4：セーブを作る（2026-09-19・`claude-sonnet-5`）
+
+### 設計図（CLAUDE.md §1・実装前に`AskUserQuestion`で確認）
+不確定変数3つをユーザーに選んでもらった。
+1. **セーブの持ち方**→**1人1件の自動セーブ**（推奨案）
+2. **セーブのタイミング**→**毎週自動**（推奨案）
+3. **セーブがある状態で開き直したとき**→**タイトルに「つづきから」ボタンを出す**
+   （⚠️推奨の「自動でタイトルを飛ばす」ではなく、明示的にこちらを選んだ）
+
+### 保存先の選定：localStorageではなくIndexedDB
+`tools/bench-savesize.mjs`は現行スキーマ（150厩舎×5,090〜5,113頭）と食い違う古い実測
+（16,000頭前提）だったため使わず、使い捨てスクリプトで測り直した：
+- ゲーム開始時点（卒業式直後）のセーブ相当ペイロード：**5.77MB**
+- 52週進めた後：**6.85MB**
+
+localStorageの上限はブラウザにより5〜10MBで、開始時点から既に迫っている。IndexedDBを選択
+（`TODO.md`の本筋2の項目に「残りはIndexedDBセーブ」という既存のメモがあり、方向は一致していた）。
+
+### 実装
+`src/state/saveGame.js`（新規）：DB名`keiba-game`・ストア`saves`・固定キー`"current"`（1人1件のため）。
+`writeSave(saveSeed, startYear, roster, player)`／`readSave()`／`clearSave()`の3関数。
+`SAVE_SCHEMA_VERSION`と一致しない・必須フィールド欠落のセーブは`readSave()`が`null`を返す
+（セーブ無し扱いに落ちるだけで、例外で落ちない）。`domain/`には依存しない（丸ごと保存して
+丸ごと返すだけなので型を知る必要が無い）。
+
+保存の呼び出し箇所2つ：
+- `src/app.jsx`の`handleGraduationComplete`（卒業式が終わって週の画面に入る瞬間）
+- `src/screens/WeekScreen.jsx`の`handleAdvance`（毎週`この週を進める`の直後）
+
+再開の経路：`app.jsx`が起動時に`readSave()`を呼んで`existingSave`に持ち、`hasSave`/`onContinue`
+を`TitleScreen`へpropsとして渡す。`handleContinue`は`career`・`gameState`を保存済みの値で
+再構築し`phase`を直接`"week"`にして週の画面へ戻す。
+
+⚠️**「つづきから」ボタンの見た目は今回は作っていない**——`TitleScreen.jsx`は2026-09-06に
+Fableの§8手順（候補提示→選択→合意→実装）で確定済みの画面なので、新しい要素を足すには
+同じ手順をもう一度通す必要がある（CLAUDE.md §8・実装はSonnet／見た目はFableの役割分担）。
+`hasSave`/`onContinue`はpropsとして配線済みなので、Fableの手順②はロジックに触れず見た目だけ
+作ればよい状態にしてある。
+
+### 検証（Playwright・開発サーバー）
+1. `writeSave`→`readSave`の往復一致：11/11件で`JSON.stringify`完全一致（`roster`・`player`とも）。
+2. `app.jsx`の再開経路：事前に週5まで進めたセーブを作り、実アプリを開いて`onContinue`を
+   呼び出したところ、`player.currentWeek`・`roster.horses.length`・`player.money`が
+   保存前と完全一致（`window.__debug*`経由で直接値を比較。文字列がどこかに出ているかという
+   最初のチェックはWeekScreenの表示仕様と噛み合わない誤ったテストだったため差し替えた）。
+
+### 検証方法で分かったこと（うまくいかなかったやり方の記録）
+- Reactのfiberツリーを手で辿って`memoizedProps`を読む方法は、関数の呼び出し
+  （`onContinue()`の実行）には使えたが、`existingSave`のような**stateの値の読み取り**では
+  何度やっても`undefined`のままだった（原因は特定できず）。代わりに、コンポーネント本体に
+  一時的に`window.__debugXxx = 値`を書いて直接読む方法に切り替えたところ即座に安定して動いた。
+  検証が終わった時点で該当行は削除済み。
+- 自動実行するテスト用ハーネス（ページを開くたびに勝手に書き込み・削除する）を、別の手動
+  チェックの土台として使い回すと、同じIndexedDBキーを取り合って結果が読めなくなる
+  （実際に発生）。**何も自動実行しない受け身のハーネス**（`window.__save = {...}`を置くだけ）
+  に切り替えて解消した。
+
+### 棚上げに足したもの
+- なし（本筋4の範囲内で完結。「つづきから」ボタンの見た目はFableの手順②として明示的に
+  次のステップに置いた——棚上げ扱いではなく次工程）。

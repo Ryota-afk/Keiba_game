@@ -725,9 +725,28 @@ A/B比較では各アームの直前に**全アーム共通の副シードへ張
 
 ---
 
-## 14. localStorage キー一覧
+## 14. セーブ（IndexedDB・本筋4で確定・`devlog/wave10.md`§11）
 
-（実装の弾で確定する。⚠️**セーブに週の種を含めること**）
+⚠️**localStorageではなくIndexedDBを使う**。実測（150厩舎×5,090〜5,113頭の現行ロースター）で
+開始時点5.77MB・52週後6.85MBあり、localStorageの上限（ブラウザにより5〜10MB）に迫る／超えうる。
+
+- **1人1件の自動セーブ**（2026-09-19にユーザー決定。複数キャリアの並行セーブは持たない）。
+- 保存タイミングは「卒業式が終わって週の画面に入った瞬間」と「毎週`この週を進める`の直後」
+  （同じくユーザー決定）。
+- 実装：`src/state/saveGame.js`。DB名`keiba-game`・ストア名`saves`・固定キー`"current"`。
+  ペイロードは`{ schemaVersion, savedAt, saveSeed, startYear, roster, player }`
+  （`SAVE_SCHEMA_VERSION`と一致しない・必須フィールドが欠けている場合は`readSave()`が`null`を返す
+  ＝セーブ無し扱い）。`writeSave`/`readSave`/`clearSave`は例外を投げない
+  （IndexedDBが使えない環境でもプレイを止めない）。
+- **`週の種`（C4）は`saveSeed`のみで足りる**——全RNGストリームが`(saveSeed, week, ...)`から
+  導出されるため、週ごとの種を別途保存する必要はない。
+- **夢の馬のID**（`dreamHorseId`）は`generateDreamHorse(saveSeed)`が`saveSeed`だけから決定的に
+  導出する純関数なので、`saveSeed`さえ保存されていれば`generateDreamHorse(saveSeed).id`で
+  いつでも再現できる。専用フィールドは不要（配合の弾で回収するときも同じ経路を使う）。
+- タイトル画面からの再開（「つづきから」ボタン）：ロジックは`src/app.jsx`の`handleContinue`が
+  持つ（`existingSave`を起動時に読み、`hasSave`/`onContinue`を`TitleScreen`へpropsで渡す）。
+  ⚠️**ボタンの見た目は未実装**（`TitleScreen.jsx`は2026-09-06にFableの§8手順で確定済みの画面
+  なので、新しい要素を足すには同じ手順のやり直しが要る。`TODO.md` #13）。
 
 ---
 

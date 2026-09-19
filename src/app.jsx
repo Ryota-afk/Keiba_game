@@ -11,6 +11,7 @@ import { cssMs, scheduleOnce, afterNextPaint } from "./screens/motionTiming.js";
 import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "./domain/dreamDerby.js";
 import { commentaryVars, pickCommentaryLine } from "./view/dreamDerbyCommentary.js";
 import { bootstrapRosterAsync } from "./domain/bootstrap.js";
+import { readSave, writeSave } from "./state/saveGame.js";
 
 // 画面遷移の起点。タイトル→夢のダービー→卒業式→週の進行（1年目の終わりまで）。
 // ⚠️週の進行画面（WeekScreen）は見た目が仮（ARCHITECTURE.md「第2弾の範囲」）。
@@ -61,6 +62,14 @@ export function App() {
   const [m6Step, setM6Step] = useState(null); // mount|coverIn|hold|coverOut
   const [weekReady, setWeekReady] = useState(false);
 
+  // ⭐本筋4（`TODO.md` #13）：1人1件の自動セーブ。起動時に読んでおき、タイトル画面から
+  // 「つづきから」で使えるようにする（ボタン自体の見た目はFableの手順②で追加する——
+  // ここでは`hasSave`/`onContinue`をpropsとして渡すだけで、まだ何も表示は変わらない）。
+  const [existingSave, setExistingSave] = useState(undefined); // undefined=確認中／null=無し
+  useEffect(() => {
+    readSave().then(setExistingSave);
+  }, []);
+
   function handleStart(year, difficulty) {
     const saveSeed = createSaveSeed();
     setCareer({ saveSeed, year, difficulty });
@@ -85,6 +94,19 @@ export function App() {
     setWeekReady(false);
     setPhase("m6");
     setM6Step("mount");
+    // ⭐週の画面に入る瞬間の最初の自動セーブ（本筋4）。
+    writeSave(career.saveSeed, career.year, state.roster, state.player);
+  }
+
+  /** 保存済みのキャリアをそのまま週の画面から再開する（本筋4）。 */
+  function handleContinue() {
+    if (!existingSave) return;
+    setCareer({ saveSeed: existingSave.saveSeed, year: existingSave.startYear, difficulty: existingSave.player.difficulty });
+    setDreamResult(null);
+    setBootstrappedRoster(null);
+    setGameState({ roster: existingSave.roster, player: existingSave.player });
+    setWeekReady(true);
+    setPhase("week");
   }
 
   // ----- ①タイトル→夢のダービーの段取り -----
@@ -168,7 +190,9 @@ export function App() {
     <div className="screen-stack">
       {titleMounted && (
         <div className="screen-pane">
-          <TitleScreen onStart={handleStart} />
+          {/* ⚠️`hasSave`/`onContinue`はまだ`TitleScreen`側で受け取っていない
+              （「つづきから」の見た目はFableの手順②・CLAUDE.md §8）。 */}
+          <TitleScreen onStart={handleStart} hasSave={!!existingSave} onContinue={handleContinue} />
         </div>
       )}
 
