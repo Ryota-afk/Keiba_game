@@ -1,0 +1,55 @@
+// プレイヤー騎手の状態（ARCHITECTURE.md §6「信頼」・§8「騎手ランク」）。
+// 純ロジック（JSX無し。`data/`・`domain/jockey.js`だけに依存）。
+// ⚠️セーブ形式そのもの（localStorageへの読み書き）は`state/`が別途持つ。ここは
+// 「プレイヤー状態とは何か」という形と、初期値を作る関数だけを持つ。
+
+import { generateJockey } from "./jockey.js";
+import { RANK_LADDER } from "../data/ranks.js";
+import { DEFAULT_START_YEAR } from "../data/startYears.js";
+import { DEFAULT_DIFFICULTY } from "../data/difficulty.js";
+
+// 初期所持金（暫定・ARCHITECTURE.md §15「暫定・未定の数値」）。
+export const STARTING_MONEY = 100000;
+
+/**
+ * 新人騎手のプレイヤー状態を作る。自己完結の純関数。
+ * @param {number|string} saveSeed
+ * @param {{ stableId?: string|null, startYear?: number, difficulty?: string,
+ *           familyName?: string, givenName?: string, aptitudes?: object,
+ *           usedNames?: Set<string> }} [opts] - `familyName`/`givenName`/`aptitudes`は
+ *   卒業式（`domain/graduation.js`の`createGraduatedJockey`）が渡す
+ *   （2026-09-04・`devlog/wave02.md`）。`usedNames`はNPC騎手との同名を避けるための
+ *   集合（`domain/career.js`の`createInitialRoster`が返す`usedJockeyNames`）。
+ */
+export function createPlayer(saveSeed, opts = {}) {
+  const jockey = generateJockey(saveSeed, "player", {
+    rank: RANK_LADDER[0],
+    stableId: opts.stableId ?? null,
+    familyName: opts.familyName,
+    givenName: opts.givenName,
+    aptitudes: opts.aptitudes,
+    usedNames: opts.usedNames,
+  });
+  return {
+    jockey,
+    money: STARTING_MONEY,
+    trainerTrust: {}, // stableId -> 信頼値（0始まり。関わったことのある相手だけ持つ）
+    ownerTrust: {}, // ownerId -> 信頼値
+    reputation: 0, // 評判（信頼の上位数件の平均。実装の弾で計算方法を確定）
+    mainMounts: {}, // horseId -> { rides: number, hasWon: boolean, isMain: boolean }（主戦の座の進捗）
+    fatigue: 0, // 疲労（0〜100。§6「疲労」。詳細は`domain/fatigue.js`）
+    currentWeek: 1,
+    currentYear: opts.startYear ?? DEFAULT_START_YEAR,
+    difficulty: opts.difficulty ?? DEFAULT_DIFFICULTY, // §9「難易度（悪魔の釜）」。年1回のみ変更可
+  };
+}
+
+/** 信頼マップから特定の相手への信頼値を取り出す（関わったことが無ければ0）。 */
+export function trustFor(trustMap, id) {
+  return trustMap[id] ?? 0;
+}
+
+/** 信頼値を加算する。純関数——引数のtrustMapを書き換えず新しいオブジェクトを返す。 */
+export function adjustTrust(trustMap, id, delta) {
+  return { ...trustMap, [id]: trustFor(trustMap, id) + delta };
+}

@@ -1,0 +1,184 @@
+// 開始前の事前シミュレーション（`arch/race-program.md`§11・質問22の一般化）。
+// ⭐開始年Yの2年前(Y-2)からY-1年末まで104週、プレイヤー無しでレースを走らせ、
+// クラス・戦績・収得賞金・年齢・繁殖プールが揃った状態でキャリアを始められるようにする。
+// これが無いと、開始時点の全馬が「新馬・0戦・生年不明」のまま第1週を迎えてしまう
+// （通しプレイ①の指摘「全員初出走」）。
+// 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
+
+import { streamRandom, RNG_STREAMS, weightedPick } from "../core/rng.js";
+import { createInitialRoster } from "./career.js";
+import { runNpcGradedRaces } from "./npcGradedRace.js";
+import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
+import { advanceInjuryByWeek } from "./fall.js";
+import {
+  assignStablePrimaryJockeys,
+  assignHorsePrimaryJockeys,
+  jockeyIdForHorse,
+} from "./jockeyAssignment.js";
+import { processYearBoundary } from "./yearBoundary.js";
+import { WEEKS_PER_YEAR } from "../data/calendar.js";
+import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
+import { buildYearIndex } from "./weeklyCard.js";
+import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
+
+export const BOOTSTRAP_YEARS = 2;
+export const BOOTSTRAP_WEEKS = BOOTSTRAP_YEARS * WEEKS_PER_YEAR; // 104
+
+/**
+ * ⚠️⚠️**2026-09-17に発見した欠陥への対処**（`devlog/wave09.md`§13・第10弾で作り直し）。
+ * 事前シミュレーションは週を1〜104で数える。以前は走った馬の`lastRaceWeek`にその週番号を
+ * そのまま書き込んでいたため、本編（`player.currentWeek`が1から始まる）へそのまま渡すと
+ * 出走間隔の判定が本編のかなり後まで真にならない不整合があった。
+ * ⭐**`horse.plan`（第10弾）は週番号をそのまま埋め込む形をやめたので、この不整合自体が
+ * 起きない**——事前シミュレーションが計画した`targetWeek`等は事前シミュレーション自身の
+ * 週番号（1〜104）のままだが、本編へ渡す前に**全馬の計画を`null`にリセットする**。
+ * 本編の第1週に`domain/rotation.js`の`replanStaleHorses`が本編の週番号で計画を
+ * 立て直すので、ずれようがない。
+ * @param {{ horses: object[] }} roster
+ * @returns {{ horses: object[] }}
+ */
+function resetPlansForMainTimeline(roster) {
+  return {
+    ...roster,
+    horses: roster.horses.map((h) => (h.plan == null ? h : { ...h, plan: null })),
+  };
+}
+
+// Y−2時点の馬齢分布。104週（2年）ぶん歳を取った後の開始年Yの分布が、1974年の実測
+// （重賞に出た405頭：2歳13%・3歳45%・4歳22%・5歳14%・6歳5%・7歳以上1%）に近づくよう、
+// **実測の年齢からそのまま2を引いた値**で置く（`arch/race-program.md`§11・
+// `devlog/wave07.md`「計測」で実測して確定。当初は2/3/4/5/6歳=35/30/20/10/5%という
+// 根拠の無い値を置いていたが、これは開始年Yでの分布ではなくY−2時点の分布だったため、
+// 2年歳を取った後は4〜8歳に寄ってしまい、実測の主力である2・3歳（合計58%）が
+// 開始時点に1頭も存在しないという不整合が実測で判明し、直した）。
+export const INITIAL_AGE_SHARE = Object.freeze({ 0: 13, 1: 45, 2: 22, 3: 14, 4: 6, 5: 1 });
+
+/**
+ * 開始年に、104週ぶんの重賞データ（Y−2〜Y）が揃っているか。
+ * 揃っていない年はタイトル画面で開始年として選べないようにする
+ * （通しプレイ①「全員初出走」のような静かな壊れ方を、起動時の明示的な拒否に変える）。
+ */
+export function assertStartYearData(startYear) {
+  for (let y = startYear - BOOTSTRAP_YEARS; y <= startYear; y += 1) {
+    if (!hasGradedRaceData(y)) return false;
+  }
+  return true;
+}
+
+/** 初期ロースターの全馬に、Y−2時点の馬齢から逆算した生年を割り当てる。 */
+function assignInitialBornYears(saveSeed, horses, bootstrapStartYear) {
+  const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "bootstrap-age");
+  return horses.map((horse) => {
+    const age = Number(weightedPick(rand01, INITIAL_AGE_SHARE));
+    return { ...horse, bornYear: bootstrapStartYear - age };
+  });
+}
+
+/**
+ * 事前シミュレーションの1週ぶん（プレイヤー無し）。`domain/weekLoop.js`の`advanceWeek`から
+ * プレイヤーの依頼・鞍・脚質・信頼の処理を除いた形——NPCのレースと離脱・主戦の割当だけを進める。
+ * @param {number|string} saveSeed
+ * @param {number} week - 絶対週（1始まり。ここでは折り返さず104まで進む）
+ * @param {number} year - 暦年
+ * @param {{ stables: object[], horses: object[], npcJockeys: object[], trialResults?: object }} roster
+ * @returns {{ roster: object }}
+ */
+export function runBootstrapWeek(saveSeed, week, year, roster) {
+  // 本物のsimは騎手の適性も見るので、事前シミュレーションでも騎手を乗せる。
+  const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
+  const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
+  const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, primaryJockeyByStable)) ?? undefined;
+
+  const gradedResult = runNpcGradedRaces(
+    saveSeed,
+    week,
+    year,
+    roster.horses,
+    new Set(),
+    roster.trialResults ?? {},
+    getJockey
+  );
+  const npcResult = runNpcWeeklyRaces(
+    saveSeed,
+    week,
+    year,
+    gradedResult.horses,
+    new Set(),
+    new Set(),
+    getJockey
+  );
+
+  // ⭐第10弾：計画が今週で期限切れ・まだ計画の無い馬に、次の計画を立て直す
+  // （本編と同じ仕組み・`domain/weekLoop.js`と対称）。事前シミュレーション自身の
+  // 週番号（1〜104）で計画するので、ここでは本編の週とのずれを気にしなくてよい
+  // （本編へ渡す前に`resetPlansForMainTimeline`が全部`null`に戻す）。
+  const yearIndex = buildYearIndex(saveSeed, week, year, ROTATION_SEARCH_WEEKS);
+  const replannedHorses = replanStaleHorses(npcResult.horses, yearIndex, week, year);
+
+  const advancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
+  const jockeyedHorses = assignHorsePrimaryJockeys(advancedHorses, primaryJockeyByStable, roster.npcJockeys);
+  return { roster: { ...roster, horses: jockeyedHorses, trialResults: gradedResult.trialResults } };
+}
+
+/**
+ * 開始年Yの2年前から104週ぶんのロースターを組む。自己完結の純関数
+ * （同じ`(saveSeed, startYear)`なら常に同じロースターになる）。
+ * ⚠️104週ぶんの馬オブジェクトの複製が乗るため実測で約2秒かかる（`devlog/wave07.md`
+ * 「計測」）。UIから使うときは`bootstrapRosterAsync`でコマ切れにして呼ぶこと。
+ * @param {number|string} saveSeed
+ * @param {number} startYear
+ * @returns {{ roster: object }}
+ */
+export function bootstrapRoster(saveSeed, startYear) {
+  const bootstrapStartYear = startYear - BOOTSTRAP_YEARS;
+  const initial = createInitialRoster(saveSeed);
+  let roster = { ...initial, horses: assignInitialBornYears(saveSeed, initial.horses, bootstrapStartYear) };
+
+  let year = bootstrapStartYear;
+  for (let week = 1; week <= BOOTSTRAP_WEEKS; week += 1) {
+    roster = runBootstrapWeek(saveSeed, week, year, roster).roster;
+    if (week % WEEKS_PER_YEAR === 0) {
+      const yb = processYearBoundary(saveSeed, year + 1, roster, { mainMounts: {} });
+      roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool };
+      year += 1;
+    }
+  }
+
+  return { roster: resetPlansForMainTimeline(roster) };
+}
+
+/**
+ * `bootstrapRoster`と同じ結果を、コマ切れに実行する版。ブラウザで使うとき、104週を
+ * 一度に回して描画を止めてしまわないよう、`weeksPerChunk`週ごとに`yield`関数へ制御を返す
+ * （夢のダービーの実況・アニメーションのフレームを挟めるようにするため）。
+ * @param {number|string} saveSeed
+ * @param {number} startYear
+ * @param {{ weeksPerChunk?: number, yield?: () => Promise<void> }} [options]
+ * @returns {Promise<{ roster: object }>}
+ */
+export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
+  // ⚠️1週あたりの処理は実測43.5ms（本物のsimに置き換えた後・`devlog/wave08.md`§5）。
+  // 8週ずつ回すと1回の塊が350msになり、夢のダービーの描画が目に見えて止まる。
+  // 2週ずつ（約90ms）に細かくした。⚠️刻むほど`setTimeout`の往復が増える（104週で約0.2秒）。
+  const weeksPerChunk = options.weeksPerChunk ?? 2;
+  const yieldToRender = options.yield ?? (() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  const bootstrapStartYear = startYear - BOOTSTRAP_YEARS;
+  const initial = createInitialRoster(saveSeed);
+  let roster = { ...initial, horses: assignInitialBornYears(saveSeed, initial.horses, bootstrapStartYear) };
+
+  let year = bootstrapStartYear;
+  for (let week = 1; week <= BOOTSTRAP_WEEKS; week += 1) {
+    roster = runBootstrapWeek(saveSeed, week, year, roster).roster;
+    if (week % WEEKS_PER_YEAR === 0) {
+      const yb = processYearBoundary(saveSeed, year + 1, roster, { mainMounts: {} });
+      roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool };
+      year += 1;
+    }
+    if (week % weeksPerChunk === 0) {
+      await yieldToRender();
+    }
+  }
+
+  return { roster: resetPlansForMainTimeline(roster) };
+}
