@@ -33,7 +33,6 @@ import {
   lostMainMountNotification,
   newRequestNotification,
   bigTrustChangeNotification,
-  isBigTrustChange,
 } from "./notifications.js";
 
 // 主戦の座を持つが今週乗らなかった馬に、他騎手が勝つ確率（暫定。仮simの平均勝率
@@ -157,7 +156,10 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     const trainerTrust = adjustTrust(nextPlayer.trainerTrust, request.stableId, -DECLINE_MAIN_MOUNT_TRUST_LOSS);
     const after = trustFor(trainerTrust, request.stableId);
     nextPlayer = { ...nextPlayer, trainerTrust };
-    if (isBigTrustChange(after - before)) {
+    // ⚠️他の要因（勝利等）の「大きく動いた」境目は`BIG_TRUST_CHANGE_THRESHOLD`(4)のまま変えない。
+    // 断るコストは2しか動かず境目に届かないため、この下がりだけは自分自身の値(2)を
+    // 境目として知らせる（2026-09-20のユーザー決定）。
+    if (Math.abs(after - before) >= DECLINE_MAIN_MOUNT_TRUST_LOSS) {
       notifications.push(bigTrustChangeNotification("trainer", request.stableId, after - before));
     }
   }
