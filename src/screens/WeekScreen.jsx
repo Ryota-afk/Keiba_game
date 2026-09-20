@@ -58,27 +58,30 @@ function SurfaceMarkDefs() {
   );
 }
 
-/** 先週の出来事を1行の文にする。⚠️見本には無い行（本体の報告で要否を確認する）。 */
+/**
+ * 先週の出来事を1行の文にする。⭐悪い知らせだけを出す段（2026-09-20のユーザー決定・
+ * `devlog/wave10.md`§10）：怪我・主戦の座を失った・疲れの警告・信頼が下がった、の4つ。
+ * 信頼が上がった知らせ（`delta > 0`）はここでは出さない——知らせ自体は`domain/`が
+ * 従来どおり組み立てている（画面に出すかどうかだけをここで決める）。
+ * ⚠️「大きく下がりました」とは書かない：この知らせが出る下がり幅は2
+ * （`DECLINE_MAIN_MOUNT_TRUST_LOSS`）で、他の要因の「大きく動いた」境目（4）に届かない。
+ * @returns {string|null} 出さない知らせはnull
+ */
 function notificationText(n, horsesById, stablesById) {
   const horseName = (id) => horsesById.get(id)?.name ?? id;
   switch (n.type) {
     case NOTIFICATION_TYPES.LOST_MAIN_MOUNT:
-      return { text: `${horseName(n.horseId)}の主戦を、他の騎手に取られました。`, hot: true };
+      return `${horseName(n.horseId)}の主戦を他の騎手に取られました。`;
     case NOTIFICATION_TYPES.INJURY:
-      return {
-        text: `${horseName(n.horseId)}が${INJURY_LABELS[n.injuryType] ?? n.injuryType}。${n.weeksOut}週間乗れません。`,
-        hot: true,
-      };
+      return `${horseName(n.horseId)}が${INJURY_LABELS[n.injuryType] ?? n.injuryType}しました。${n.weeksOut}週間乗れません。`;
     case NOTIFICATION_TYPES.BIG_TRUST_CHANGE: {
+      if (n.delta >= 0) return null;
       const who =
         n.targetType === "trainer" ? `${stablesById.get(n.targetId)?.trainerName ?? n.targetId}調教師` : "馬主";
-      return {
-        text: n.delta > 0 ? `${who}からの信頼が大きく上がりました。` : `${who}からの信頼が大きく下がりました。`,
-        hot: n.delta < 0,
-      };
+      return `${who}からの信頼が下がりました。`;
     }
     case NOTIFICATION_TYPES.FATIGUE_DANGER:
-      return { text: "疲れがたまっています。落馬しやすくなっています。", hot: true };
+      return "疲れがたまっています。落馬しやすくなっています。";
     default:
       return null;
   }
@@ -218,11 +221,9 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
       </div>
 
       {notes.length > 0 && (
-        <div className="wk-notes">
-          {notes.map((note, i) => (
-            <p key={i} className={note.hot ? "wk-notes__hot" : undefined}>
-              {note.text}
-            </p>
+        <div className="wk-notes is-bad">
+          {notes.map((text, i) => (
+            <p key={i}>{text}</p>
           ))}
         </div>
       )}
