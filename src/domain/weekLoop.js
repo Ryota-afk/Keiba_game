@@ -137,12 +137,16 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // 結果処理
   let nextPlayer = player;
   const fatigueBefore = nextPlayer.fatigue;
+  // ⭐この週にプレイヤーが乗った結果（`processMountResult`が返す`ride`）を、画面へ渡すために集める
+  // （従来はここで捨てていた。`devlog/`参照）。土日で複数の鞍に乗れるため配列。
+  const rides = [];
   for (const mount of mounts) {
     const horse = horsesById.get(mount.horseId);
     const res = processMountResult(saveSeed, week, nextPlayer, horse, mount, roster.horses, getJockey);
     nextPlayer = res.player;
     horsesById.set(horse.id, res.horse);
     notifications.push(...res.notifications);
+    rides.push(res.ride);
   }
 
   // ⭐断るコスト（`DECLINE_MAIN_MOUNT_TRUST_LOSS`のコメント参照）：

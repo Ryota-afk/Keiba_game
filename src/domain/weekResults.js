@@ -33,10 +33,29 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  *           distance?: number, raceId?: string }} mount
  * @param {object[]} allHorses - ロースター全馬（実在の相手馬を組むために使う）
  * @param {(horse: object) => object|undefined} [getJockey] - 相手馬に乗るNPC騎手を引く関数
- * @returns {{ player: object, horse: object, notifications: object[], raced: boolean }}
+ * @returns {{ player: object, horse: object, notifications: object[], raced: boolean,
+ *   ride: { horseId: string, horseName: string, raceId: string|null|undefined,
+ *     raceName: string|null|undefined, courseId: string|null|undefined,
+ *     surface: string|null|undefined, distance: number|null|undefined,
+ *     classId: string|null|undefined, grade: string|null|undefined, fell: boolean,
+ *     position: number|null, fieldSize: number|null, popularity: number|null,
+ *     won: boolean, income: number, injuryType?: "fracture"|"bruise", weeksOut?: number } }}
  */
 export function processMountResult(saveSeed, week, player, horse, mount, allHorses, getJockey) {
   const notifications = [];
+  // 画面へ渡す「この鞍で何が起きたか」——`mount`（依頼側の実データ）と、この先で
+  // 計算される結果・収入を1つにまとめる。値そのものは元々計算済みのものをそのまま乗せるだけ。
+  const rideBase = {
+    horseId: horse.id,
+    horseName: horse.name,
+    raceId: mount.raceId ?? null,
+    raceName: mount.raceName ?? null,
+    courseId: mount.courseId ?? null,
+    surface: mount.surface ?? null,
+    distance: mount.distance ?? null,
+    classId: mount.classId ?? null,
+    grade: mount.grade ?? null,
+  };
 
   // 落馬を先に判定する（落馬すればそのレースは走らない）。
   const fall = checkFall(saveSeed, week, horse.id, horse.abilities.health, player.fatigue);
@@ -47,6 +66,17 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
       horse: applyInjuryToHorse(horse, fall),
       notifications,
       raced: false,
+      ride: {
+        ...rideBase,
+        fell: true,
+        position: null,
+        fieldSize: null,
+        popularity: null,
+        won: false,
+        income: 0, // 落馬した鞍には騎乗料が出ない（下の`rideIncome`呼び出しに到達しないため）
+        injuryType: fall.injuryType,
+        weeksOut: fall.weeksOut,
+      },
     };
   }
 
@@ -60,7 +90,8 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     condition,
   });
 
-  let nextPlayer = { ...player, money: player.money + rideIncome(horse.classId, result.won) };
+  const income = rideIncome(horse.classId, result.won); // この鞍1件ぶんの騎乗料（画面へも渡す）
+  let nextPlayer = { ...player, money: player.money + income };
 
   // 調教師への信頼：乗るだけで少し、勝てばさらに（§6「調教師への信頼」＝日常の鞍）。
   const trainerBefore = trustFor(nextPlayer.trainerTrust, horse.stableId);
@@ -120,5 +151,15 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     }),
   };
 
-  return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result };
+  const ride = {
+    ...rideBase,
+    fell: false,
+    position: result.position,
+    fieldSize: result.fieldSize,
+    popularity: result.popularity,
+    won: result.won,
+    income,
+  };
+
+  return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result, ride };
 }
