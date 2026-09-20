@@ -73,7 +73,8 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     roster.horses,
     new Set(),
     roster.trialResults ?? {},
-    getJockey
+    getJockey,
+    roster.stables
   );
   const npcResult = runNpcWeeklyRaces(
     saveSeed,
@@ -82,7 +83,8 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     gradedResult.horses,
     new Set(),
     new Set(),
-    getJockey
+    getJockey,
+    roster.stables
   );
 
   // ⭐第10弾：計画が今週で期限切れ・まだ計画の無い馬に、次の計画を立て直す
