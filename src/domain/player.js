@@ -7,6 +7,7 @@ import { generateJockey } from "./jockey.js";
 import { RANK_LADDER } from "../data/ranks.js";
 import { DEFAULT_START_YEAR } from "../data/startYears.js";
 import { DEFAULT_DIFFICULTY } from "../data/difficulty.js";
+import { MAIN_TIMELINE_START_WEEK } from "../data/calendar.js";
 
 // 初期所持金（暫定・ARCHITECTURE.md §15「暫定・未定の数値」）。
 export const STARTING_MONEY = 100000;
@@ -38,7 +39,11 @@ export function createPlayer(saveSeed, opts = {}) {
     reputation: 0, // 評判（信頼の上位数件の平均。実装の弾で計算方法を確定）
     mainMounts: {}, // horseId -> { rides: number, hasWon: boolean, isMain: boolean }（主戦の座の進捗）
     fatigue: 0, // 疲労（0〜100。§6「疲労」。詳細は`domain/fatigue.js`）
-    currentWeek: 1,
+    // ⭐本編は週1からではなく、事前シミュレーション104週の続き（週105）から始まる
+    // （2026-09-20のユーザー決定・`data/calendar.js`の`MAIN_TIMELINE_START_WEEK`）。
+    // `domain/bootstrap.js`が立てた馬の出走計画（`horse.plan.targetWeek`）が
+    // そのまま本編でも通用するようにするため。
+    currentWeek: MAIN_TIMELINE_START_WEEK,
     currentYear: opts.startYear ?? DEFAULT_START_YEAR,
     difficulty: opts.difficulty ?? DEFAULT_DIFFICULTY, // §9「難易度（悪魔の釜）」。年1回のみ変更可
   };

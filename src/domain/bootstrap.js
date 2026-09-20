@@ -16,33 +16,10 @@ import {
   jockeyIdForHorse,
 } from "./jockeyAssignment.js";
 import { processYearBoundary } from "./yearBoundary.js";
-import { WEEKS_PER_YEAR } from "../data/calendar.js";
+import { WEEKS_PER_YEAR, BOOTSTRAP_YEARS, BOOTSTRAP_WEEKS } from "../data/calendar.js";
 import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { buildYearIndex } from "./weeklyCard.js";
 import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
-
-export const BOOTSTRAP_YEARS = 2;
-export const BOOTSTRAP_WEEKS = BOOTSTRAP_YEARS * WEEKS_PER_YEAR; // 104
-
-/**
- * ⚠️⚠️**2026-09-17に発見した欠陥への対処**（`devlog/wave09.md`§13・第10弾で作り直し）。
- * 事前シミュレーションは週を1〜104で数える。以前は走った馬の`lastRaceWeek`にその週番号を
- * そのまま書き込んでいたため、本編（`player.currentWeek`が1から始まる）へそのまま渡すと
- * 出走間隔の判定が本編のかなり後まで真にならない不整合があった。
- * ⭐**`horse.plan`（第10弾）は週番号をそのまま埋め込む形をやめたので、この不整合自体が
- * 起きない**——事前シミュレーションが計画した`targetWeek`等は事前シミュレーション自身の
- * 週番号（1〜104）のままだが、本編へ渡す前に**全馬の計画を`null`にリセットする**。
- * 本編の第1週に`domain/rotation.js`の`replanStaleHorses`が本編の週番号で計画を
- * 立て直すので、ずれようがない。
- * @param {{ horses: object[] }} roster
- * @returns {{ horses: object[] }}
- */
-function resetPlansForMainTimeline(roster) {
-  return {
-    ...roster,
-    horses: roster.horses.map((h) => (h.plan == null ? h : { ...h, plan: null })),
-  };
-}
 
 // Y−2時点の馬齢分布。104週（2年）ぶん歳を取った後の開始年Yの分布が、1974年の実測
 // （重賞に出た405頭：2歳13%・3歳45%・4歳22%・5歳14%・6歳5%・7歳以上1%）に近づくよう、
@@ -109,9 +86,10 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
   );
 
   // ⭐第10弾：計画が今週で期限切れ・まだ計画の無い馬に、次の計画を立て直す
-  // （本編と同じ仕組み・`domain/weekLoop.js`と対称）。事前シミュレーション自身の
-  // 週番号（1〜104）で計画するので、ここでは本編の週とのずれを気にしなくてよい
-  // （本編へ渡す前に`resetPlansForMainTimeline`が全部`null`に戻す）。
+  // （本編と同じ仕組み・`domain/weekLoop.js`と対称）。⭐本編は事前シミュレーションの
+  // 続きの週（`MAIN_TIMELINE_START_WEEK`＝105）から始まるので、ここで立てた計画の
+  // `targetWeek`（絶対週）はそのまま本編でも通用する——本編へ渡す前にリセットする
+  // 必要は無い（2026-09-20のユーザー決定）。
   const yearIndex = buildYearIndex(saveSeed, week, year, ROTATION_SEARCH_WEEKS);
   const replannedHorses = replanStaleHorses(npcResult.horses, yearIndex, week, year);
 
@@ -144,7 +122,7 @@ export function bootstrapRoster(saveSeed, startYear) {
     }
   }
 
-  return { roster: resetPlansForMainTimeline(roster) };
+  return { roster };
 }
 
 /**
@@ -180,5 +158,5 @@ export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
     }
   }
 
-  return { roster: resetPlansForMainTimeline(roster) };
+  return { roster };
 }
