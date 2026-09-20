@@ -21,6 +21,7 @@ import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { determineEntries, PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
 import { rollActualCondition } from "./weather.js";
+import { computePopularity } from "./popularity.js";
 
 // オープン以上（重賞に出られる最低クラス）。`arch/horse.md`「クラス（10段）」。
 const MIN_ENTRY_CLASS_INDEX = classIndex("open");
@@ -55,10 +56,21 @@ function findTrialResultKey(trialResultsForYear, trialFor) {
  *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
  *   レース名をキーに年ごとに持つ）
  * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数
+ * @param {object[]} [stables] - ロースター全厩舎（人気の材料「厩舎の強さ」に使う。
+ *   渡さないと中間値扱い）
  * @returns {{ horses: object[], trialResults: object, racedHorseIds: Set<string>,
  *             racesRun: number, startsRun: number }}
  */
-export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds, trialResults, getJockey) {
+export function runNpcGradedRaces(
+  saveSeed,
+  week,
+  year,
+  horses,
+  excludeHorseIds,
+  trialResults,
+  getJockey,
+  stables = []
+) {
   if (!hasGradedRaceData(year)) {
     return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
   }
@@ -70,6 +82,8 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
   }
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
+  const stableById = new Map(stables.map((s) => [s.id, s]));
+  const getJockeyForHorse = (h) => getJockey?.(h);
   const racedHorseIds = new Set();
   let nextTrialResults = trialResults;
   let racesRun = 0;
@@ -110,9 +124,17 @@ export function runNpcGradedRaces(saveSeed, week, year, horses, excludeHorseIds,
       ...candidates.filter((h) => priorityIds.has(h.id) && !suited.includes(h)),
     ];
     const { entries } = determineEntries(withPriority, fieldSize, priorityIds);
-    // 優先出走権→収得賞金順で決めた並び＝人気順として扱う（質問19「人気は走る前に見えている
-    // 情報だけから作る」に沿う仮の指標。`devlog/wave07.md`「未定のまま実装に入るもの」#6）。
-    const popularityByHorseId = new Map(entries.map((h, i) => [h.id, i + 1]));
+    // ⚠️`entries`の並び（優先出走権→収得賞金順・馬番の元）はそのまま使い、人気は別の並びとして
+    // 「公開されている情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
+    const popularityByHorseId = computePopularity(
+      saveSeed,
+      week,
+      race.id,
+      entries,
+      horseById,
+      stableById,
+      getJockeyForHorse
+    );
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
     // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。

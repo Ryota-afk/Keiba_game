@@ -144,7 +144,16 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const rides = [];
   for (const mount of mounts) {
     const horse = horsesById.get(mount.horseId);
-    const res = processMountResult(saveSeed, week, nextPlayer, horse, mount, roster.horses, getJockey);
+    const res = processMountResult(
+      saveSeed,
+      week,
+      nextPlayer,
+      horse,
+      mount,
+      roster.horses,
+      getJockey,
+      roster.stables
+    );
     nextPlayer = res.player;
     horsesById.set(horse.id, res.horse);
     notifications.push(...res.notifications);
@@ -209,7 +218,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     roster.horses,
     riddenThisWeek,
     roster.trialResults ?? {},
-    getJockey
+    getJockey,
+    roster.stables
   );
   const npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds]);
   const npcResult = runNpcWeeklyRaces(
@@ -219,7 +229,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     gradedResult.horses,
     npcExcluded,
     riddenRaceIds,
-    getJockey
+    getJockey,
+    roster.stables
   );
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 

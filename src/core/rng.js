@@ -50,6 +50,7 @@ export const RNG_STREAMS = Object.freeze({
   PITCH: "pitch", // 自分から売り込む（成功判定）
   NPC_RACE: "npcRace", // NPC全馬の毎週ローテ（`domain/npcWeeklyRace.js`）
   CARD: "card", // 週の番組表（`domain/weeklyCard.js`。週×年で固定）
+  POPULARITY: "popularity", // 人気の揺らぎ（`domain/popularity.js`）
 });
 
 /**

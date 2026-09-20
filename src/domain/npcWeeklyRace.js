@@ -24,6 +24,7 @@ import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { rollActualCondition } from "./weather.js";
+import { computePopularity } from "./popularity.js";
 
 // 登録が集まらない週はレースが成立しない（`FIELD_SIZE_BUCKETS`の最小5頭に合わせる）。
 const MIN_FIELD_SIZE = 5;
@@ -60,6 +61,8 @@ function groupByPlannedRace(horses, excludeHorseIds) {
  * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数。
  *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——プレイヤーの鞍だけ騎手が乗る
  *   状態を作らないため、呼び出し側は必ず渡すこと。
+ * @param {object[]} [stables] - ロースター全厩舎（人気の材料「厩舎の強さ」に使う。
+ *   渡さないと中間値扱い）
  * @returns {{ horses: object[], racesRun: number, startsRun: number }}
  */
 export function runNpcWeeklyRaces(
@@ -69,7 +72,8 @@ export function runNpcWeeklyRaces(
   horses,
   excludeHorseIds = new Set(),
   excludeRaceIds = new Set(),
-  getJockey = undefined
+  getJockey = undefined,
+  stables = []
 ) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, week);
   const card = buildWeeklyCard(saveSeed, week, year).filter(
@@ -77,6 +81,8 @@ export function runNpcWeeklyRaces(
   );
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
+  const stableById = new Map(stables.map((s) => [s.id, s]));
+  const getJockeyForHorse = (h) => getJockey?.(h);
   const byRaceId = groupByPlannedRace(horses, excludeHorseIds);
 
   let racesRun = 0;
@@ -96,12 +102,22 @@ export function runNpcWeeklyRaces(
 
     const desired = drawFieldSize(rand01);
     const fieldSize = Math.min(desired, ordered.length);
-    const field = ordered.slice(0, fieldSize); // 既に収得賞金の多い順＝人気順の仮の指標
+    const field = ordered.slice(0, fieldSize); // 出走馬（並び＝収得賞金の多い順。馬番の元）
     // ⚠️**枠から漏れた馬（`ordered.slice(fieldSize)`）はここでは何もしない。**
     // `plan`をそのままにしておけば、目標だった馬は`domain/rotation.js`の`isPlanStale`が
     // 「今週で期限切れ」と判定して次の計画を立て直す（前哨戦止まりの馬は目標がまだ先なので
     // 立て直さない＝前哨戦を1回逃しても目標へ向かい続ける）。
-    const popularityByHorseId = new Map(field.map((h, i) => [h.id, i + 1]));
+    // ⚠️`field`の並び（馬番の元）はそのまま使い、人気は別の並びとして「公開されている
+    // 情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
+    const popularityByHorseId = computePopularity(
+      saveSeed,
+      week,
+      race.raceId,
+      field,
+      horseById,
+      stableById,
+      getJockeyForHorse
+    );
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
     // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。

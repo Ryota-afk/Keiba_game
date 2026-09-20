@@ -15,6 +15,7 @@ import { drawFieldSize } from "../data/raceProgram.js";
 import { canRaceOnSurface } from "../data/surfaceAptitude.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { isSidelined } from "./fall.js";
+import { computePopularity } from "./popularity.js";
 
 /** 馬の強さを1つの数値にまとめる（仮の指標。⑦の消耗式に置き換える）。 */
 export function horseStrengthScore(horse, declaredStrategy) {
@@ -68,12 +69,13 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
  * @param {object} horse
  * @param {object[]} allHorses - ロースター全馬（相手馬を実在の馬から組むために使う）
  * @param {{ jockeyPenalty?: number, playerJockey?: object, getJockey?: (h:object)=>object|undefined,
- *           condition?: string }} [options]
+ *           condition?: string, stables?: object[] }} [options]
  *   - `jockeyPenalty`：疲労による騎手の能力低下の倍率（1で無補正）。§6「疲労」が奪う3つのうち
  *     「騎手の能力が落ちる」をここで反映する
  *   - `playerJockey`：プレイヤー自身の騎手。渡さないと適性の倍率が1.0になる
  *   - `getJockey`：相手馬に乗るNPC騎手を引く関数
  *   - `condition`：馬場状態（good|yielding|soft|heavy）
+ *   - `stables`：ロースター全厩舎（人気の材料「厩舎の強さ」に使う。渡さないと中間値扱い）
  * @returns {{ position: number, fieldSize: number, won: boolean, field: object[],
  *             popularity: number }}
  */
@@ -82,14 +84,27 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, opti
   const fieldSizeTarget = drawFieldSize(rand01);
   const field = assembleRealField(rand01, horse, mount.surface, allHorses, fieldSizeTarget);
   const fieldSize = field.length;
-  // 並びは既に収得賞金の多い順（人気順の仮の指標。質問19・`devlog/wave07.md`「未定」#6）。
-  const popularity = field.findIndex((h) => h.id === horse.id) + 1;
+  const getJockeyForHorse = (h) => (h.id === horse.id ? options.playerJockey : options.getJockey?.(h));
+  // ⚠️`field`の並び（収得賞金の多い順＝馬番の元）はそのまま使い、人気は別の並びとして
+  // 「公開されている情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
+  const horseById = new Map(allHorses.map((h) => [h.id, h]));
+  const stableById = new Map((options.stables ?? []).map((s) => [s.id, s]));
+  const popularityByHorseId = computePopularity(
+    saveSeed,
+    week,
+    mount.raceId ?? mount.horseId,
+    field,
+    horseById,
+    stableById,
+    getJockeyForHorse
+  );
+  const popularity = popularityByHorseId.get(horse.id);
 
   const entries = field.map((h, i) => ({
     num: i + 1,
     horse: h,
     isSelf: h.id === horse.id,
-    jockey: h.id === horse.id ? options.playerJockey : options.getJockey?.(h),
+    jockey: getJockeyForHorse(h),
     // 疲労はプレイヤーの鞍にだけ乗る（NPC騎手の疲労は持っていない）。
     jockeyPenalty: h.id === horse.id ? options.jockeyPenalty ?? 1 : 1,
   }));
