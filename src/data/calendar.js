@@ -10,6 +10,18 @@
 
 export const WEEKS_PER_YEAR = 52;
 
+// 事前シミュレーション（`domain/bootstrap.js`）が無表示で進める期間。開始年Yの2年前から
+// Y-1年末までの104週。本編（`player.currentWeek`）はこの続きの週から始まる
+// （⭐2026-09-20のユーザー決定。理由：`domain/weeklyCard.js`の番組表は`(週, 年)`の絶対週から
+// 作られるため、本編を週1から始めると、事前シミュレーションで既に立てた馬の出走計画
+// （`horse.plan.targetWeek`＝事前シミュレーションの絶対週）が指すレースと、本編の同じ絶対週の
+// レースが別物になってしまう。週を1へ戻さず続きから始めれば計画がそのまま使える）。
+// ⚠️`data/`は`domain/`より下位層なので、この定数の正本はここに置き`domain/bootstrap.js`側が
+// 読みにいく（逆方向のimportは依存の向きに反する）。
+export const BOOTSTRAP_YEARS = 2;
+export const BOOTSTRAP_WEEKS = BOOTSTRAP_YEARS * WEEKS_PER_YEAR; // 104
+export const MAIN_TIMELINE_START_WEEK = BOOTSTRAP_WEEKS + 1; // 105
+
 // ⚠️どの月が5週になるかは実カレンダー依存（曜日の並び・うるう年で年ごとに変わる）。
 // ここでは四半期の最後（3・6・9・12月）を仮に5週として48+4=52に揃える。
 // 実データ取得後、対象年ごとの実際の並びに差し替える。
