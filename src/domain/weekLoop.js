@@ -91,7 +91,9 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   chooseStrategy?: (mount: object, horse: object) => string,
  *   maxMounts?: number,
  * }} [options]
- * @returns {{ roster: object, player: object, notifications: object[], requestHorseIds: Set<string> }}
+ * @returns {{ roster: object, player: object, notifications: object[], requestHorseIds: Set<string>,
+ *   rides: object[] }} `rides`はこの週にプレイヤーが乗った鞍の結果（`weekResults.js`の`ride`を
+ *   並べたもの。土日で複数あり得るため配列。落馬した鞍は`fell: true`で`position`等が`null`）
  */
 export function advanceWeek(saveSeed, roster, player, options = {}) {
   const week = player.currentWeek;
@@ -261,5 +263,6 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     player: nextPlayer,
     notifications,
     requestHorseIds,
+    rides,
   };
 }
