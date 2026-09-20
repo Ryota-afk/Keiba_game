@@ -11,7 +11,7 @@
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { trustFor } from "./player.js";
-import { rankIndex } from "../data/ranks.js";
+import { rankIndex, rankSpec } from "../data/ranks.js";
 import { gradeToNumber } from "../data/grades.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
 import { canRideGradedRace } from "./rideEligibility.js";
@@ -107,15 +107,32 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
 
   const requestCount = RIDABLE_SLOTS_PER_WEEK * REQUEST_COUNT_MULTIPLIER;
 
+  // 1レースあたりの依頼数をランクの上限で絞る（2026-09-20にユーザーが決定）。
+  // 同じraceIdの候補がその上限を超えたら、quality の低い方から落とす。
+  // ⚠️ここで`candidates`を絞ってから下のown/others選定に渡すことで、落ちた分は
+  // （候補が十分にあれば）他のレースの候補が自動的に繰り上がり、合計は
+  // 引き続き`requestCount`に近づく——ownとothersの選び方自体は変えない。
+  const maxPerRace = rankSpec(player.jockey.rank)?.maxRequestsPerRace ?? Infinity;
+  const byRace = new Map();
+  for (const c of candidates) {
+    if (!byRace.has(c.raceId)) byRace.set(c.raceId, []);
+    byRace.get(c.raceId).push(c);
+  }
+  const cappedCandidates = [];
+  for (const raceCandidates of byRace.values()) {
+    raceCandidates.sort((a, b) => b.quality - a.quality);
+    cappedCandidates.push(...raceCandidates.slice(0, maxPerRace));
+  }
+
   // 所属厩舎の馬は優先的に回る（断れる、という性質は選択側=呼び出し元が扱う）が、
   // ⚠️⚠️**上限を`requestCount`と同じにすると、所属厩舎の馬が`requestCount`頭以上
   // 出走候補になった時点で依頼が100%所属厩舎になる**（2026-09-17に実測で発見・
   // `devlog/wave09.md`§14）。`TODO.md` #94（上限をいくつにするかは未決）。
-  const own = candidates
+  const own = cappedCandidates
     .filter((c) => c.isFromOwnStable)
     .sort((a, b) => b.quality - a.quality)
     .slice(0, requestCount);
-  const others = candidates
+  const others = cappedCandidates
     .filter((c) => !c.isFromOwnStable)
     .sort((a, b) => b.quality - a.quality);
 

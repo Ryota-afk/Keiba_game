@@ -29,14 +29,19 @@ export const RANK_LABELS = Object.freeze({
  * ⚠️実際の競馬でも、調教師と馬主が信用すれば若手に重賞の鞍が回る。
  */
 
-/** ランクごとの仕様（昇格条件・平日の枠・スキル枠・適性の上限＝Sにできる数）。 */
+/**
+ * ランクごとの仕様（昇格条件・平日の枠・スキル枠・適性の上限＝Sにできる数・
+ * 1レースあたりの依頼数の上限）。
+ * ⚠️`maxRequestsPerRace`は2026-09-20にユーザーが決定（同じレースに依頼が集中しすぎる
+ * 問題の対策・`src/domain/weeklyRequests.js`）。
+ */
 export const RANK_SPECS = Object.freeze({
-  rookie: { promotionRequirement: null, weekdaySlots: 1, skillSlots: 2, aptitudeSCap: 2 },
-  young: { promotionRequirement: "firstWin", weekdaySlots: 1, skillSlots: 3, aptitudeSCap: 2 },
-  midCareer: { promotionRequirement: "gradedWin", weekdaySlots: 2, skillSlots: 4, aptitudeSCap: 3 },
-  veteran: { promotionRequirement: "g1Win", weekdaySlots: 2, skillSlots: 5, aptitudeSCap: 4 },
-  elite: { promotionRequirement: "topWinner", weekdaySlots: 3, skillSlots: 6, aptitudeSCap: 4 },
-  top: { promotionRequirement: "arcDeTriompheWin", weekdaySlots: 3, skillSlots: 8, aptitudeSCap: 5 },
+  rookie: { promotionRequirement: null, weekdaySlots: 1, skillSlots: 2, aptitudeSCap: 2, maxRequestsPerRace: 3 },
+  young: { promotionRequirement: "firstWin", weekdaySlots: 1, skillSlots: 3, aptitudeSCap: 2, maxRequestsPerRace: 3 },
+  midCareer: { promotionRequirement: "gradedWin", weekdaySlots: 2, skillSlots: 4, aptitudeSCap: 3, maxRequestsPerRace: 3 },
+  veteran: { promotionRequirement: "g1Win", weekdaySlots: 2, skillSlots: 5, aptitudeSCap: 4, maxRequestsPerRace: 4 },
+  elite: { promotionRequirement: "topWinner", weekdaySlots: 3, skillSlots: 6, aptitudeSCap: 4, maxRequestsPerRace: 4 },
+  top: { promotionRequirement: "arcDeTriompheWin", weekdaySlots: 3, skillSlots: 8, aptitudeSCap: 5, maxRequestsPerRace: 5 },
 });
 
 export function rankIndex(rankId) {
