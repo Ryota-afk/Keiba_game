@@ -8,7 +8,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "../domain/dreamDerby.js";
 import { createDreamDerbyEngine } from "./dreamDerbyEngine.js";
 import { DREAM_FADE_MARK } from "../data/dreamDerbyCommentary.js";
+import { roomSceneMarkup } from "../view/wakeGradScenes.js";
 import "./DreamDerbyScreen.css";
+
+const ROOM_SCENE_SVG = roomSceneMarkup(); // 純関数なので読み込み時に1回だけ組み立てる
 
 const DISPLAY_STATES = ["馬名", "馬番", "非表示"];
 const DISPLAY_MODES = ["name", "number", "hidden"];
@@ -282,58 +285,11 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
             )}
           </div>
 
-          <div className={`room-scene${wakeActive ? " active" : ""}`}>
-            <svg viewBox="0 0 390 300" preserveAspectRatio="none" aria-hidden="true">
-              <rect x="0" y="0" width="390" height="244" fill="#cbb794" />
-              <rect x="0" y="244" width="390" height="8" fill="#a8956f" />
-              <rect x="0" y="252" width="390" height="48" fill="#9a6a3c" />
-              <rect x="0" y="272" width="390" height="3" fill="#875a30" />
-              <rect x="206" y="28" width="126" height="110" fill="#f2ede0" />
-              <rect x="212" y="34" width="114" height="98" fill="#a8daf2" />
-              <rect x="212" y="108" width="114" height="24" fill="#7fc06a" />
-              <rect x="265" y="34" width="6" height="98" fill="#f2ede0" />
-              <rect x="212" y="78" width="114" height="6" fill="#f2ede0" />
-              <polygon points="212,138 326,138 372,252 156,252" fill="#fff6c8" opacity="0.3" />
-              <rect x="188" y="20" width="20" height="132" fill="#e3ded0" />
-              <rect x="330" y="20" width="20" height="132" fill="#e3ded0" />
-              <rect x="195" y="20" width="4" height="132" fill="#d3ccbb" />
-              <rect x="337" y="20" width="4" height="132" fill="#d3ccbb" />
-              <rect x="38" y="34" width="66" height="50" fill="#f2ede0" />
-              <rect x="44" y="40" width="54" height="38" fill="#dfe9d8" />
-              <rect x="54" y="54" width="26" height="13" fill="#6b4a2a" />
-              <rect x="76" y="48" width="10" height="9" fill="#6b4a2a" />
-              <rect x="56" y="67" width="4" height="10" fill="#6b4a2a" />
-              <rect x="72" y="67" width="4" height="10" fill="#6b4a2a" />
-              <rect x="22" y="140" width="16" height="112" fill="#6b4a2a" />
-              <rect x="22" y="216" width="212" height="36" fill="#7d5730" />
-              <rect x="38" y="198" width="192" height="20" fill="#c9d6e8" />
-              <rect x="96" y="188" width="122" height="12" fill="#c9d6e8" />
-              <rect x="126" y="180" width="72" height="9" fill="#bccbe0" />
-              <rect x="42" y="184" width="52" height="16" fill="#f5f1e4" />
-              <rect x="54" y="166" width="26" height="18" fill="#f0c8a0" />
-              <rect x="52" y="159" width="30" height="9" fill="#3a2a1a" />
-              <rect x="52" y="166" width="6" height="9" fill="#3a2a1a" />
-              <rect x="240" y="212" width="44" height="40" fill="#7d5730" />
-              <rect x="248" y="188" width="28" height="24" fill="#f2ede0" />
-              <rect x="252" y="192" width="20" height="16" fill="#3a3a3a" />
-              <rect x="261" y="195" width="2" height="7" fill="#f2ede0" />
-              <rect x="261" y="199" width="7" height="2" fill="#f2ede0" />
-              <rect x="313" y="112" width="30" height="12" fill="#4a3423" />
-              <rect x="316" y="120" width="26" height="22" fill="#f0c8a0" />
-              <rect x="311" y="118" width="6" height="16" fill="#4a3423" />
-              <rect x="341" y="118" width="6" height="16" fill="#4a3423" />
-              <rect x="308" y="142" width="42" height="34" fill="#7f97a6" />
-              <rect x="312" y="176" width="34" height="46" fill="#e8e2d4" />
-              <rect x="298" y="148" width="10" height="44" fill="#7f97a6" />
-              <rect x="350" y="148" width="10" height="44" fill="#7f97a6" />
-              <rect x="298" y="192" width="10" height="9" fill="#f0c8a0" />
-              <rect x="350" y="192" width="10" height="9" fill="#f0c8a0" />
-              <rect x="316" y="222" width="11" height="26" fill="#4a5a66" />
-              <rect x="332" y="222" width="11" height="26" fill="#4a5a66" />
-              <rect x="313" y="246" width="15" height="6" fill="#2e2620" />
-              <rect x="331" y="246" width="15" height="6" fill="#2e2620" />
-            </svg>
-          </div>
+          {/* 目が覚めた部屋の絵。組み立ては`view/wakeGradScenes.js`（案C「布団の中から見上げる」） */}
+          <div
+            className={`room-scene${wakeActive ? " active" : ""}`}
+            dangerouslySetInnerHTML={{ __html: ROOM_SCENE_SVG }}
+          />
         </div>
 
         <div className={`race-bottom${card ? " has-card" : ""}`}>

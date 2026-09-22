@@ -31,6 +31,7 @@ import {
   STABLE_OFFER_HEADING,
 } from "../data/graduationText.js";
 import { cssMs, scheduleOnce, afterNextPaint } from "./motionTiming.js";
+import { schoolSceneMarkup, ceremonySceneMarkup } from "../view/wakeGradScenes.js";
 import "./GraduationScreen.css";
 
 const LINE_INTERVAL_MS = 700;
@@ -56,86 +57,17 @@ function ScoreRow({ label, grade }) {
   );
 }
 
+// 上半分の絵。組み立ては`view/wakeGradScenes.js`（名前入力＝案C「校門と桜」・卒業式＝案A「講堂の壇上」）。
+// 純関数なので読み込み時に1回だけ組み立てる。
+const SCHOOL_SCENE_SVG = schoolSceneMarkup();
+const CEREMONY_SCENE_SVG = ceremonySceneMarkup();
+
 function SchoolScene() {
-  return (
-    <svg viewBox="0 0 240 180" preserveAspectRatio="xMidYMid slice">
-      <rect x="0" y="0" width="240" height="112" fill="#8fc6e0" />
-      <rect x="0" y="112" width="240" height="68" fill="#4c9142" />
-      <rect x="104" y="112" width="32" height="68" fill="#cbb27a" />
-      <rect x="94" y="106" width="6" height="10" fill="#3a3a3a" />
-      <rect x="140" y="106" width="6" height="10" fill="#3a3a3a" />
-      <rect x="40" y="34" width="160" height="18" fill="#7a2f2f" />
-      <rect x="34" y="30" width="172" height="6" fill="#5a2222" />
-      <rect x="48" y="48" width="144" height="64" fill="#e7ddc4" />
-      <rect x="104" y="82" width="32" height="30" fill="#4a3323" />
-      <rect x="59" y="60" width="18" height="16" fill="#cfd8df" />
-      <rect x="62" y="63" width="12" height="10" fill="#2b3d55" />
-      <rect x="87" y="60" width="18" height="16" fill="#cfd8df" />
-      <rect x="90" y="63" width="12" height="10" fill="#2b3d55" />
-      <rect x="135" y="60" width="18" height="16" fill="#cfd8df" />
-      <rect x="138" y="63" width="12" height="10" fill="#2b3d55" />
-      <rect x="163" y="60" width="18" height="16" fill="#cfd8df" />
-      <rect x="166" y="63" width="12" height="10" fill="#2b3d55" />
-      <rect x="118" y="10" width="2" height="24" fill="#9c9488" />
-      <rect x="120" y="10" width="15" height="9" fill="#ffd83d" />
-    </svg>
-  );
+  return <div className="grad-scene" dangerouslySetInnerHTML={{ __html: SCHOOL_SCENE_SVG }} />;
 }
 
 function CeremonyScene() {
-  return (
-    <svg viewBox="0 0 240 180" preserveAspectRatio="xMidYMid slice">
-      <rect x="0" y="0" width="240" height="118" fill="#efe8d3" />
-      <rect x="0" y="102" width="240" height="16" fill="#e3d8b9" />
-      <rect x="16" y="14" width="20" height="30" fill="#fdf6e3" />
-      <rect x="16" y="27" width="20" height="2" fill="#cdc09a" />
-      <rect x="25" y="14" width="2" height="30" fill="#cdc09a" />
-      <rect x="66" y="14" width="20" height="30" fill="#fdf6e3" />
-      <rect x="66" y="27" width="20" height="2" fill="#cdc09a" />
-      <rect x="75" y="14" width="2" height="30" fill="#cdc09a" />
-      <rect x="150" y="14" width="20" height="30" fill="#fdf6e3" />
-      <rect x="150" y="27" width="20" height="2" fill="#cdc09a" />
-      <rect x="159" y="14" width="2" height="30" fill="#cdc09a" />
-      <rect x="200" y="14" width="20" height="30" fill="#fdf6e3" />
-      <rect x="200" y="27" width="20" height="2" fill="#cdc09a" />
-      <rect x="209" y="14" width="2" height="30" fill="#cdc09a" />
-      <rect x="0" y="118" width="240" height="62" fill="#ddb87c" />
-      <rect x="94" y="82" width="52" height="8" fill="#a5824e" />
-      <rect x="98" y="90" width="44" height="34" fill="#7d5c37" />
-      <rect x="114" y="70" width="12" height="20" fill="#2b2620" />
-      <rect x="112" y="62" width="16" height="10" fill="#1c1712" />
-
-      <rect x="25" y="146" width="9" height="12" fill="#2b3d55" />
-      <rect x="26" y="139" width="7" height="7" fill="#3a2a1c" />
-      <rect x="45" y="146" width="9" height="12" fill="#345940" />
-      <rect x="46" y="139" width="7" height="7" fill="#1c1712" />
-      <rect x="65" y="146" width="9" height="12" fill="#6b3040" />
-      <rect x="66" y="139" width="7" height="7" fill="#5c3a22" />
-      <rect x="84" y="146" width="9" height="12" fill="#3a352c" />
-      <rect x="85" y="139" width="7" height="7" fill="#241a12" />
-      <rect x="149" y="146" width="9" height="12" fill="#5c4128" />
-      <rect x="150" y="139" width="7" height="7" fill="#3a2a1c" />
-      <rect x="170" y="146" width="9" height="12" fill="#2b3d55" />
-      <rect x="171" y="139" width="7" height="7" fill="#1c1712" />
-      <rect x="189" y="146" width="9" height="12" fill="#345940" />
-      <rect x="190" y="139" width="7" height="7" fill="#5c3a22" />
-      <rect x="209" y="146" width="9" height="12" fill="#6b3040" />
-      <rect x="210" y="139" width="7" height="7" fill="#241a12" />
-
-      <rect x="34" y="164" width="9" height="12" fill="#3a352c" />
-      <rect x="35" y="157" width="7" height="7" fill="#1c1712" />
-      <rect x="56" y="164" width="9" height="12" fill="#5c4128" />
-      <rect x="57" y="157" width="7" height="7" fill="#3a2a1c" />
-      <rect x="74" y="164" width="9" height="12" fill="#2b3d55" />
-      <rect x="75" y="157" width="7" height="7" fill="#5c3a22" />
-      <rect x="158" y="164" width="9" height="12" fill="#345940" />
-      <rect x="159" y="157" width="7" height="7" fill="#241a12" />
-      <rect x="179" y="164" width="9" height="12" fill="#6b3040" />
-      <rect x="180" y="157" width="7" height="7" fill="#1c1712" />
-      <rect x="198" y="164" width="9" height="12" fill="#3a352c" />
-      <rect x="199" y="157" width="7" height="7" fill="#3a2a1c" />
-    </svg>
-  );
+  return <div className="grad-scene" dangerouslySetInnerHTML={{ __html: CEREMONY_SCENE_SVG }} />;
 }
 
 function Scoreboard({ schoolRecord }) {

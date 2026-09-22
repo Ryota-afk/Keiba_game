@@ -30,17 +30,52 @@ function rect(cls, x, y, w, h) {
   return `<rect class="${cls}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
 }
 
-// 脚1本＝股関節から下に伸びる矩形＋蹄。角度は時計回りが正（右向きの馬では脚先が後ろへ）。
-function leg(x, y, w, h, angle, px, py) {
-  return `<g transform="rotate(${angle} ${px} ${py})"><rect class="coat" x="${x}" y="${y}" width="${w}" height="${h}"/>` +
-    `<rect fill="#221a14" x="${x}" y="${y + h - 1.5}" width="${w}" height="2"/></g>`;
+// ===== 馬の形（40×36マス・右向き）。レース画面と、目覚め〜卒業式の背景（`view/wakeGradScenes.js`）が
+// 同じ形を共有する。⚠️ここを変えると両方の馬が変わる。 =====
+/** 蹄の色と目の色（馬体色に関わらず固定）。 */
+export const HORSE_HOOF_COLOR = "#221a14";
+export const HORSE_EYE_COLOR = "#111";
+/** 尻尾（胴より先に描く）。[役割, x, y, w, h]。役割は coat／dark。 */
+export const HORSE_TAIL = [
+  ["dark", 2, 13, 4, 9],
+  ["dark", 1, 20, 3, 3],
+];
+/** 脚4本（立ち姿のとき）。[x, y, w, h, 股関節x, 股関節y]。蹄は各脚の下端1.5マスから高さ2。 */
+export const HORSE_LEGS = [
+  [7, 23, 4, 9, 9, 23],
+  [11, 23, 3, 8, 12.5, 23],
+  [21, 23, 4, 9, 23, 23],
+  [25, 23, 3, 8, 26.5, 23],
+];
+/** 胴・首・頭（脚より後に描く）。[役割, x, y, w, h]。役割は coat／dark／eye。 */
+export const HORSE_BODY = [
+  ["coat", 5, 13, 22, 11],
+  ["dark", 7, 22, 18, 2],
+  ["coat", 24, 7, 7, 10],
+  ["coat", 27, 5, 6, 6],
+  ["dark", 24, 5, 4, 5],
+  ["dark", 22, 9, 3, 3],
+  ["coat", 30, 6, 9, 7],
+  ["dark", 36, 9, 4, 4],
+  ["dark", 30, 3, 3, 3],
+  ["eye", 34, 8, 2, 2],
+];
+
+const ROLE_CLASS = { coat: "coat", dark: "coat-dark" };
+
+function bodyRect([role, x, y, w, h]) {
+  if (role === "eye") return `<rect fill="${HORSE_EYE_COLOR}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+  return rect(ROLE_CLASS[role], x, y, w, h);
 }
 
-function legPose(cls, hind1, hind2, front1, front2) {
-  return `<g class="${cls}">` +
-    leg(7, 23, 4, 9, hind1, 9, 23) + leg(11, 23, 3, 8, hind2, 12.5, 23) +
-    leg(21, 23, 4, 9, front1, 23, 23) + leg(25, 23, 3, 8, front2, 26.5, 23) +
-    `</g>`;
+// 脚1本＝股関節から下に伸びる矩形＋蹄。角度は時計回りが正（右向きの馬では脚先が後ろへ）。
+function leg([x, y, w, h, px, py], angle) {
+  return `<g transform="rotate(${angle} ${px} ${py})"><rect class="coat" x="${x}" y="${y}" width="${w}" height="${h}"/>` +
+    `<rect fill="${HORSE_HOOF_COLOR}" x="${x}" y="${y + h - 1.5}" width="${w}" height="2"/></g>`;
+}
+
+function legPose(cls, ...angles) {
+  return `<g class="${cls}">` + HORSE_LEGS.map((l, i) => leg(l, angles[i])).join("") + `</g>`;
 }
 
 /**
@@ -55,15 +90,11 @@ export function horseSvgMarkup(entry) {
     `<ellipse class="hs-ring" cx="19" cy="34" rx="17" ry="4.5"/>` +
     `<g class="hs-body-g">` +
     // 尻尾
-    r("coat-dark", 2, 13, 4, 9) + r("coat-dark", 1, 20, 3, 3) +
+    HORSE_TAIL.map(bodyRect).join("") +
     // 脚：股関節（後=9,23 / 前=23,23）を軸に回転させた3コマ。伸び→浮き→畳み
     legPose("f1", 42, 26, -42, -26) + legPose("f2", 6, -4, -6, 4) + legPose("f3", -32, -16, 32, 16) +
-    // 胴・首・頭
-    r("coat", 5, 13, 22, 11) + r("coat-dark", 7, 22, 18, 2) +
-    r("coat", 24, 7, 7, 10) + r("coat", 27, 5, 6, 6) +
-    r("coat-dark", 24, 5, 4, 5) + r("coat-dark", 22, 9, 3, 3) +
-    r("coat", 30, 6, 9, 7) + r("coat-dark", 36, 9, 4, 4) + r("coat-dark", 30, 3, 3, 3) +
-    `<rect fill="#111" x="34" y="8" width="2" height="2"/>` +
+    // 胴・首・頭・目
+    HORSE_BODY.map(bodyRect).join("") +
     // ゼッケン（青地に白の馬番）
     `<rect fill="#1d3fb0" x="14" y="15" width="7" height="7"/>` +
     `<text x="17.5" y="20.6" font-size="5.5" font-weight="700" font-family="M PLUS 1 Code, monospace" fill="#fff" text-anchor="middle">${entry.num}</text>` +

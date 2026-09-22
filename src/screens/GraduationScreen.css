@@ -28,6 +28,10 @@
 
 /* ===== 上半分 ===== */
 .grad-top {
+  /* 300pxは夢のダービーの上半分（`.race-top`）と同じ高さ。⚠️あちらの`min(300px, calc(100dvh - 330px))`は
+     ここでは使わない——330の内訳（枠の縦マージン64px＋判断カード262px）がこの画面には無く、
+     320×568で当てると成績表が267px必要なところ238pxに縮んで最後の行が切れた（2026-09-20実測）。
+     こちらは`flex-shrink: 1`で、下半分が要る分だけ縮む。 */
   height: 300px;
   flex-shrink: 1;
   min-height: 0;
@@ -36,6 +40,8 @@
   background: #000;
 }
 .grad-top svg { display: block; width: 100%; height: 100%; }
+/* 校門・講堂の絵（`view/wakeGradScenes.js`の文字列を流し込む器） */
+.grad-scene { width: 100%; height: 100%; }
 
 /* ③名前入力→式典：上半分だけのクロスフェード（`styles/motion.css`の--m3-*）。
    新旧2枚を`.grad-top`の上に重ねて透明度だけを動かす。 */

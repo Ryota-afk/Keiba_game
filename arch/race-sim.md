@@ -247,6 +247,11 @@ curveY・curveRow・bandPath等の純関数）・`src/view/dreamDerbySprite.js`�
 SVGマークアップ）・`src/view/dreamDerbyCommentary.js`（実況の文組み立て）・
 `src/screens/dreamDerbyEngine.js`（rAFループ＋DOM書き込みのエンジン本体）・
 `src/screens/DreamDerbyScreen.jsx`（Reactの薄い殻）へそのまま移植済み（第2弾）。
+⭐**夢から覚めた後の3場面の絵**（目覚めの部屋・名前入力の校門・卒業式の壇上）は
+`src/view/wakeGradScenes.js`の`roomSceneMarkup()`／`schoolSceneMarkup()`／`ceremonySceneMarkup()`
+（130×100マスの文字地図→`<rect>`の純関数。2026-09-20・`design/mocks/wake-grad-scenes.js`が原型）。
+⚠️**馬の形は`dreamDerbySprite.js`の`HORSE_TAIL`／`HORSE_LEGS`／`HORSE_BODY`を両方が共有する**——
+ここを変えるとレース画面の馬と校門の奥の馬が一緒に変わる。
 
 ⚠️**2026-09-06に`gapMetersAt`（演出だけで隊列を作っていた関数）を削除した。**
 各馬の通過距離の出どころは**レースsimが返す時系列ただ1つ**になった（下記）。

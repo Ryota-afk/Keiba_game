@@ -602,7 +602,7 @@
 }
 .blackout.active { opacity: 1; pointer-events: auto; }
 
-/* 目が覚めた部屋（レース画面と同じ上半分に、同じドット絵の調子で描く） */
+/* 目が覚めた部屋（レース画面と同じ上半分に、同じドット絵の調子で描く。絵は`view/wakeGradScenes.js`） */
 .room-scene { position: absolute; inset: 0; z-index: 6; display: none; }
 .room-scene.active { display: block; }
 .room-scene svg { display: block; width: 100%; height: 100%; }
