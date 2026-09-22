@@ -73,6 +73,25 @@ export const DISTANCE_SHARE_DIRT = Object.freeze({
 });
 
 /**
+ * 芝・ダートの距離分布をSURFACE_SHAREで混ぜた、番組表全体の距離分布（`devlog/wave11.md`§7・§10）。
+ * ⭐`drawGeneralRaceShape`（面を先に引いてから面内の距離を引く2段引き）と数学的に同じ周辺分布。
+ * `domain/horse.js`の架空馬のスタミナの引き方が使う——乱数1回だけで距離を引きたいので、
+ * あらかじめ2つの表を混ぜて1つの表にしておく。
+ */
+export const MIXED_DISTANCE_SHARE = (() => {
+  const merged = {};
+  const turfWeight = SURFACE_SHARE.turf / 100;
+  const dirtWeight = SURFACE_SHARE.dirt / 100;
+  for (const [d, p] of Object.entries(DISTANCE_SHARE_TURF)) {
+    merged[d] = (merged[d] ?? 0) + p * turfWeight;
+  }
+  for (const [d, p] of Object.entries(DISTANCE_SHARE_DIRT)) {
+    merged[d] = (merged[d] ?? 0) + p * dirtWeight;
+  }
+  return Object.freeze(merged);
+})();
+
+/**
  * 出走頭数の分布（史実の馬24頭・527走の実測。`arch/race-program.md`§7）。
  * `[最小, 最大, 割合]`の配列。18頭立ては3.2%しかない——出馬表の画面は10頭前後を前提に作る。
  */

@@ -74,16 +74,26 @@ export function pick(rand01, list) {
   return list[Math.floor(rand01() * list.length) % list.length];
 }
 
-/** rand01から重み付きで1つ選ぶ。weights は {キー: 重み} の形。 */
-export function weightedPick(rand01, weights) {
+/**
+ * 既に引いた0以上1未満の値（x01）から重み付きで1つ選ぶ。weights は {キー: 重み} の形。
+ * ⭐`weightedPick`の中身をここへ出した——呼び出し側が乱数を先に1回だけ引いておき、
+ * その値をそのまま使い回したい場面（`domain/horse.js`のスタミナの引き方・
+ * `devlog/wave11.md`§7・§10）があるため。
+ */
+export function weightedPickFromValue(weights, x01) {
   const entries = Object.entries(weights);
   const total = entries.reduce((sum, [, w]) => sum + w, 0);
-  let x = rand01() * total;
+  let x = x01 * total;
   for (const [key, w] of entries) {
     x -= w;
     if (x <= 0) return key;
   }
   return entries[entries.length - 1][0];
+}
+
+/** rand01から重み付きで1つ選ぶ。weights は {キー: 重み} の形。 */
+export function weightedPick(rand01, weights) {
+  return weightedPickFromValue(weights, rand01());
 }
 
 /** rand01から確率pで真を返す（p=0.008なら0.8%の確率）。 */

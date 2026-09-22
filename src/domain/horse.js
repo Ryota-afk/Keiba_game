@@ -2,13 +2,17 @@
 // 「馬の一生」「出走馬の決定（H）」「クラスの昇降（J）」）。
 // 純ロジック（JSX無し。`data/`・`core/`だけに依存）。
 
-import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
+import { streamRandom, RNG_STREAMS, pick, weightedPickFromValue } from "../core/rng.js";
 import { CLASS_LADDER, classIndex, classDisplayName } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
 import { pickGradeBellCurve } from "../data/grades.js";
 import { generateSurfaceAptitude } from "../data/surfaceAptitude.js";
 import { generateMudAptitude } from "../data/mudAptitude.js";
-import { PROVISIONAL_FIRST_PRIZE_1974, TWO_YEAR_OLD_DEBUT_WEEK } from "../data/raceProgram.js";
+import {
+  PROVISIONAL_FIRST_PRIZE_1974,
+  TWO_YEAR_OLD_DEBUT_WEEK,
+  MIXED_DISTANCE_SHARE,
+} from "../data/raceProgram.js";
 import { weekOfYear } from "../data/calendar.js";
 
 // ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
@@ -16,6 +20,25 @@ import { weekOfYear } from "../data/calendar.js";
 // 架空馬が史実馬を上回ることはない。一様乱数ではなく3回引いて平均する（釣鐘型）。
 const FICTIONAL_SPEED_BASE = 6;
 const FICTIONAL_SPEED_SPAN = 66;
+
+// ⚠️この値はユーザーが実測を見て決める。仮の値（`devlog/wave11.md`§7・§10）。
+// 確率STAMINA_PROGRAM_FITで「番組表の距離の分布から距離を引いてスタミナへ写す」新しい
+// 引き方を使い、残りの確率で従来どおりの一様分布（0〜99）にする。1.0なら全馬が新しい
+// 引き方、0.0なら従来どおり。⚠️`sim/stamina.js`の`optimalDistance`の式には触らない
+// （ダービー馬51頭で較正済み）——ここで変えるのは架空馬のスタミナの引き方だけ。
+// 史実馬のスタミナはウイポの値を直接読み込むので、この値を変えても影響しない。
+export const STAMINA_PROGRAM_FIT = 1.0;
+
+// `optimalDistance`（`sim/stamina.js`）の逆写像：
+// optimalDistance = round((1100 + stamina/100×2000) / 100) × 100 なので
+// stamina = (distance - 1100) / 20。
+const STAMINA_DISTANCE_OFFSET = 1100;
+const STAMINA_DISTANCE_SCALE = 20;
+const STAMINA_JITTER_SPAN = 10; // ±5
+
+function clampStamina(v) {
+  return Math.max(0, Math.min(99, v));
+}
 
 export { GRADE_SCALE } from "../data/grades.js";
 
@@ -67,13 +90,35 @@ export function generateHorse(saveSeed, key, opts = {}) {
   const gender = pick(rand01, GENDERS);
   const growthType = pick(rand01, GROWTH_TYPES);
   const bloodlineFamily = opts.bloodlineFamily ?? pick(rand01, Object.values(BLOODLINE_FAMILIES));
+  // スピードは釣鐘型（3回引いて平均）で、史実馬（65〜92）を上回らない上限にする
+  // （上のFICTIONAL_SPEED_BASE/SPANの説明を参照）。⚠️スタミナはこの対象外——強さの軸
+  // ではなく距離の位置を決める軸なので、上限を切ると長距離適性の架空馬が生まれなくなる
+  // （`devlog/wave04.md`§40）。スタミナは後天的に伸びない軸でもある（§3「能力の成長」）。
+  const speed = Math.round(FICTIONAL_SPEED_BASE + FICTIONAL_SPEED_SPAN * ((rand01() + rand01() + rand01()) / 3));
+
+  // ⭐架空馬のスタミナ（＝得意距離）の引き方（`STAMINA_PROGRAM_FIT`・`devlog/wave11.md`§7・§10）。
+  // ⚠️⚠️乱数はつまみの値によらず必ず3回消費する（①つまみ判定・②距離のくじ引き・
+  // ③ゆらぎ）。一様側を選んだときも②の値をそのまま`Math.floor(x*100)`に使うことで、
+  // つまみを動かしても他の能力（瞬発力・勝負根性など、この後に続く）が1つもズレない
+  // ようにしている——3通りの比較を「スタミナ以外も違う別世界どうしの比較」にしないため。
+  const staminaFitRoll = rand01(); // ①
+  const staminaDistanceRoll = rand01(); // ②
+  const staminaJitterRoll = rand01(); // ③
+  const stamina =
+    staminaFitRoll < STAMINA_PROGRAM_FIT
+      ? clampStamina(
+          Math.round(
+            (Number(weightedPickFromValue(MIXED_DISTANCE_SHARE, staminaDistanceRoll)) -
+              STAMINA_DISTANCE_OFFSET) /
+              STAMINA_DISTANCE_SCALE +
+              (staminaJitterRoll * STAMINA_JITTER_SPAN - STAMINA_JITTER_SPAN / 2),
+          ),
+        )
+      : Math.floor(staminaDistanceRoll * 100); // 従来どおりの一様分布（②の値を流用）
+
   const abilities = {
-    // スピードは釣鐘型（3回引いて平均）で、史実馬（65〜92）を上回らない上限にする
-    // （下のFICTIONAL_SPEED_BASE/SPANの説明を参照）。⚠️スタミナはこの対象外——強さの軸
-    // ではなく距離の位置を決める軸なので、上限を切ると長距離適性の架空馬が生まれなくなる
-    // （`devlog/wave04.md`§40）。スタミナは後天的に伸びない軸でもある（§3「能力の成長」）。
-    speed: Math.round(FICTIONAL_SPEED_BASE + FICTIONAL_SPEED_SPAN * ((rand01() + rand01() + rand01()) / 3)),
-    stamina: Math.floor(rand01() * 100),
+    speed,
+    stamina,
     sharpness: pickGradeBellCurve(rand01), // 瞬発力
     grit: pickGradeBellCurve(rand01), // 勝負根性
     flexibility: pickGradeBellCurve(rand01), // 柔軟性
