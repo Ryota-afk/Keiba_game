@@ -268,3 +268,19 @@ export function canDebutThisWeek(horse, week, year) {
   if (age > 2) return true;
   return weekOfYear(week) >= TWO_YEAR_OLD_DEBUT_WEEK;
 }
+
+/**
+ * 前走（直近の出走）から何週空いたか。⭐第11弾・案B-2（`devlog/wave11.md`§7）：
+ * `domain/npcWeeklyRace.js`の出走選抜と`domain/rotation.js`の計画のまとめ配り、
+ * 両方がこれで並べる。⚠️**1度も走っていない馬は`Infinity`**（一番の優先）——
+ * そうしないと「走らないと実績が付かない・実績が無いと走れない」の輪から一生出られない
+ * （`devlog/wave10.md`§17・`devlog/wave11.md`§7の主因）。
+ * @param {object} horse
+ * @param {number} week - 絶対週（「今週」）
+ * @returns {number}
+ */
+export function weeksSinceLastRace(horse, week) {
+  if (horse.record.starts === 0 || !horse.record.recentFinishes?.length) return Infinity;
+  const lastWeek = horse.record.recentFinishes[0].week;
+  return lastWeek == null ? Infinity : week - lastWeek;
+}

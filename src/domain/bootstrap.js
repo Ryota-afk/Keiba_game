@@ -93,7 +93,7 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
   // `targetWeek`（絶対週）はそのまま本編でも通用する——本編へ渡す前にリセットする
   // 必要は無い（2026-09-20のユーザー決定）。
   const yearIndex = buildYearIndex(saveSeed, week, year, ROTATION_SEARCH_WEEKS);
-  const replannedHorses = replanStaleHorses(npcResult.horses, yearIndex, week, year);
+  const replannedHorses = replanStaleHorses(saveSeed, npcResult.horses, yearIndex, week, year);
 
   const advancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
   const jockeyedHorses = assignHorsePrimaryJockeys(advancedHorses, primaryJockeyByStable, roster.npcJockeys);

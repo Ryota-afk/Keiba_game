@@ -22,6 +22,7 @@ import {
   DISTANCE_SHARE_TURF,
   DISTANCE_SHARE_DIRT,
   drawGeneralRaceClass,
+  drawFieldSize,
 } from "../data/raceProgram.js";
 
 // 重賞データが無い年の仮の重賞本数（`domain/npcWeeklyRace.js`と同じ、1974〜1987年の
@@ -76,6 +77,23 @@ function dayOfGradedRace(historicalDate) {
   return weekday === DAY.SAT ? DAY.SAT : DAY.SUN;
 }
 
+/**
+ * ⭐第11弾（`devlog/wave11.md`§7・CLAUDE.md §10「定員」）：レースの定員を、
+ * 番組表を組む時点で1回だけ決める。`raceId`だけをキーにした専用ストリーム
+ * （`RNG_STREAMS.FIELD_SIZE`）を使うので、同じ`raceId`なら何度呼んでも同じ値になる
+ * ——`domain/rotation.js`（計画を立てる側）と`domain/npcWeeklyRace.js`（実際に走らせる側）が
+ * 必ず同じ定員を見る。⚠️走る瞬間に引き直さないこと（以前はここが無く、`npcWeeklyRace.js`が
+ * 走る瞬間に`drawFieldSize`を引き直していたため、計画を立てる側は「何頭入るか」を
+ * 知りようが無かった）。
+ * @param {number|string} saveSeed
+ * @param {string} raceId
+ * @returns {number}
+ */
+function fieldSizeForRace(saveSeed, raceId) {
+  const rand01 = streamRandom(saveSeed, RNG_STREAMS.FIELD_SIZE, raceId);
+  return drawFieldSize(rand01);
+}
+
 // ⭐**第10弾（2026-09-17）で追加したメモ化**（`devlog/wave10.md`§3.2）。
 // `buildYearIndex`が52週ぶんの番組表を毎週組み直すため、同じ`(saveSeed, week, year)`が
 // 週をまたいで何度も呼ばれる（窓が1週ずつ動くだけで51週ぶんが重複する）。
@@ -91,7 +109,9 @@ const weeklyCardCache = new Map();
  * @param {number} year - 番組表の実測値・実データを引くための暦年（`player.currentYear`）
  * @returns {{ raceId: string, classId: string, courseId: string, surface: string,
  *   distance: number, fillyOnly: boolean, source: string, day: string, name?: string,
- *   grade?: string|null, prize1?: number|null }[]}
+ *   grade?: string|null, prize1?: number|null, fieldSize: number|null }[]} `fieldSize`は
+ *   重賞（`RACE_SOURCE.GRADED`）だけ`null`——重賞は`domain/npcGradedRace.js`が別に定員を持つ
+ *   （第11弾・`devlog/wave11.md`§7）。
  */
 export function buildWeeklyCard(saveSeed, week, year) {
   const cacheKey = `${saveSeed}|${week}|${year}`;
@@ -127,6 +147,10 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
       name: r.name,
       grade: r.grade,
       prize1: r.prize1,
+      // ⚠️重賞は定員の対象外——`domain/npcGradedRace.js`が実データの優先出走権
+      // （トライアル上位）と`MAX_FIELD_SIZE`（18）で既に別の定員を持っている。
+      // ここで`fieldSize`を足すと二重に絞ることになるため付けない（`devlog/wave11.md`§7）。
+      fieldSize: null,
     });
   }
 
@@ -137,8 +161,9 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
   for (let i = 0; i < openStakesToday; i += 1) {
     const courseId = pick(rand01, openCourses);
     const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
+    const raceId = `${year}-w${thisWeek}-open-${i}`;
     races.push({
-      raceId: `${year}-w${thisWeek}-open-${i}`,
+      raceId,
       classId: "open",
       courseId,
       surface,
@@ -146,6 +171,7 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
       fillyOnly,
       source: RACE_SOURCE.OPEN_STAKES,
       day: pick(rand01, [DAY.SAT, DAY.SUN]),
+      fieldSize: fieldSizeForRace(saveSeed, raceId),
     });
   }
 
@@ -157,8 +183,9 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
     const classId = drawGeneralRaceClass(rand01);
     const courseId = pick(rand01, openCourses);
     const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
+    const raceId = `${year}-w${thisWeek}-gen-${i}`;
     races.push({
-      raceId: `${year}-w${thisWeek}-gen-${i}`,
+      raceId,
       classId,
       courseId,
       surface,
@@ -166,6 +193,7 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
       fillyOnly,
       source: RACE_SOURCE.GENERAL,
       day: pick(rand01, [DAY.SAT, DAY.SUN]),
+      fieldSize: fieldSizeForRace(saveSeed, raceId),
     });
   }
 
@@ -185,6 +213,22 @@ export const OPEN_AND_ABOVE_BUCKET = "open+";
 export function yearIndexBucketFor(classId) {
   const openIdx = classIndex("open");
   return classIndex(classId) >= openIdx ? OPEN_AND_ABOVE_BUCKET : classId;
+}
+
+/**
+ * ⭐第11弾・案B-1（`devlog/wave11.md`§7）：`domain/rotation.js`が候補レースを集めるとき、
+ * 馬のクラスから「見にいくバケツ」を1つ以上返す。新馬クラスの馬は新馬戦「と」未勝利戦の
+ * 両方を見る（`data/classes.js`の`isEligibleForRaceClass`と同じ規則）。
+ * ⚠️**設計判断**：レース側の索引キー（`yearIndexBucketFor`・レースは自分のクラスの
+ * バケツにだけ入る）は変えず、**馬の側が複数のバケツを見る**形にした——レースを
+ * 「出走資格のある馬のクラスの数だけ」複数のバケツへ二重登録するより、索引の作り方
+ * （`buildYearIndex`）を単純なまま保てる。
+ * @param {string} classId - 馬の`classId`
+ * @returns {string[]}
+ */
+export function eligibleBucketsForHorseClass(classId) {
+  const own = yearIndexBucketFor(classId);
+  return classId === "shinba" ? [own, yearIndexBucketFor("maiden")] : [own];
 }
 
 /**

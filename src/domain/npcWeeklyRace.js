@@ -18,7 +18,7 @@
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { drawFieldSize } from "../data/raceProgram.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
-import { classAfterWin, classAfterDebutLoss, appendRaceResult } from "./horse.js";
+import { classAfterWin, classAfterDebutLoss, appendRaceResult, weeksSinceLastRace } from "./horse.js";
 import { runRaceSim, buildPlan } from "../sim/index.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
@@ -92,17 +92,27 @@ export function runNpcWeeklyRaces(
     const registered = byRaceId.get(race.raceId);
     if (!registered || registered.length < MIN_FIELD_SIZE) continue; // 登録が集まらなかった
 
-    // 収得賞金の多い順（質問15「条件戦も同じ」）。同額（新馬戦など多くは0円）に
-    // ごく小さな乱数を足して割り切る——厳密な同額順のままだと、同額どうしが毎週
-    // 同じ並び順のまま固定され、後ろに並んだ馬がいつまでも出走できなくなる。
+    // ⭐第11弾・案B-2（`devlog/wave11.md`§7）：収得賞金の多い順→前走から空いた週数の
+    // 多い順へ変えた。賞金は3着までしか付かないため「走らないと賞金が付かない・賞金が
+    // 無いと走れない」の輪になっていた（同じ未勝利戦での通過率が賞金>0で76.3%・賞金=0で
+    // 6.6%・11.5倍差）。⚠️重賞（`domain/npcGradedRace.js`）はここでは変えない——
+    // 重賞は収得賞金順のままが自然（史実の出走投票も収得賞金が基準）。
+    // ⚠️未出走の馬は`weeksSinceLastRace`が`Infinity`を返すため、同値どうしの割り振りは
+    // 「まず週数が同じか見て、同じならごく小さな乱数で比べる」の2段にする——`Infinity`に
+    // 有限の乱数を足しても`Infinity`のままで割り切れない。厳密な同値順のままだと、
+    // 同値どうしが毎週同じ並び順のまま固定され、後ろに並んだ馬がいつまでも出走できなくなる。
     const ordered = registered
-      .map((h) => ({ h, key: h.record.earnings + rand01() * 0.001 }))
-      .sort((a, b) => b.key - a.key)
+      .map((h) => ({ h, weeks: weeksSinceLastRace(h, week), rand: rand01() }))
+      .sort((a, b) => (a.weeks !== b.weeks ? b.weeks - a.weeks : b.rand - a.rand))
       .map((x) => x.h);
 
-    const desired = drawFieldSize(rand01);
+    // ⭐第11弾（`devlog/wave11.md`§7）：定員はもう走る瞬間に引き直さない。
+    // `domain/weeklyCard.js`が番組表を組む時点で決めた`race.fieldSize`をそのまま使う
+    // ——目標を立てる側（`domain/rotation.js`）と実際に走らせる側が同じ定員を見ないと、
+    // 計画段階の「残り枠」が意味を持たなくなる。
+    const desired = race.fieldSize ?? drawFieldSize(rand01); // 保険：本来undefinedにはならないはず
     const fieldSize = Math.min(desired, ordered.length);
-    const field = ordered.slice(0, fieldSize); // 出走馬（並び＝収得賞金の多い順。馬番の元）
+    const field = ordered.slice(0, fieldSize); // 出走馬（並び＝前走から空いた週数の多い順。馬番の元）
     // ⚠️**枠から漏れた馬（`ordered.slice(fieldSize)`）はここでは何もしない。**
     // `plan`をそのままにしておけば、目標だった馬は`domain/rotation.js`の`isPlanStale`が
     // 「今週で期限切れ」と判定して次の計画を立て直す（前哨戦止まりの馬は目標がまだ先なので

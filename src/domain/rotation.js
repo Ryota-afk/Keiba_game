@@ -12,9 +12,10 @@
 import { classIndex } from "../data/classes.js";
 import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
 import { aptitudeParamsOf, distanceAptitudeFrom } from "../sim/stamina.js";
-import { yearIndexBucketFor } from "./weeklyCard.js";
-import { canDebutThisWeek } from "./horse.js";
+import { eligibleBucketsForHorseClass } from "./weeklyCard.js";
+import { canDebutThisWeek, weeksSinceLastRace } from "./horse.js";
 import { isSidelined } from "./fall.js";
+import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 
 // ⭐2026-09-17にユーザーが決定（`devlog/wave10.md`§2）。
 export const ROTATION_SEARCH_WEEKS = 52; // 目標を探す範囲
@@ -41,21 +42,37 @@ function candidateSurfaces(horse) {
     });
 }
 
-/** 索引から、その馬が出られるクラス・面のレース一覧を集める（週の昇順・重複無し）。 */
+/** 索引から、その馬が出られるクラス・面のレース一覧を集める（週の昇順・重複無し）。
+ * ⭐第11弾・案B-1（`devlog/wave11.md`§7）：新馬クラスの馬は`eligibleBucketsForHorseClass`が
+ * 返す複数のバケツ（新馬戦＋未勝利戦）を見る。 */
 function collectCandidates(horse, yearIndex, week) {
-  const bucket = yearIndexBucketFor(horse.classId);
+  const buckets = eligibleBucketsForHorseClass(horse.classId);
   const minWeek = week + ROTATION_MIN_LEAD_WEEKS;
   const maxWeek = week + ROTATION_SEARCH_WEEKS;
   const result = [];
   for (const surface of candidateSurfaces(horse)) {
-    const races = yearIndex.byBucketSurface.get(`${bucket}|${surface}`) ?? [];
-    for (const race of races) {
-      if (race.week < minWeek || race.week > maxWeek) continue;
-      if (race.fillyOnly && horse.gender !== "filly") continue;
-      result.push(race);
+    for (const bucket of buckets) {
+      const races = yearIndex.byBucketSurface.get(`${bucket}|${surface}`) ?? [];
+      for (const race of races) {
+        if (race.week < minWeek || race.week > maxWeek) continue;
+        if (race.fillyOnly && horse.gender !== "filly") continue;
+        result.push(race);
+      }
     }
   }
   return result;
+}
+
+/**
+ * その候補レースに、まだ枠が残っているか。⭐第11弾（`devlog/wave11.md`§7）：
+ * `remaining`に載っていないレース（重賞・`fieldSize`を持たないレース）は定員の対象外
+ * ＝常に枠ありとして扱う（`weeklyCard.js`の`fieldSizeForRace`のコメント参照）。
+ * @param {Map<string, number>|null} remaining
+ * @param {string} raceId
+ */
+function hasCapacity(remaining, raceId) {
+  if (!remaining || !remaining.has(raceId)) return true;
+  return remaining.get(raceId) > 0;
 }
 
 /** 目標候補としての点数。格・賞金を主に、距離・馬場の適性で減点し、遠い週をわずかに減点する。
@@ -113,11 +130,14 @@ function pickPrepRace(candidates, target, aptParams) {
  * @param {object} horse
  * @param {{ byBucketSurface: Map<string, object[]> }} yearIndex - `weeklyCard.js`の`buildYearIndex`
  * @param {number} week - 計画を立てる時点の絶対週（「今週」）
+ * @param {Map<string, number>|null} [remaining] - ⭐第11弾（`devlog/wave11.md`§7）：
+ *   レースごとの残り枠の表（`replanStaleHorses`が週のはじめに1つ作り、馬ごとに使い回す・
+ *   消費した分はこの関数の外で減らす）。省略すると定員を見ずに決める（従来どおり）。
  * @returns {{ targetRaceId: string, targetWeek: number, prepRaceId: string|null,
  *   prepWeek: number|null, returnWeek: number }|null} 候補が1つも無ければ`null`
  */
-export function planNextTarget(horse, yearIndex, week) {
-  const candidates = collectCandidates(horse, yearIndex, week);
+export function planNextTarget(horse, yearIndex, week, remaining = null) {
+  const candidates = collectCandidates(horse, yearIndex, week).filter((r) => hasCapacity(remaining, r.raceId));
   if (candidates.length === 0) return null;
 
   // ⭐距離適性のもと（最適距離・適性の幅）は、比べる距離が変わっても同じ値になる。
@@ -162,22 +182,88 @@ export function isPlanStale(horse, week) {
 }
 
 /**
+ * ⭐第11弾（`devlog/wave11.md`§7）：`yearIndex`に載っている`fieldSize`付きのレース
+ * （一般競走・オープン特別。重賞は対象外＝`hasCapacity`と同じ理由）を集め、
+ * レースごとの「残り枠」の表を作る。既に計画を持っている馬（今週立て直さない馬）の
+ * ぶんをあらかじめ引いておく——立て直す馬に配る前に、既存の予約を反映させるため。
+ * ⚠️⚠️**設計判断：前哨戦（`prepRaceId`）も目標（`targetRaceId`）と同じ枠を消費する。**
+ * 理由：実際に走らせる側（`domain/npcWeeklyRace.js`の`groupByPlannedRace`）は、
+ * その週が目標の馬と前哨戦の馬を**同じレースの登録として合算**している。計画を立てる側
+ * だけ前哨戦を無視すると、走る側で合算されたときに定員を超える登録がまた起こる
+ * （このバグを直すのが今回の目的そのもの）。
+ * @param {{ byBucketSurface: Map<string, object[]> }} yearIndex
+ * @param {object[]} horses - ロースター全馬（立て直す馬・立て直さない馬の両方）
+ * @param {Set<string>} staleIds - 今週立て直す馬のid（このぶんは数えない）
+ * @returns {Map<string, number>} raceId → 残り枠
+ */
+function buildCapacityTable(yearIndex, horses, staleIds) {
+  const remaining = new Map();
+  for (const races of yearIndex.byBucketSurface.values()) {
+    for (const race of races) {
+      if (race.fieldSize == null) continue; // 重賞：定員の対象外
+      if (!remaining.has(race.raceId)) remaining.set(race.raceId, race.fieldSize);
+    }
+  }
+  for (const h of horses) {
+    if (staleIds.has(h.id) || !h.plan) continue;
+    for (const raceId of [h.plan.targetRaceId, h.plan.prepRaceId]) {
+      if (raceId && remaining.has(raceId)) remaining.set(raceId, remaining.get(raceId) - 1);
+    }
+  }
+  return remaining;
+}
+
+/**
  * 計画が古くなっている馬に、新しい計画を立て直す（週次のNPCレース処理の締めくくりに
  * 呼ぶ・`devlog/wave10.md`§3.5「除外された馬は、その週のうちに目標を組み直す」）。
  * ⭐**これが無いと#95（走りたい馬が積み上がる）が再発する。**
  * 離脱中（怪我）の馬は対象外——治ってから次に呼ばれたときに拾われる。
+ *
+ * ⭐⭐**第11弾（`devlog/wave11.md`§7）：1頭ずつ独立に決めていたのを、その週のぶんを
+ * まとめて配る形に変えた。** 前走から空いた週数の多い順（未出走は最優先）に並べ、
+ * レースごとの残り枠が尽きるまで順に取らせる——同じ条件の馬が同じレースへ全員殺到し、
+ * 他のレースが空になる問題（`devlog/wave11.md`§3）に対応する。
+ * ⚠️同値（未出走どうしなど）はごく小さな乱数で割る——厳密な同値順のままだと、同値どうしが
+ * 毎週同じ並び順のまま固定され、後ろに並んだ馬がいつまでも先に選べなくなる
+ * （`domain/npcWeeklyRace.js`の並べ替えと同じ理由）。
+ * @param {number|string} saveSeed
  * @param {object[]} horses
  * @param {{ byBucketSurface: Map<string, object[]> }} yearIndex
  * @param {number} week
  * @param {number} year
  * @returns {object[]}
  */
-export function replanStaleHorses(horses, yearIndex, week, year) {
-  return horses.map((h) => {
-    if (h.isRetired || isSidelined(h)) return h;
-    if (!isPlanStale(h, week)) return h;
-    if (h.record.starts === 0 && !canDebutThisWeek(h, week, year)) return h; // 2歳の解禁前
-    const plan = planNextTarget(h, yearIndex, week);
-    return plan ? { ...h, plan } : h; // 候補が無ければ計画無しのまま（次週また試す）
-  });
+export function replanStaleHorses(saveSeed, horses, yearIndex, week, year) {
+  const staleIds = new Set();
+  const staleHorses = [];
+  for (const h of horses) {
+    if (h.isRetired || isSidelined(h)) continue;
+    if (!isPlanStale(h, week)) continue;
+    if (h.record.starts === 0 && !canDebutThisWeek(h, week, year)) continue; // 2歳の解禁前
+    staleIds.add(h.id);
+    staleHorses.push(h);
+  }
+  if (staleHorses.length === 0) return horses;
+
+  // ⚠️未出走の馬は`weeksSinceLastRace`が`Infinity`を返すため、`+ rand01()*0.001`という
+  // 足し算での同値割りは効かない（`Infinity + 有限値`はやはり`Infinity`）。同値かどうかを
+  // 先に見てから乱数で比べる2段の比較にする。
+  const rand01 = streamRandom(saveSeed, RNG_STREAMS.ROTATION_PLAN, week);
+  const ordered = staleHorses
+    .map((h) => ({ h, weeks: weeksSinceLastRace(h, week), rand: rand01() }))
+    .sort((a, b) => (a.weeks !== b.weeks ? b.weeks - a.weeks : b.rand - a.rand))
+    .map((x) => x.h);
+
+  const remaining = buildCapacityTable(yearIndex, horses, staleIds);
+
+  const byId = new Map(horses.map((h) => [h.id, h]));
+  for (const horse of ordered) {
+    const plan = planNextTarget(horse, yearIndex, week, remaining);
+    if (!plan) continue; // 候補（残り枠のあるもの）が無ければ計画無しのまま（次週また試す）
+    byId.set(horse.id, { ...horse, plan });
+    for (const raceId of [plan.targetRaceId, plan.prepRaceId]) {
+      if (raceId && remaining.has(raceId)) remaining.set(raceId, remaining.get(raceId) - 1);
+    }
+  }
+  return horses.map((h) => byId.get(h.id) ?? h);
 }

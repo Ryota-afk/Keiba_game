@@ -108,9 +108,23 @@
 ⚠️`src/domain/raceOutcome.js`の`MIN_FIELD_SIZE=6`〜`MAX_FIELD_SIZE=18`の一様抽選は根拠が無い。差し替える。
 
 **相手の選び方**：⭐**現役馬を全部持ち（1974年は5,800頭＝145厩舎×40）、毎週コンピュータの厩舎が
-「次にどのレースへ出すか」を決める。** 枠に対して希望が多いときは**収得賞金の多い順**で絞る
-（JRAの規則・`design/jra-entry-rules.md`）。プレイヤーが乗るレースだけ`src/sim/`の本物の計算を回し、
+「次にどのレースへ出すか」を決める。** プレイヤーが乗るレースだけ`src/sim/`の本物の計算を回し、
 他のレースは強さ比べで着順を決める。
+⚠️⚠️**第11弾で「収得賞金の多い順」を撤去した**（一般競走＋オープン特別のみ。重賞は対象外・
+下記参照。`devlog/wave11.md`§7）。3着までしか賞金が付かないため「走らないと賞金が付かない・
+賞金が無いと走れない」の輪になっていた（同じ未勝利戦での通過率が賞金>0で76.3%・賞金=0で6.6%）。
+⭐**今は「前走から空いた週数の多い順」（未出走は最優先）**——`domain/horse.js`の
+`weeksSinceLastRace`・`domain/npcWeeklyRace.js`。⚠️**重賞（`domain/npcGradedRace.js`）は変えていない**
+——重賞は収得賞金順のままが自然。
+
+**定員（第11弾・`devlog/wave11.md`§7）**：⭐**一般競走・オープン特別は`domain/weeklyCard.js`が
+番組表を組む時点で`race.fieldSize`を1回だけ決める**（`RNG_STREAMS.FIELD_SIZE`・`raceId`で固定）。
+`domain/npcWeeklyRace.js`は走る瞬間に引き直さず、この値をそのまま使う。⚠️**重賞は対象外**
+（`race.fieldSize`は`null`のまま）——`domain/npcGradedRace.js`が実データの優先出走権と
+`MAX_FIELD_SIZE`（18）で別に定員を持つため、ここで足すと二重に絞ることになる。
+⭐**`domain/rotation.js`の`replanStaleHorses`が、この定員を見ながらその週のぶんをまとめて配る**
+（目標も前哨戦も同じ「残り枠」の表を消費する）——これが無いと、条件の似た馬が全員同じ
+1本を選び、他のレースが空になる（before実測：登録0頭のレースが**46.3%**）。
 
 ⭐**時間の実測（`tools/bench-weekloop.mjs`）：30年＝1,560週・95,160レース・延べ1,051,503走で1,523ms。
 1週0.98ms・1年51ms。** ⚠️**これは下限**——1頭の判断に距離の照合・芝ダの適性・厩舎のローテの型・
@@ -145,6 +159,9 @@
 - 中身：その週の重賞（実データ）＋オープン特別（年の推定本数を52週へ確率配分・クラス`open`）＋
   一般競走（`coursesOpenInWeek`の各場×2日×`racesPerDay(year)`から重賞・オープン特別の本数を引いた残り）。
 - 依頼は「クラス一致・馬場に出られる・牝馬限定の条件が合う」レースを1つ選ぶ。合う物が無い馬は依頼にならない。
+  ⚠️**第11弾・案B-1で例外を1つ追加**（`devlog/wave11.md`§7）：**新馬クラスの馬は新馬戦「と」
+  未勝利戦の両方に出られる**（`data/classes.js`の`isEligibleForRaceClass`・
+  `domain/weeklyCard.js`の`eligibleBucketsForHorseClass`）。逆（未勝利の馬が新馬戦に出る）はしない。
 - 競馬場・馬場・距離・クラスは必ずレースから引く。⚠️`fridayConfirmation.js`の`resolveRaceContext`
   （無作為の割り当て）は廃止。
 - 2歳は第23週（`TWO_YEAR_OLD_DEBUT_WEEK`）より前に出走候補にしない。

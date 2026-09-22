@@ -248,7 +248,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // `domain/rotation.js`の`replanStaleHorses`）。⚠️これが無いと#95（走りたい馬が
   // 積み上がる）が再発する。
   const yearIndex = buildYearIndex(saveSeed, week, nextPlayer.currentYear, ROTATION_SEARCH_WEEKS);
-  const replannedHorses = replanStaleHorses(mergedHorses, yearIndex, week, nextPlayer.currentYear);
+  const replannedHorses = replanStaleHorses(saveSeed, mergedHorses, yearIndex, week, nextPlayer.currentYear);
 
   // 全馬の離脱期間を1週進める（乗ったかどうかに関わらず）。
   const injuryAdvancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));

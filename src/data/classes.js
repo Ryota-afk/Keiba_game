@@ -59,10 +59,15 @@ export function isHigherClass(a, b) {
  * ⚠️オープン以上（オープン特別・リステッド・g3・g2・g1）は、馬の側の勝利昇級が
  * `open`で頭打ちになる（`domain/horse.js`の`WIN_PROMOTION_CAP`）ため、「オープン以上の
  * レースは、馬がオープン以上であれば出られる」という判定にする（`domain/npcGradedRace.js`の
- * `MIN_ENTRY_CLASS_INDEX`と同じ考え方）。新馬〜3勝クラスは完全一致だけ出られる。
+ * `MIN_ENTRY_CLASS_INDEX`と同じ考え方）。
+ * ⭐**第11弾・案B-1（`devlog/wave11.md`§7）**：新馬クラスの馬は新馬戦「と」未勝利戦の
+ * 両方に出られる（新馬2,481頭に対し新馬戦は年307本しか無く、未勝利戦626本が空いていた）。
+ * ⚠️**逆（未勝利クラスの馬が新馬戦に出る）はしない**——新馬戦は未出走馬だけのレース。
+ * それ以外（1勝〜3勝クラス）は引き続き完全一致だけ出られる。
  */
 export function isEligibleForRaceClass(horseClassId, raceClassId) {
   const openIdx = classIndex("open");
   if (classIndex(raceClassId) >= openIdx) return classIndex(horseClassId) >= openIdx;
+  if (horseClassId === "shinba" && raceClassId === "maiden") return true;
   return horseClassId === raceClassId;
 }

@@ -51,6 +51,10 @@ export const RNG_STREAMS = Object.freeze({
   NPC_RACE: "npcRace", // NPC全馬の毎週ローテ（`domain/npcWeeklyRace.js`）
   CARD: "card", // 週の番組表（`domain/weeklyCard.js`。週×年で固定）
   POPULARITY: "popularity", // 人気の揺らぎ（`domain/popularity.js`）
+  // ⭐第11弾（`devlog/wave11.md`§7）。レースの定員を`buildWeeklyCard`が組む時点で1回だけ
+  // 決める（`raceId`で固定。走る瞬間に引き直さない・`domain/npcWeeklyRace.js`）。
+  FIELD_SIZE: "fieldSize", // レースの定員（週の番組表を組む時点・raceIdで固定）
+  ROTATION_PLAN: "rotationPlan", // 出走計画のまとめ配り（週×同順位の同値割り・`domain/rotation.js`）
 });
 
 /**
