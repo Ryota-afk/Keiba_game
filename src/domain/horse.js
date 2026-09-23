@@ -27,7 +27,7 @@ const FICTIONAL_SPEED_SPAN = 66;
 // 引き方、0.0なら従来どおり。⚠️`sim/stamina.js`の`optimalDistance`の式には触らない
 // （ダービー馬51頭で較正済み）——ここで変えるのは架空馬のスタミナの引き方だけ。
 // 史実馬のスタミナはウイポの値を直接読み込むので、この値を変えても影響しない。
-export const STAMINA_PROGRAM_FIT = 1.0;
+export const STAMINA_PROGRAM_FIT = 0.0;
 
 // `optimalDistance`（`sim/stamina.js`）の逆写像：
 // optimalDistance = round((1100 + stamina/100×2000) / 100) × 100 なので
