@@ -111,6 +111,9 @@
   （`{ minAge, maxAge, sexes }`を返す）。馬を読む判定（`horse.bornYear`・`horse.gender`）は
   `domain/horse.js`の`isAgeSexEligible(horse, condition, year)`——`bornYear`が無い馬は
   `canDebutThisWeek`と同じ扱いで年齢条件を素通りさせる（性別条件は素通りさせない）。
+  ⭐**`year`自体を渡さない（`null`／`undefined`）場合も年齢条件は見ない**（2026-09-24。
+  以前は`null`を渡すと`null - bornYear`が負の実数になり逆に全頭弾く事故があった。
+  `devlog/wave11.md`§15）。
 - **年齢は「レースが行われる年」で数える**（`race.year - horse.bornYear`）。予定を立てる週の
   年ではない——年をまたいで翌年のレースを予定に入れることがあるため。
 - **判定を入れた2箇所**：①走らせる側（`domain/npcGradedRace.js`の候補の絞り込み。優先出走権を

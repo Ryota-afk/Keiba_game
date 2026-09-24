@@ -217,6 +217,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     nextPlayer.currentYear,
     roster.horses,
     riddenThisWeek,
+    riddenRaceIds,
     roster.trialResults ?? {},
     getJockey,
     roster.stables

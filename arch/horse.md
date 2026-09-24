@@ -205,6 +205,19 @@
   （`domain/npcGradedRace.js`の`priorityIdsForRace`）。⚠️**優先出走権を持つ馬も年齢・性別条件
   （下記）は免除しない。**
 - **年齢・性別条件を読むようになった**：詳細は`arch/race-program.md`§6「重賞の年齢・性別条件」。
+- ⭐⭐**2026-09-24（`devlog/wave11.md`§15）：向きを直しただけでは効かなかった**——
+  `T.week < R.week`という比べ方自体は正しくても、①データ側でトライアルの週が本番と
+  同じ・後になっている年が9組あった（`tools/build-graded-races.mjs`がトライアルの週を
+  本番からの史実の間隔で逆算するよう直した。再生成済み）②`domain/rotation.js`の
+  前哨戦選び（`pickPrepRace`）が本番の6週前という距離だけでスコアを付けていたため、
+  実際のトライアル（本番の1〜4週前）が無関係な一般競走に負け、計画に入らずレースの頭数
+  （`MIN_FIELD_SIZE=5`）に届かなかった。`pickPrepRace`に「候補の中に本番のトライアルが
+  あれば距離のスコアより必ず優先する」分岐を追加して直した。③`domain/weekLoop.js`が
+  プレイヤーの乗った重賞のレースid（`riddenRaceIds`）を`runNpcGradedRaces`へ渡していなかった
+  ため、プレイヤーが乗った重賞・トライアルがプレイヤーの馬を除いてNPC側でもう1度走り、
+  その結果で`trialResults`が上書きされる余地があった——`excludeRaceIds`引数を追加して
+  渡すようにした（`npcWeeklyRace.js`と同じ形）。`bootstrapRoster`104週で確認：
+  `trialResults`が34件記録され、助走2年目の菊花賞が定員いっぱい（18頭）になった。
 
 ### クラスの昇降（J・第1弾-Eで確定）
 

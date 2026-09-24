@@ -111,13 +111,29 @@ function scoreAsPrep(race, aptParams, targetWeek) {
  * ⚠️⚠️**例外：目標より前の週に候補が無ければ`null`を返す**（デビュー戦を目標にした
  * 新馬など、そもそも「前哨戦」に使えるレースが存在しない場合）。前哨戦は必ず
  * `target.week`より前の週でなければならない——同じ週に2つのレースには出られない。
- * 目標より格が下（同格を含む）のレースを優先し、無ければ目標より格が上でも構わず
- * 一番近い週のレースを選ぶ。
+ * ⭐第11弾（`devlog/wave11.md`§15「訂正：トライアルが選ばれない」）：目標が重賞で、
+ * 候補の中にその重賞のトライアル（`trialFor`が目標の`name`に含まれるレース。
+ * `domain/npcGradedRace.js`の`priorityIdsForRace`と同じ判定）があれば、通常のスコア
+ * （`scoreAsPrep`）より必ず優先して選ぶ——距離の週数だけで選ぶと、本番の
+ * `PREP_LEAD_WEEKS`（6週）前後にたまたま近い無関係な一般競走に負け、トライアルが
+ * 一度も前哨戦に選ばれず、優先出走権の材料（`trialResults`）が育たなかった
+ * （実測：助走104週でクラシックのトライアルが1度も成立しなかった。同§14）。
+ * トライアルが複数あるとき（例：菊花賞に対する京都新聞杯以外の重賞）は本番に一番
+ * 近い週のものを選ぶ。それ以外は従来どおり：目標より格が下（同格を含む）のレースを
+ * 優先し、無ければ目標より格が上でも構わず一番近い週のレースを選ぶ。
  * @returns {object|null}
  */
 function pickPrepRace(candidates, target, aptParams) {
   const before = candidates.filter((r) => r.raceId !== target.raceId && r.week < target.week);
   if (before.length === 0) return null;
+
+  if (target.name) {
+    const trials = before.filter((r) => r.trialFor && target.name.includes(r.trialFor));
+    if (trials.length > 0) {
+      return trials.reduce((a, b) => (b.week > a.week ? b : a));
+    }
+  }
+
   const notHarder = before.filter((r) => classIndex(r.classId) <= classIndex(target.classId));
   const pool = notHarder.length > 0 ? notHarder : before;
   let best = pool[0];
@@ -207,7 +223,7 @@ function buildCapacityTable(yearIndex, horses, staleIds) {
   const remaining = new Map();
   for (const races of yearIndex.byBucketSurface.values()) {
     for (const race of races) {
-      if (race.fieldSize == null) continue; // 重賞：定員の対象外
+      if (race.fieldSize == null) continue; // fieldSize を持たないレース（今は存在しないはず・保険）
       if (!remaining.has(race.raceId)) remaining.set(race.raceId, race.fieldSize);
     }
   }

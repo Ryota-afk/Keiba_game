@@ -79,6 +79,12 @@ function priorityIdsForRace(gradedRacesThisYear, race, trialResultsForYear) {
  * @param {number} year - `player.currentYear`
  * @param {object[]} horses - ロースター全馬
  * @param {Set<string>} excludeHorseIds - 今週プレイヤーが乗った馬
+ * @param {Set<string>} [excludeRaceIds] - ⭐第11弾（`devlog/wave11.md`§15「訂正：
+ *   プレイヤーが乗った重賞がもう1度走る」）：プレイヤーが今週乗ったレースのid
+ *   （`mount.raceId`）。ここに含まれるレースはこの週のNPC側で走らせない——渡さないと
+ *   プレイヤーが乗った重賞をNPC側がプレイヤーの馬を除いてもう1度走らせてしまい、
+ *   その結果で`trialResults`が上書きされる（プレイヤーの馬が優先出走権の対象から漏れる）。
+ *   `domain/npcWeeklyRace.js`の`excludeRaceIds`と同じ役割・同じ位置。
  * @param {object} trialResults - `{ [year]: { [レース名]: string[] } }`（優先出走権の材料。
  *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
  *   レース名をキーに年ごとに持つ）
@@ -94,6 +100,7 @@ export function runNpcGradedRaces(
   year,
   horses,
   excludeHorseIds,
+  excludeRaceIds = new Set(),
   trialResults,
   getJockey,
   stables = []
@@ -104,7 +111,9 @@ export function runNpcGradedRaces(
 
   const thisWeek = weekOfYear(week);
   const gradedRacesThisYear = gradedRacesForYear(year);
-  const racesToday = gradedRacesThisYear.filter((r) => r.week === thisWeek);
+  const racesToday = gradedRacesThisYear.filter(
+    (r) => r.week === thisWeek && !excludeRaceIds.has(r.id)
+  );
   if (racesToday.length === 0) {
     return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
   }

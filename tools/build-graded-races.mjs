@@ -7,7 +7,12 @@
 //      ⚠️グレードは1984年から画面に出す（G表記そのものは今回も1984年以降にしか付いていない）
 //   3. 名前の「（〜トライアル）」からトライアル対応表を作る（質問15）
 //   4. 週を決める：平地G1・24本の固定名に一致すれば`FIXED_G1_WEEK`の週と、その週の
-//      同じ枠の競馬場（`FIXED_G1_COURSE`）を使う。それ以外は実際の日付から週を出し、
+//      同じ枠の競馬場（`FIXED_G1_COURSE`）を使う。トライアル（`trialFor`を持つレース）は、
+//      本番からの史実の日数の間隔を週数に丸め、本番の固定週からその週数ぶん引いた週に置く
+//      （`trialWeekFromTarget`。⭐2026-09-24追加・`devlog/wave11.md`§15「訂正：京都新聞杯と
+//      菊花賞が同じ週」。トライアルの史実の日付をそのまま`weekOfYearFromDate`に通すと、
+//      年によっては本番の史実の日付が固定週より遅く、トライアルの週が本番に追いつく・
+//      追い越すことがあった）。それ以外の一般の重賞は実際の日付から週を出す。
 //      競馬場はその週に開いていなければ同じ地区の開いている場へ移す（質問21＝(ア)）。
 //   5. 牝馬限定かどうかを条件欄（「牝」を含み「牡」を含まない）から決める。
 //
@@ -109,6 +114,43 @@ function isFillyOnly(condition) {
   return condition.includes("牝") && !condition.includes("牡");
 }
 
+// トライアルの`trialFor`（例："オークス"）は本番の通称であって、`FIXED_G1_WEEK`の
+// キー（本番の正式名。例："優駿牝馬"）と文字列が一致しないことがある
+// （`domain/npcGradedRace.js`の`priorityIdsForRace`が`race.name.includes(t.trialFor)`という
+// 部分一致で解決しているのと同じ理由）。ここでは週の逆算に使うため、実データに出てくる
+// 5種類の`trialFor`だけを正式名へ変換する（他は`trialFor`自身がそのままキーと一致する）。
+const TRIAL_TARGET_TO_FIXED_NAME = {
+  "オークス": "優駿牝馬",
+};
+
+/**
+ * トライアルの週を、本番（`FIXED_G1_WEEK`固定）から逆算する
+ * （`devlog/wave11.md`§15「訂正：京都新聞杯と菊花賞が同じ週」の直し）。
+ * ⚠️**なぜ必要か**：本番G1は史実の日付を無視して`FIXED_G1_WEEK`の固定週に置くが、
+ * トライアルは史実の日付をそのまま`weekOfYearFromDate`に通していた。年によっては
+ * 本番の史実の日付が現行の固定週より遅く、その差の分だけトライアルの週が本番の週に
+ * 追いつき、同じ週（1976〜1978・1983・1984年）や本番より後（1972年の4組）になっていた。
+ * ここでは「トライアルは本番の何日前に走ったか」という史実の**間隔**だけを使い、
+ * 本番の固定週からその週数ぶん引いた週に置き直す——本番の史実の日付そのものは使わない。
+ * @param {string} trialFor - トライアルの`trialFor`（例："菊花賞"）
+ * @param {string} trialDate - トライアルの史実の日付（"YYYY-MM-DD"）
+ * @param {Map<string, string>} fixedDateByName - `FIXED_G1_WEEK`のキー→その年の史実の日付
+ * @returns {number|null} 求まらなければ`null`（呼び出し側が`weekOfYearFromDate`へ後退する）
+ */
+function trialWeekFromTarget(trialFor, trialDate, fixedDateByName) {
+  const canonicalTarget = TRIAL_TARGET_TO_FIXED_NAME[trialFor] ?? trialFor;
+  const targetWeek = FIXED_G1_WEEK[canonicalTarget];
+  const targetDate = fixedDateByName.get(canonicalTarget);
+  if (targetWeek == null || !targetDate) return null; // この年に本番のデータが無い（保険）
+  const [ty, tm, td] = targetDate.split("-").map(Number);
+  const [ry, rm, rd] = trialDate.split("-").map(Number);
+  const gapDays = Math.round(
+    (Date.UTC(ty, tm - 1, td) - Date.UTC(ry, rm - 1, rd)) / 86_400_000
+  );
+  const weeksBefore = Math.max(1, Math.round(gapDays / 7)); // 同じ週・後の週にしない
+  return targetWeek - weeksBefore;
+}
+
 /**
  * トライアル注記のあるレースは対象外にした上で、次の順に**完全一致**だけで確かめる：
  * ①そのまま ②末尾の愛称カッコを外した形 ③接頭辞を1つ外した形（そのまま／別名表）。
@@ -146,6 +188,10 @@ function buildYear(year) {
   const races = [];
   let skippedNoCourse = 0;
 
+  // ①1回目の通し：名前・グレード・トライアル対応だけを解決する（週はまだ決めない）。
+  // ⚠️トライアルの週（②）が本番の史実の日付を必要とするため、本番側を先に全部
+  // 解決してからでないとトライアル側を計算できない——1回のループでは順不同になる。
+  const parsed = [];
   for (const r of raw) {
     if (r.isArab) continue;
     if (r.name.includes("障害")) continue;
@@ -155,7 +201,16 @@ function buildYear(year) {
     const { name: nameNoGrade, grade: parsedGrade } = stripGrade(r.name);
     const trialFor = extractTrialTarget(nameNoGrade);
     const fixedName = resolveFixedName(nameNoGrade, trialFor);
+    parsed.push({ r, nameNoGrade, parsedGrade, trialFor, fixedName });
+  }
 
+  // ②本番（`fixedName`が解決したレース）の、この年の史実の日付を集める。
+  const fixedDateByName = new Map();
+  for (const p of parsed) {
+    if (p.fixedName) fixedDateByName.set(p.fixedName, p.r.date);
+  }
+
+  for (const { r, nameNoGrade, parsedGrade, trialFor, fixedName } of parsed) {
     const [y, m, d] = r.date.split("-").map(Number);
     let week;
     let courseId;
@@ -163,7 +218,10 @@ function buildYear(year) {
       week = FIXED_G1_WEEK[fixedName];
       courseId = FIXED_G1_COURSE[fixedName];
     } else {
-      week = weekOfYearFromDate(y, m, d);
+      // ⭐トライアルは、本番からの史実の間隔で週を逆算する（`trialWeekFromTarget`）。
+      // 本番のデータがこの年に無い、あるいはトライアル以外の一般の重賞は、
+      // 従来どおり史実の日付をそのまま週に変換する。
+      week = (trialFor && trialWeekFromTarget(trialFor, r.date, fixedDateByName)) ?? weekOfYearFromDate(y, m, d);
       const historicalCourseId = findCourseByName(r.course);
       if (!historicalCourseId) {
         skippedNoCourse += 1;

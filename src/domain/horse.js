@@ -324,14 +324,22 @@ export function canDebutThisWeek(horse, week, year) {
  * `domain/weeklyCard.js`の`buildYearIndex`がレースごとに付ける`race.year`を渡すこと——
  * 年をまたいで翌年のレースを予定に入れることがあるため）。⚠️生年（`horse.bornYear`）が
  * 無い馬は`canDebutThisWeek`と同じ扱いで年齢条件を素通りさせる。
+ * ⚠️⚠️**第11弾（`devlog/wave11.md`§15「訂正」）：`year`を渡さない（`null`／`undefined`
+ * どちらでも）と年齢の条件は見ない**——性別の条件はそれでも見る（年を必要としないため）。
+ * 呼び出し側（`raceOutcome.js`の`runPlaceholderRace`のJSDoc等）の記述をこの関数自身が
+ * 保証する形にしてある。⚠️以前は`year`に`null`を渡すと`null - bornYear`が負の実数になり、
+ * 「年齢条件を見ない」つもりで`null`を渡した呼び出しが逆に**全頭を弾く**事故があった
+ * （`undefined`を直接渡した場合だけ`NaN`で偶然素通りしていた・呼び出し元の書き方で
+ * 結果が変わる状態だった）。
  * @param {object} horse
  * @param {string|null|undefined} condition
- * @param {number} year - そのレースが実際に開催される暦年
+ * @param {number|null|undefined} [year] - そのレースが実際に開催される暦年。省略すると
+ *   年齢の条件を見ない。
  * @returns {boolean}
  */
 export function isAgeSexEligible(horse, condition, year) {
   const { minAge, maxAge, sexes } = parseRaceCondition(condition);
-  if (horse.bornYear != null) {
+  if (year != null && horse.bornYear != null) {
     const age = year - horse.bornYear;
     if (minAge != null && age < minAge) return false;
     if (maxAge != null && age > maxAge) return false;

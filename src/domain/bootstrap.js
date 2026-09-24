@@ -72,6 +72,7 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     year,
     roster.horses,
     new Set(),
+    new Set(), // 事前シミュレーションにプレイヤーはいない
     roster.trialResults ?? {},
     getJockey,
     roster.stables
