@@ -90,6 +90,9 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     getJockey,
     condition,
     stables,
+    // ⭐第11弾（`devlog/wave11.md`§12）：`mount.condition`（重賞の年齢・性別条件）の
+    // 年齢を数える暦年。`assembleRealField`が相手馬を絞り込むのに使う。
+    year: player.currentYear,
   });
 
   const income = rideIncome(horse.classId, result.won); // この鞍1件ぶんの騎乗料（画面へも渡す）

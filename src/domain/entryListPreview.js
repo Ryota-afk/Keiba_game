@@ -16,13 +16,25 @@ import { assignPostPositions } from "../data/postPosition.js";
  * @param {number|string} saveSeed
  * @param {number} week
  * @param {object} horse - プレイヤーが乗る馬
- * @param {{ horseId: string, surface: string }} mount
+ * @param {{ horseId: string, surface: string, condition?: string|null }} mount
  * @param {object[]} allHorses - ロースター全馬
+ * @param {number} [year] - このレースが実際に開催される暦年。`mount.condition`（重賞の
+ *   年齢・性別条件）の年齢を数えるのに使う（`devlog/wave11.md`§12）。`runPlaceholderRace`が
+ *   実際に着順を決めるときと同じ枠になるよう、`raceOutcome.js`の`assembleRealField`へ
+ *   そのまま渡す。
  * @returns {(object & { postNumber: number, waku: number })[]} 出走馬（馬番・枠番つき）
  */
-export function previewEntryField(saveSeed, week, horse, mount, allHorses) {
+export function previewEntryField(saveSeed, week, horse, mount, allHorses, year = null) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
   const fieldSizeTarget = drawFieldSize(rand01);
-  const field = assembleRealField(rand01, horse, mount.surface, allHorses, fieldSizeTarget);
+  const field = assembleRealField(
+    rand01,
+    horse,
+    mount.surface,
+    allHorses,
+    fieldSizeTarget,
+    mount.condition ?? null,
+    year
+  );
   return assignPostPositions(field);
 }

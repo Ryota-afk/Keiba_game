@@ -579,3 +579,101 @@ CLAUDE.md §2の「独りで確信した分析結論」の5件目になるとこ
 
 ⚠️物差しは実装の中身に依存しない作り（`runNpcGradedRaces`を外から包み、戻り値の`racedHorseIds`と
 各馬の`recentFinishes[0]`だけで出走馬を束ねる）にした。条件の判定も物差しの中に**実装とは別に**書かせた。
+
+## §14 ①②③の実装（2026-09-23・`claude-sonnet-5`）
+
+§13の発注どおり、①②③を実装した（③-bの検証は後述）。⚠️**この節に書くのは実装の中身と
+軽い自己確認だけ**——直す前・直した後の物差しでの計測は§13の進め方どおり別担当が行う
+（このセッションでは行っていない）。
+
+### 変えたもの
+
+- **`data/raceConditions.js`（新設）**：`parseRaceCondition(condition)`。重賞の実データの
+  `condition`文字列（例："3歳牡牝 定量"）から`{ minAge, maxAge, sexes }`を読む純関数。
+- **`data/raceProgram.js`**：`GRADED_MAX_FIELD_SIZE = 18`を新設（①の定員を1箇所に）。
+- **`domain/horse.js`**：`isAgeSexEligible(horse, condition, year)`を新設
+  （`parseRaceCondition`を呼び、`horse.bornYear`・`horse.gender`と突き合わせる。
+  `bornYear`が無い馬は`canDebutThisWeek`と同じ扱いで**年齢だけ**素通りさせる——性別条件は
+  免除しない）。
+- **`domain/weeklyCard.js`**：重賞オブジェクトの`fieldSize`を`null`→`GRADED_MAX_FIELD_SIZE`
+  （①）。`condition`・`trialFor`を新しく持たせた（③・②の材料）。JSDoc・「重賞は定員の対象外」
+  だったコメントを書き直した。
+- **`domain/npcGradedRace.js`**：`MAX_FIELD_SIZE`を`GRADED_MAX_FIELD_SIZE`の参照に統一（①）。
+  `findTrialResultKey`（本番自身の`trialFor`を読んでいた・常に空振り）を`priorityIdsForRace`
+  （同じ年の重賞から`trialFor`が本番の`name`に含まれ・本番より前の週のトライアルを全部探し、
+  その結果の和集合を返す）へ置き換えた（②）。候補の絞り込みに`isAgeSexEligible`を追加——
+  優先出走権を持つ馬も免除しない（③）。矛盾していた2つのコメント（34行目・199行目）を
+  実態に合わせて書き直した。
+- **`domain/rotation.js`**：`collectCandidates`に`isAgeSexEligible`を追加（③・予定を立てる側。
+  `race.year`は`buildYearIndex`がレースごとに付けた「そのレースが実際に開催される暦年」）。
+  `hasCapacity`・`buildCapacityTable`のコメントを「重賞は対象外」から実態（①で重賞も対象）へ
+  書き直した——コードは無変更（`fieldSize`が`null`のレースを飛ばす作りだったため、値を
+  入れただけで自然に対象になった。§13の設計どおり）。
+- **`domain/bootstrap.js`**：`runBootstrapWeek`が`runNpcWeeklyRaces`へ渡す除外を空の`Set`から
+  `gradedResult.racedHorseIds`へ（②-b）。⚠️**`domain/weekLoop.js`（本編）は既にこの除外を
+  していた**（`npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds])`）
+  ——抜けていたのは事前シミュレーションだけだった。
+- **③の年齢・性別条件を、プレイヤーの相手馬にも適用**：`domain/weeklyRequests.js`が依頼に
+  `condition`を乗せ、`domain/raceOutcome.js`の`assembleRealField`（`runPlaceholderRace`・
+  `domain/entryListPreview.js`の`previewEntryField`もこれを経由）が相手馬の絞り込みに使う。
+  `year`は`domain/weekResults.js`の`processMountResult`が`player.currentYear`を渡す
+  （`EntryListScreen.jsx`は`currentYear`プロパティをそのまま`previewEntryField`へ渡す）。
+  ⚠️**発注時の指示（③の判定は2箇所＝走らせる側・予定を立てる側）に加えて見つけた3箇所目**
+  ——プレイヤーの相手馬集めも同じ`classId`一致だけで組んでおり、年齢を見ていなかった。
+
+### 実データの`condition`の実測（1972〜1987年・1,400本・`null`11本を除く1,389本）
+
+| 種類 | 件数（上位） |
+|---|---|
+| "3歳以上 ハンデ" | 255 |
+| "4歳以上 ハンデ" | 171 |
+| "3歳以上 別定" | 151 |
+| "4歳以上 別定" | 145 |
+| "3歳 別定" | 103 |
+| "3歳牡牝 定量" | 96 |
+| "3歳牝 定量" | 90 |
+| …（他18種） | — |
+
+⭐**「除◯◯1着馬」18件・「父内国産」28件**——今回は読まない（通す）。
+⭐**`condition`から読んだ「牝」限定は、既存の`fillyOnly`と1,400本全件で食い違い0件**
+（読み方が正しいことの裏付け）。
+
+### 軽い自己確認（`/tmp/.../scratchpad/w11g/impl-check/`。CLAUDE.md §16の範囲内）
+
+- `parseRaceCondition`・`isAgeSexEligible`の単体確認（年齢の境界・「牡牝」「牝」・
+  `condition`無し・`bornYear`不明の扱い）：全項目OK。
+- **②の向き**：実データ（1974年・皐月賞とそのトライアル「フジテレビ賞スプリングS」）＋
+  `horse.plan`を持たない合成馬3頭をトライアル上位に見立てて`runNpcGradedRaces`を直接呼ぶと、
+  **3頭とも本番の出走馬に入った**（計画が無いのに優先出走権だけで出走）。
+  4歳馬を同じ設定に混ぜると年齢条件で弾かれた。
+- **①**：`buildWeeklyCard`の1974年ダービーで`fieldSize === 18`・`condition === "3歳牡牝 定量"`
+  を確認。
+- **③（プレイヤーの相手馬）**：`assembleRealField`に3歳6頭・5歳3頭を渡すと、5歳3頭は
+  相手馬から除かれた。
+- **②-b**：`bootstrapRoster`後、全馬`recentFinishes`の週の重複（＝同じ週に2回出走した形跡）
+  を数えて**0件**（延べ17,990走）。
+- **助走104週を1回通して例外0件**（`bootstrapRoster("check-e", 1978)`・約6.3〜7.2秒）。
+  ダービー出走履歴（recentFinishesに"優駿"を含む18件）の年齢違反も0件（全員3歳）。
+- **本編`advanceWeek`も20週分・例外0件**（`generateWeeklyRequests`・`previewEntryField`の
+  重賞経路も確認したが、この助走窓では重賞の依頼自体が1件も出なかった——
+  `canRideGradedRace`の信頼閾値にまだ届いていないためと見られる。深追いしていない）。
+
+### ⚠️気づいたが直していないこと（次に見る人への申し送り）
+
+助走104週（1976〜1977年）を通しても、**クラシック（皐月賞・桜花賞・オークス・菊花賞）の
+トライアルが1度も成立しなかった**（`trialResults`に記録0件・`recentFinishes`にもトライアル名が
+1件も無い）。⚠️**これは②の実装ミスではなく、候補が足りていないように見える**——助走終了時点で
+「オープン以上」は294頭・うち「1977年にちょうど3歳」は136頭いるが、この136頭が
+**いつ**オープン以上に上がったかまでは確認していない（クラス昇格は連続する勝利で進むため、
+2年目の後半に上がった馬は、その年の春（週12〜21）のクラシックにはもう間に合わない可能性が
+高い）。⭐**確証は無い**——「オープン以上へ上がるタイミングと春のクラシックの時期が
+噛み合っていない」という仮説だけで、確かめていない。次にこの場所を触る人が、
+before（`ce653b5`）でも同じ現象が起きるかどうかも合わせて見ると良い
+（このセッションでは`ce653b5`を測り直していない）。
+
+### 守れなかったこと・保留
+
+- CLAUDE.md §2の例外規定（軽微な文言・定数修正のみOpusのまま可）には該当しないため、
+  このセッションは`claude-sonnet-5`のまま実装した（発注どおり）。
+- `TODO.md` #111へ実装済みの旨を追記したが、効果測定（つまみの選定・菊花賞の成立率）は
+  §13の計画どおりまだ行っていない。

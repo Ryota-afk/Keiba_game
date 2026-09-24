@@ -14,6 +14,7 @@ import {
   MIXED_DISTANCE_SHARE,
 } from "../data/raceProgram.js";
 import { weekOfYear } from "../data/calendar.js";
+import { parseRaceCondition } from "../data/raceConditions.js";
 
 // ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
 // ダービー馬51頭は65〜92なので、この上限（理論上の最大に近い値で71〜72）なら
@@ -312,6 +313,31 @@ export function canDebutThisWeek(horse, week, year) {
   if (age < 2) return false; // 0歳・1歳はまだ出走できない
   if (age > 2) return true;
   return weekOfYear(week) >= TWO_YEAR_OLD_DEBUT_WEEK;
+}
+
+/**
+ * 重賞の実データが持つ年齢・性別条件（`condition`。例："3歳牡牝 定量"）にこの馬が出られるか
+ * （第11弾・`devlog/wave11.md`§12・`data/raceConditions.js`の`parseRaceCondition`）。
+ * ⚠️読むのは年齢と「牡牝」「牝」の性別だけ——「除◯◯1着馬」「父内国産」は読まない（通す）。
+ * `condition`が無ければ（一般競走・グレード表記の無い年の重賞）制限なしとして通す。
+ * ⭐**年齢は「そのレースが行われる年」で数える**（`year`は予定を立てる週の年ではなく、
+ * `domain/weeklyCard.js`の`buildYearIndex`がレースごとに付ける`race.year`を渡すこと——
+ * 年をまたいで翌年のレースを予定に入れることがあるため）。⚠️生年（`horse.bornYear`）が
+ * 無い馬は`canDebutThisWeek`と同じ扱いで年齢条件を素通りさせる。
+ * @param {object} horse
+ * @param {string|null|undefined} condition
+ * @param {number} year - そのレースが実際に開催される暦年
+ * @returns {boolean}
+ */
+export function isAgeSexEligible(horse, condition, year) {
+  const { minAge, maxAge, sexes } = parseRaceCondition(condition);
+  if (horse.bornYear != null) {
+    const age = year - horse.bornYear;
+    if (minAge != null && age < minAge) return false;
+    if (maxAge != null && age > maxAge) return false;
+  }
+  if (sexes && !sexes.includes(horse.gender)) return false;
+  return true;
 }
 
 /**

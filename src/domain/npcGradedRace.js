@@ -14,7 +14,13 @@ import { weekOfYear } from "../data/calendar.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
 import { classIndex } from "../data/classes.js";
-import { appendRaceResultWithEarnings, canDebutThisWeek, placePrizeShare } from "./horse.js";
+import { GRADED_MAX_FIELD_SIZE } from "../data/raceProgram.js";
+import {
+  appendRaceResultWithEarnings,
+  canDebutThisWeek,
+  isAgeSexEligible,
+  placePrizeShare,
+} from "./horse.js";
 import { runRaceSim, buildPlan } from "../sim/index.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
@@ -26,23 +32,44 @@ import { computePopularity } from "./popularity.js";
 // オープン以上（重賞に出られる最低クラス）。`arch/horse.md`「クラス（10段）」。
 const MIN_ENTRY_CLASS_INDEX = classIndex("open");
 // 出走頭数の上限（JRAの実際の上限。史実の1レースごとの実頭数はまだ取れていないため、
-// 「収得賞金の多い順で上限まで埋める」という仮の形にする）。
-const MAX_FIELD_SIZE = 18;
+// 「優先出走権→収得賞金の多い順で上限まで埋める」という仮の形にする）。
+// ⭐第11弾（`devlog/wave11.md`§12）：`domain/weeklyCard.js`が計画段階の定員に使う値と
+// 同じ1箇所（`data/raceProgram.js`）から取る——2箇所に18を書かない。
+const MAX_FIELD_SIZE = GRADED_MAX_FIELD_SIZE;
 const MIN_FIELD_SIZE = 5;
 
 /**
- * トライアルの`trialFor`（`extractTrialTarget`が「（オークストライアル）」等から抜き出した
+ * 本番レース`race`の優先出走権の対象馬idを、同じ年のトライアル結果から集める
+ * （第11弾・`devlog/wave11.md`§12「訂正」で探す向きを直した）。
+ *
+ * ⚠️⚠️**実データの`trialFor`はトライアル側が持つ**（例：「京都新聞杯 （菊花賞トライアル）」の
+ * `trialFor`は`"菊花賞"`。本番の「菊花賞」自身の`trialFor`は`null`）。
+ * ⭐**トライアルの`trialFor`（`extractTrialTarget`が「（オークストライアル）」等から抜き出した
  * 通称・例：「オークス」）と、本番レースの実際の`name`（正式名＋通称の括弧付き・例：
- * 「優駿牝馬（オークス）」）は文字列として一致しない。⚠️`tools/build-graded-races.mjs`が
+ * 「優駿牝馬（オークス）」）は文字列として一致しない。** `tools/build-graded-races.mjs`が
  * `name`をグレード表記だけ剥がして保存し、季節・通称の括弧は残す仕様のため
  * （`arch/horse.md`の質問15の記録でも「オークス」という通称で書かれている）。
- * ここでは年内のレース名から`trialFor`を**部分文字列として含む**ものを1件だけ探す
- * ——年内の重賞は最大100本程度・トライアル対応は年4〜5組だけなので、誤マッチのリスクは
- * `tools/build-graded-races.mjs`の固定週G1照合（24本から探す）ほど高くない。
+ * ここでは同じ年の重賞から、`trialFor`が本番の`name`に**部分文字列として含まれ**、
+ * 本番自身ではなく、本番より前の週に行われたレースを全部探し、その結果
+ * （`trialResultsForYear[T.name]`＝そのレースの上位3頭）の和集合を返す
+ * ——1つの本番に複数のトライアルが対応することもあるため（例：皐月賞にはスプリング
+ * ステークス以外のトライアルもある）、1件だけ探して終わりにしない。
+ * @param {object[]} gradedRacesThisYear - `gradedRacesForYear(year)`（実データ）
+ * @param {object} race - 今から走らせる本番レース
+ * @param {Record<string, string[]>|undefined} trialResultsForYear - `trialResults[year]`
+ * @returns {Set<string>}
  */
-function findTrialResultKey(trialResultsForYear, trialFor) {
-  if (!trialResultsForYear) return null;
-  return Object.keys(trialResultsForYear).find((name) => name.includes(trialFor)) ?? null;
+function priorityIdsForRace(gradedRacesThisYear, race, trialResultsForYear) {
+  const ids = new Set();
+  if (!trialResultsForYear) return ids;
+  for (const t of gradedRacesThisYear) {
+    if (t.id === race.id) continue; // 自分自身は除く
+    if (!t.trialFor) continue; // トライアルでないレースは対象外
+    if (!race.name.includes(t.trialFor)) continue; // この本番のトライアルではない
+    if (!(t.week < race.week)) continue; // 本番より後（または同じ週）のレースは対象外
+    for (const id of trialResultsForYear[t.name] ?? []) ids.add(id);
+  }
+  return ids;
 }
 
 /**
@@ -76,7 +103,8 @@ export function runNpcGradedRaces(
   }
 
   const thisWeek = weekOfYear(week);
-  const racesToday = gradedRacesForYear(year).filter((r) => r.week === thisWeek);
+  const gradedRacesThisYear = gradedRacesForYear(year);
+  const racesToday = gradedRacesThisYear.filter((r) => r.week === thisWeek);
   if (racesToday.length === 0) {
     return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
   }
@@ -93,8 +121,7 @@ export function runNpcGradedRaces(
   // ⚠️レースごとに候補を毎回作り直す——同じ週の複数の重賞に同じ馬が2回出ないよう、
   // 選ばれた馬は`racedHorseIds`へ積んで次のレースの候補から除く。
   for (const race of racesToday) {
-    const trialKey = race.trialFor ? findTrialResultKey(nextTrialResults[year], race.trialFor) : null;
-    const priorityIds = new Set(trialKey ? nextTrialResults[year][trialKey] : []);
+    const priorityIds = priorityIdsForRace(gradedRacesThisYear, race, nextTrialResults[year]);
 
     const candidates = [];
     for (const horse of horses) {
@@ -105,6 +132,10 @@ export function runNpcGradedRaces(
       if (!canRaceOnSurface(horse.surfaceAptitude, race.surface)) continue;
       if (race.fillyOnly && horse.gender !== "filly") continue;
       if (!canDebutThisWeek(horse, week, year)) continue;
+      // ⭐第11弾（`devlog/wave11.md`§12）：実データの年齢・性別条件（`race.condition`）。
+      // 優先出走権を持つ馬もここは免除しない——トライアルを勝った馬でも年齢が
+      // 合わなければ本番には出られない（実データの`condition`自体がそう決めている）。
+      if (!isAgeSexEligible(horse, race.condition, year)) continue;
       // ⭐計画（`horse.plan`）がこの重賞を目標か前哨戦にしているか。トライアルの
       // 優先出走権を持つ馬は、計画がこの重賞でなくても入れる（従来どおり）。
       const isPlanned =
@@ -195,8 +226,10 @@ export function runNpcGradedRaces(
     });
     racesRun += 1;
 
-    // このレースがどこかの本番の「トライアル」なら、上位（優先出走権の対象）を記録する
-    // （質問15：対応表はレース名にそのまま入っている。`trialFor`は本番側が持つ）。
+    // 走ったレースが何であれ、上位（優先出走権の対象）を記録しておく——このレース自身が
+    // 別の本番のトライアルなら（`trialFor`を持つなら）、`priorityIdsForRace`が次にその
+    // 本番を走らせるときにここを`race.name`（＝自分の名前）で引きに来る。
+    // ⚠️`trialFor`はトライアル側が持つ（本番側は`null`。上の`priorityIdsForRace`のコメント参照）。
     nextTrialResults = {
       ...nextTrialResults,
       [year]: {

@@ -13,7 +13,7 @@ import { classIndex } from "../data/classes.js";
 import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
 import { aptitudeParamsOf, distanceAptitudeFrom } from "../sim/stamina.js";
 import { eligibleBucketsForHorseClass } from "./weeklyCard.js";
-import { canDebutThisWeek, weeksSinceLastRace } from "./horse.js";
+import { canDebutThisWeek, isAgeSexEligible, weeksSinceLastRace } from "./horse.js";
 import { isSidelined } from "./fall.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 
@@ -56,6 +56,12 @@ function collectCandidates(horse, yearIndex, week) {
       for (const race of races) {
         if (race.week < minWeek || race.week > maxWeek) continue;
         if (race.fillyOnly && horse.gender !== "filly") continue;
+        // ⭐第11弾（`devlog/wave11.md`§12）：重賞の年齢・性別条件（`race.condition`）。
+        // ⚠️予定を立てる側でもここを見ないと、条件に合わない馬（例：4歳馬が日本ダービー）が
+        // 予定に入れて定員を消費し、走る段階（`npcGradedRace.js`）で弾かれてレースが
+        // 埋まらなくなる。`race.year`は`buildYearIndex`がレースごとに付けた、そのレースが
+        // 実際に開催される暦年（予定を立てる週の年ではない）。
+        if (race.condition && !isAgeSexEligible(horse, race.condition, race.year)) continue;
         result.push(race);
       }
     }
@@ -64,9 +70,10 @@ function collectCandidates(horse, yearIndex, week) {
 }
 
 /**
- * その候補レースに、まだ枠が残っているか。⭐第11弾（`devlog/wave11.md`§7）：
- * `remaining`に載っていないレース（重賞・`fieldSize`を持たないレース）は定員の対象外
- * ＝常に枠ありとして扱う（`weeklyCard.js`の`fieldSizeForRace`のコメント参照）。
+ * その候補レースに、まだ枠が残っているか。⭐第11弾（`devlog/wave11.md`§7・§12）：
+ * `remaining`に載っていないレース（`fieldSize`を持たないレース。今は理論上存在しないはず
+ * ——一般競走・オープン特別・重賞のすべてが`buildWeeklyCard`で`fieldSize`を持つ）は
+ * 定員の対象外＝常に枠ありとして扱う（保険）。
  * @param {Map<string, number>|null} remaining
  * @param {string} raceId
  */
@@ -182,8 +189,8 @@ export function isPlanStale(horse, week) {
 }
 
 /**
- * ⭐第11弾（`devlog/wave11.md`§7）：`yearIndex`に載っている`fieldSize`付きのレース
- * （一般競走・オープン特別。重賞は対象外＝`hasCapacity`と同じ理由）を集め、
+ * ⭐第11弾（`devlog/wave11.md`§7・§12）：`yearIndex`に載っている`fieldSize`付きのレース
+ * （一般競走・オープン特別・重賞の全部——§12で重賞にも`fieldSize`を持たせた）を集め、
  * レースごとの「残り枠」の表を作る。既に計画を持っている馬（今週立て直さない馬）の
  * ぶんをあらかじめ引いておく——立て直す馬に配る前に、既存の予約を反映させるため。
  * ⚠️⚠️**設計判断：前哨戦（`prepRaceId`）も目標（`targetRaceId`）と同じ枠を消費する。**

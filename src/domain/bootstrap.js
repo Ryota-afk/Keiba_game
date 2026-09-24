@@ -76,12 +76,16 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     getJockey,
     roster.stables
   );
+  // ⚠️第11弾（`devlog/wave11.md`§12）：重賞で走った馬を一般競走の除外に渡す。
+  // ⭐`domain/weekLoop.js`の本編ループは既に`gradedResult.racedHorseIds`を除外に
+  // 入れていた（同じ週に重賞と一般競走の2つへ出ないため）が、ここ（事前シミュレーション）は
+  // 空の`Set`を渡していて働いていなかった。
   const npcResult = runNpcWeeklyRaces(
     saveSeed,
     week,
     year,
     gradedResult.horses,
-    new Set(),
+    gradedResult.racedHorseIds,
     new Set(),
     getJockey,
     roster.stables

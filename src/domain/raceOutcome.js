@@ -16,6 +16,7 @@ import { canRaceOnSurface } from "../data/surfaceAptitude.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { isSidelined } from "./fall.js";
 import { computePopularity } from "./popularity.js";
+import { isAgeSexEligible } from "./horse.js";
 
 /** 馬の強さを1つの数値にまとめる（仮の指標。⑦の消耗式に置き換える）。 */
 export function horseStrengthScore(horse, declaredStrategy) {
@@ -39,9 +40,13 @@ export function horseStrengthScore(horse, declaredStrategy) {
  * @param {string} surface
  * @param {object[]} allHorses - ロースター全馬
  * @param {number} fieldSizeTarget - 目標の出走頭数（実際の頭数は候補が少なければこれより減る）
+ * @param {string|null} [condition] - 重賞の年齢・性別条件（`devlog/wave11.md`§12）。
+ *   `anchorHorse`自身には適用しない（既に`horse.plan`の段階で条件を満たしている前提）——
+ *   相手馬の絞り込みにだけ使う。
+ * @param {number|null} [year] - `condition`の年齢を数える暦年（そのレースが実際に開催される年）
  * @returns {object[]} 出走馬の配列（`anchorHorse`を含む。並び順は収得賞金の多い順＝人気順）
  */
-export function assembleRealField(rand01, anchorHorse, surface, allHorses, fieldSizeTarget) {
+export function assembleRealField(rand01, anchorHorse, surface, allHorses, fieldSizeTarget, condition = null, year = null) {
   const candidates = allHorses
     .filter(
       (h) =>
@@ -49,7 +54,8 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
         !h.isRetired &&
         !isSidelined(h) &&
         h.classId === anchorHorse.classId &&
-        canRaceOnSurface(h.surfaceAptitude, surface)
+        canRaceOnSurface(h.surfaceAptitude, surface) &&
+        isAgeSexEligible(h, condition, year)
     )
     .map((h) => ({ h, key: h.record.earnings + rand01() * 0.001 }));
   const rivalCount = Math.max(0, fieldSizeTarget - 1);
@@ -69,20 +75,31 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
  * @param {object} horse
  * @param {object[]} allHorses - ロースター全馬（相手馬を実在の馬から組むために使う）
  * @param {{ jockeyPenalty?: number, playerJockey?: object, getJockey?: (h:object)=>object|undefined,
- *           condition?: string, stables?: object[] }} [options]
+ *           condition?: string, stables?: object[], year?: number }} [options]
  *   - `jockeyPenalty`：疲労による騎手の能力低下の倍率（1で無補正）。§6「疲労」が奪う3つのうち
  *     「騎手の能力が落ちる」をここで反映する
  *   - `playerJockey`：プレイヤー自身の騎手。渡さないと適性の倍率が1.0になる
  *   - `getJockey`：相手馬に乗るNPC騎手を引く関数
  *   - `condition`：馬場状態（good|yielding|soft|heavy）
  *   - `stables`：ロースター全厩舎（人気の材料「厩舎の強さ」に使う。渡さないと中間値扱い）
+ *   - `year`：このレースが実際に開催される暦年。`mount.condition`（重賞の年齢・性別条件）の
+ *     年齢を数えるのに使う（`devlog/wave11.md`§12）。渡さないと年齢の条件を見ない
+ *     （`horse.js`の`isAgeSexEligible`の仕様どおり）
  * @returns {{ position: number, fieldSize: number, won: boolean, field: object[],
  *             popularity: number }}
  */
 export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, options = {}) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
   const fieldSizeTarget = drawFieldSize(rand01);
-  const field = assembleRealField(rand01, horse, mount.surface, allHorses, fieldSizeTarget);
+  const field = assembleRealField(
+    rand01,
+    horse,
+    mount.surface,
+    allHorses,
+    fieldSizeTarget,
+    mount.condition ?? null,
+    options.year ?? null
+  );
   const fieldSize = field.length;
   const getJockeyForHorse = (h) => (h.id === horse.id ? options.playerJockey : options.getJockey?.(h));
   // ⚠️`field`の並び（収得賞金の多い順＝馬番の元）はそのまま使い、人気は別の並びとして

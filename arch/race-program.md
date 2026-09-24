@@ -92,6 +92,39 @@
   翌1月1。2026年も2歳戦がある最も早い開催は6月6日からの第3回東京）。
 - **牝馬だけのレースは11.0%**（1日11レースなら1.2本。根拠：2026年の番組表の実測3,076本中339本）。
 
+### ⭐ 重賞の年齢・性別条件（`condition`）を読む（第11弾・`devlog/wave11.md`§12）
+
+⚠️⚠️**それまでコードのどこも重賞の実データが持つ`condition`（例："3歳牡牝 定量"）を
+読んでいなかった。** 4歳以上の馬が日本ダービーに出られる、という実データと矛盾した状態が
+残っていた。
+
+- **読む文字列の形**：1972〜1987年の全JSON（`src/data/generated/gradedRaces.*.json`）
+  1,400本を走査した実測（`condition`が`null`の11本を除く1,389本）。
+  - 年齢：「N歳」＝ちょうどN歳（例："3歳"）・「N歳以上」＝N歳以上（例："4歳以上"）
+  - 性別：「牡牝」＝牡と牝だけ（セン不可）／「牝」＝牝だけ／どちらも無ければ制限なし
+  - ⚠️**読まない（通す）**：「除◯◯1着馬」（実測18件・すべて「4歳以上牡牝（除天皇賞1着馬）」）・
+    「父内国産」（実測28件）・負担重量の種別（ハンデ／別定／定量／馬齢——着順の計算には
+    関わるが出走資格には関わらない）
+  - ⭐既存の`fillyOnly`（重賞オブジェクトが別に持つ真偽値）と`condition`から読んだ「牝」限定は
+    **1,400本全件で食い違い無し**（実測で確認済み）。
+- **置き場所**：文字列を読む純関数`parseRaceCondition(condition)`は`data/raceConditions.js`
+  （`{ minAge, maxAge, sexes }`を返す）。馬を読む判定（`horse.bornYear`・`horse.gender`）は
+  `domain/horse.js`の`isAgeSexEligible(horse, condition, year)`——`bornYear`が無い馬は
+  `canDebutThisWeek`と同じ扱いで年齢条件を素通りさせる（性別条件は素通りさせない）。
+- **年齢は「レースが行われる年」で数える**（`race.year - horse.bornYear`）。予定を立てる週の
+  年ではない——年をまたいで翌年のレースを予定に入れることがあるため。
+- **判定を入れた2箇所**：①走らせる側（`domain/npcGradedRace.js`の候補の絞り込み。優先出走権を
+  持つ馬もここは免除しない）②予定を立てる側（`domain/rotation.js`の`collectCandidates`）。
+  ⚠️**②を欠くと、4歳馬がダービーを予定に入れて枠（§7「定員」）を消費し、走る段階で弾かれて
+  ダービーが埋まらない**という新しい壊れ方になる——両方に入れて初めて意味を持つ。
+- **プレイヤーの相手馬**：`domain/weeklyRequests.js`が依頼に`condition`を乗せ、
+  `domain/raceOutcome.js`の`assembleRealField`（`domain/entryListPreview.js`の
+  `previewEntryField`もこれを使う）が相手馬を絞り込むときに読む——プレイヤーが重賞に乗る
+  ときだけ効く（一般競走は`condition`を持たないため無関係）。
+- **`buildWeeklyCard`が重賞オブジェクトに持たせるフィールド**：`condition`（実データの文字列
+  そのまま）・`trialFor`（下記「優先出走権」参照）。一般競走・オープン特別はどちらも持たない
+  （実データが無い）。
+
 ## 7. 出走頭数と、相手の選び方（決定3・質問14＝(A)・2026-09-15）
 
 **出走頭数**は実測の分布から引く（史実の馬24頭・527走の実測）：
@@ -117,14 +150,24 @@
 `weeksSinceLastRace`・`domain/npcWeeklyRace.js`。⚠️**重賞（`domain/npcGradedRace.js`）は変えていない**
 ——重賞は収得賞金順のままが自然。
 
-**定員（第11弾・`devlog/wave11.md`§7）**：⭐**一般競走・オープン特別は`domain/weeklyCard.js`が
-番組表を組む時点で`race.fieldSize`を1回だけ決める**（`RNG_STREAMS.FIELD_SIZE`・`raceId`で固定）。
-`domain/npcWeeklyRace.js`は走る瞬間に引き直さず、この値をそのまま使う。⚠️**重賞は対象外**
-（`race.fieldSize`は`null`のまま）——`domain/npcGradedRace.js`が実データの優先出走権と
-`MAX_FIELD_SIZE`（18）で別に定員を持つため、ここで足すと二重に絞ることになる。
+**定員（第11弾・`devlog/wave11.md`§7・§12）**：⭐**一般競走・オープン特別・重賞のすべてを
+`domain/weeklyCard.js`が番組表を組む時点で`race.fieldSize`を持たせる**。一般競走・オープン特別は
+`RNG_STREAMS.FIELD_SIZE`・`raceId`で固定した抽選値（`domain/npcWeeklyRace.js`は走る瞬間に
+引き直さず、この値をそのまま使う）。⭐**重賞は`GRADED_MAX_FIELD_SIZE`（=18・`data/raceProgram.js`。
+`domain/npcGradedRace.js`の`MAX_FIELD_SIZE`と同じ値を共有）で固定**。
+⚠️⚠️**§12で訂正**：当初（§7設計時点）は「重賞は対象外（`fieldSize`は`null`のまま）」としていた
+——`domain/npcGradedRace.js`が実データの優先出走権と`MAX_FIELD_SIZE`（18）で別に定員を持つため
+二重に絞ると衝突する、という判断だった。⚠️**しかしそれは「走らせる側」の定員で、「計画を
+立てる側」（`domain/rotation.js`）には何も効いていなかった**——重賞の目標選びに定員という
+考え方が無いまま残り、全馬が「年内で一番点数の高い1本」に集中する問題が温存されていた
+（実例：3000mに適性が届く馬14頭全員が、菊花賞ではなく僅差で上回る天皇賞（春）・ダービーに
+集中し、菊花賞の目標が0頭になっていた）。**重賞にも同じ`fieldSize`を持たせることで、
+走らせる側と計画を立てる側が同じ定員を見るようになった**——二重に絞る心配は無い
+（両方とも同じ18という同じ値を見ているだけで、走る段階での絞り込み方自体（優先出走権→
+収得賞金順で18頭まで）は変えていない）。
 ⭐**`domain/rotation.js`の`replanStaleHorses`が、この定員を見ながらその週のぶんをまとめて配る**
-（目標も前哨戦も同じ「残り枠」の表を消費する）——これが無いと、条件の似た馬が全員同じ
-1本を選び、他のレースが空になる（before実測：登録0頭のレースが**46.3%**）。
+（目標も前哨戦も同じ「残り枠」の表を消費する。重賞もこの対象に含む）——これが無いと、条件の
+似た馬が全員同じ1本を選び、他のレースが空になる（before実測：登録0頭のレースが**46.3%**）。
 
 ⚠️⚠️**`tools/bench-weekloop.mjs`の「1週0.98ms」を、本物のエンジンの値として引用しないこと**
 （2026-09-22にClaudeがユーザーへの報告で引用してしまった。`devlog/wave11.md`§10）。
@@ -168,6 +211,9 @@
   ⚠️**第11弾・案B-1で例外を1つ追加**（`devlog/wave11.md`§7）：**新馬クラスの馬は新馬戦「と」
   未勝利戦の両方に出られる**（`data/classes.js`の`isEligibleForRaceClass`・
   `domain/weeklyCard.js`の`eligibleBucketsForHorseClass`）。逆（未勝利の馬が新馬戦に出る）はしない。
+  ⭐**第11弾§12（`devlog/wave11.md`§12）**：重賞は`condition`（年齢・性別条件）も合う馬にしか
+  依頼が出ない——`domain/rotation.js`が`horse.plan`を立てる段階で`isAgeSexEligible`を通すため
+  （§6「重賞の年齢・性別条件」）。一般競走・オープン特別は`condition`を持たないため対象外。
 - 競馬場・馬場・距離・クラスは必ずレースから引く。⚠️`fridayConfirmation.js`の`resolveRaceContext`
   （無作為の割り当て）は廃止。
 - 2歳は第23週（`TWO_YEAR_OLD_DEBUT_WEEK`）より前に出走候補にしない。

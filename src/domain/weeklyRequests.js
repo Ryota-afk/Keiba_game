@@ -69,7 +69,9 @@ export function requestQuality(stable, trainerTrust, playerRank) {
  * @returns {{ horseId: string, stableId: string, ownerId: string, quality: number,
  *   isFromOwnStable: boolean, raceId: string, classId: string, courseId: string,
  *   day: string, surface: string, distance: number, fillyOnly: boolean,
- *   raceName: string|null, grade: string|null }[]}
+ *   raceName: string|null, grade: string|null, condition: string|null }[]} `condition`は
+ *   重賞（実データの年齢・性別条件）だけ持つ——`raceOutcome.js`の`assembleRealField`が
+ *   相手馬を集めるときに読む（`devlog/wave11.md`§12）。
  */
 export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const stableById = new Map(roster.stables.map((s) => [s.id, s]));
@@ -102,6 +104,7 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
       fillyOnly: race.fillyOnly,
       raceName: race.name ?? null,
       grade: race.grade ?? null,
+      condition: race.condition ?? null,
     });
   }
 

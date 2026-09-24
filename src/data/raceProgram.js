@@ -176,6 +176,15 @@ export function drawGeneralRaceShape(rand01) {
   return { surface, distance, fillyOnly };
 }
 
+/**
+ * 重賞の出走頭数の上限（JRAの実際の上限。史実の1レースごとの実頭数はまだ取れていないため、
+ * 「優先出走権→収得賞金の多い順で上限まで埋める」という仮の形にする）。
+ * ⭐第11弾（`devlog/wave11.md`§12）：`domain/weeklyCard.js`（計画を立てる段階の定員）と
+ * `domain/npcGradedRace.js`（実際に走らせる段階の定員）の両方がこの値を見る
+ * ——2箇所に18を書かないため、値はここに1つだけ置く。
+ */
+export const GRADED_MAX_FIELD_SIZE = 18;
+
 /** 出走頭数を実測の分布から引く。 */
 export function drawFieldSize(rand01) {
   const total = FIELD_SIZE_BUCKETS.reduce((sum, [, , p]) => sum + p, 0);

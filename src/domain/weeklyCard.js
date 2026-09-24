@@ -23,6 +23,7 @@ import {
   DISTANCE_SHARE_DIRT,
   drawGeneralRaceClass,
   drawFieldSize,
+  GRADED_MAX_FIELD_SIZE,
 } from "../data/raceProgram.js";
 
 // 重賞データが無い年の仮の重賞本数（`domain/npcWeeklyRace.js`と同じ、1974〜1987年の
@@ -109,9 +110,13 @@ const weeklyCardCache = new Map();
  * @param {number} year - 番組表の実測値・実データを引くための暦年（`player.currentYear`）
  * @returns {{ raceId: string, classId: string, courseId: string, surface: string,
  *   distance: number, fillyOnly: boolean, source: string, day: string, name?: string,
- *   grade?: string|null, prize1?: number|null, fieldSize: number|null }[]} `fieldSize`は
- *   重賞（`RACE_SOURCE.GRADED`）だけ`null`——重賞は`domain/npcGradedRace.js`が別に定員を持つ
- *   （第11弾・`devlog/wave11.md`§7）。
+ *   grade?: string|null, prize1?: number|null, fieldSize: number,
+ *   condition?: string|null, trialFor?: string|null }[]} `fieldSize`は重賞
+ *   （`RACE_SOURCE.GRADED`）も含め全レースが持つ（第11弾で重賞にも計画段階の定員を追加・
+ *   `devlog/wave11.md`§12）——重賞は`GRADED_MAX_FIELD_SIZE`固定、一般競走・オープン特別は
+ *   `fieldSizeForRace`が`raceId`ごとに1回だけ引く。`condition`・`trialFor`は重賞だけが持つ
+ *   （実データの年齢・性別条件と、トライアル→本番の対応。`domain/horse.js`の
+ *   `isAgeSexEligible`・`domain/npcGradedRace.js`の優先出走権が読む）。
  */
 export function buildWeeklyCard(saveSeed, week, year) {
   const cacheKey = `${saveSeed}|${week}|${year}`;
@@ -147,10 +152,16 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
       name: r.name,
       grade: r.grade,
       prize1: r.prize1,
-      // ⚠️重賞は定員の対象外——`domain/npcGradedRace.js`が実データの優先出走権
-      // （トライアル上位）と`MAX_FIELD_SIZE`（18）で既に別の定員を持っている。
-      // ここで`fieldSize`を足すと二重に絞ることになるため付けない（`devlog/wave11.md`§7）。
-      fieldSize: null,
+      // ⭐第11弾（`devlog/wave11.md`§12）：重賞にも計画段階の定員を持たせる。
+      // `domain/npcGradedRace.js`の`MAX_FIELD_SIZE`と同じ値（`GRADED_MAX_FIELD_SIZE`＝18）を
+      // 1箇所（`data/raceProgram.js`）から共有する——走らせる側と計画を立てる側が
+      // 違う定員を見ると、計画段階で18頭に絞った意味が走る段階で失われる。
+      fieldSize: GRADED_MAX_FIELD_SIZE,
+      // ⭐年齢・性別条件（`domain/horse.js`の`isAgeSexEligible`が読む）とトライアル対応
+      // （`domain/npcGradedRace.js`の優先出走権が読む）。一般競走・オープン特別は
+      // どちらも持たない（実データが無い）。
+      condition: r.condition ?? null,
+      trialFor: r.trialFor ?? null,
     });
   }
 
