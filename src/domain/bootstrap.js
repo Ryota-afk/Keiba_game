@@ -9,6 +9,7 @@ import { streamRandom, RNG_STREAMS, weightedPick } from "../core/rng.js";
 import { createInitialRoster } from "./career.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
+import { computeStableStrengthById } from "./popularity.js";
 import { advanceInjuryByWeek } from "./fall.js";
 import {
   assignStablePrimaryJockeys,
@@ -65,6 +66,10 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
   const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
   const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
   const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, primaryJockeyByStable)) ?? undefined;
+  // ⭐`domain/weekLoop.js`の`advanceWeek`と同じ理由で週に1回だけ作る
+  // （`domain/popularity.js`の`computeStableStrengthById`。2026-09-22・`TODO.md` #109）。
+  const stableById = new Map(roster.stables.map((s) => [s.id, s]));
+  const stableStrengthById = computeStableStrengthById(roster.horses, stableById);
 
   const gradedResult = runNpcGradedRaces(
     saveSeed,
@@ -75,7 +80,7 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     new Set(), // 事前シミュレーションにプレイヤーはいない
     roster.trialResults ?? {},
     getJockey,
-    roster.stables
+    stableStrengthById
   );
   // ⚠️第11弾（`devlog/wave11.md`§12）：重賞で走った馬を一般競走の除外に渡す。
   // ⭐`domain/weekLoop.js`の本編ループは既に`gradedResult.racedHorseIds`を除外に
@@ -89,7 +94,7 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     gradedResult.racedHorseIds,
     new Set(),
     getJockey,
-    roster.stables
+    stableStrengthById
   );
 
   // ⭐第10弾：計画が今週で期限切れ・まだ計画の無い馬に、次の計画を立て直す

@@ -9,12 +9,19 @@
 
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { classIndex, CLASS_LADDER } from "../data/classes.js";
-import { gradeToNumber, GRADE_SCALE } from "../data/grades.js";
 import { rankIndex, RANK_LADDER } from "../data/ranks.js";
 
 const CLASS_MAX_INDEX = CLASS_LADDER.length - 1;
-const GRADE_MAX_INDEX = GRADE_SCALE.length - 1;
 const RANK_MAX_INDEX = RANK_LADDER.length - 1;
+
+// 厩舎の「強さ」を勝率・連対率へ寄せて均すshrinkage（ベイズ的縮小推定）の強さ。
+// 単位は「仮想の出走数」——厩舎の実際の出走数がこれを大きく上回れば厩舎固有の値が
+// 支配的になり、下回れば全体平均へ強く引き戻される。
+// ⚠️190厩舎・約5,000頭（1厩舎あたり平均26頭）で、TODO #110の目標（1頭が年6〜10戦）を
+// 踏まえると、「所属馬1頭が1年でこなす出走数の上限」程度＝**30走**を選んだ——
+// これより出走数が少ない厩舎（走らせている馬が少ない・所属馬が若い等）は、
+// 数字が暴れないよう全体平均寄りに均される。
+const STABLE_SHRINKAGE_STARTS = 30;
 
 // 収得賞金を対数で0〜1に潰す基準。「これくらい稼げば見るからに強い」の目安として、
 // 日本ダービー1着賞金の仮の値（`data/raceProgram.js`の`DERBY_PURSE_1974`＝4000万円）を使う
@@ -78,13 +85,65 @@ function earningsScore(horse) {
   return Math.min(1, Math.log1p(earnings) / Math.log1p(EARNINGS_REFERENCE));
 }
 
-/** 厩舎の強さ（育てる力・見抜く力・仕上げの平均）。厩舎が引けなければ中間値。 */
-function stableScore(horse, stableById) {
-  const stable = stableById.get(horse.stableId);
-  if (!stable) return 0.5;
-  const { developing, scouting, conditioning } = stable.abilities;
-  const avg = (gradeToNumber(developing) + gradeToNumber(scouting) + gradeToNumber(conditioning)) / 3;
-  return avg / GRADE_MAX_INDEX;
+/**
+ * 厩舎の強さ（その厩舎の現役馬が実際に挙げた成績・週1回`computeStableStrengthById`で
+ * 事前計算した値）。厩舎が引けなければ中間値。
+ */
+function stableScore(horse, stableStrengthById) {
+  return stableStrengthById.get(horse.stableId) ?? 0.5;
+}
+
+/**
+ * 厩舎ごとの「強さ」（0〜1）を、**その厩舎の現役馬が実際に挙げた成績**から作る。
+ * ⚠️`stable.abilities`（育てる力・見抜く力・仕上げ）は画面のどこにも出ていない
+ * 隠しパラメータなので使わない（2026-09-22のユーザー決定・`TODO.md` #109）。
+ *
+ * 厩舎に所属する現役馬（引退していない馬）の`horse.record`（starts/wins/seconds/thirds）を
+ * 合計し、勝率0.5＋連対率0.5で1つの値にする。少数の出走しかない厩舎は数字が暴れる
+ * （0走→勝率が定義できない・1走1勝→勝率100%になる等）ため、全体平均へ寄せる
+ * shrinkage（`STABLE_SHRINKAGE_STARTS`のコメント参照）を掛ける：
+ *   winRate  = (wins + K・avgWinRate)  / (starts + K)
+ *   placeRate = (place + K・avgPlaceRate) / (starts + K)
+ * 出走が1つも無い厩舎（K・avgWinRate / K = avgWinRate）はちょうど全体平均になる。
+ *
+ * ⚠️**週に1回、呼び出し側（`domain/weekLoop.js`の`advanceWeek`・`domain/bootstrap.js`の
+ * `runBootstrapWeek`）でまとめて計算し、その週の全レースへ使い回すこと。** レースごとに
+ * 呼び直すと、190厩舎×全馬の集計を週内のレース数ぶん繰り返すことになり重い。
+ * @param {object[]} horses - ロースター全馬（引退済みも含めてよい。ここで現役だけに絞る）
+ * @param {Map<string, object>} stableById - ロースター全厩舎のMap（結果に載せる厩舎idの一覧に使う）
+ * @returns {Map<string, number>} 厩舎idごとの強さ（0〜1）
+ */
+export function computeStableStrengthById(horses, stableById) {
+  const totalsByStable = new Map();
+  let sumStarts = 0;
+  let sumWins = 0;
+  let sumPlace = 0; // 連対（1〜2着）＋3着＝勝ち＋連対率の分子と同じ定義（`recordScore`のplaceRateに揃える）
+  for (const horse of horses) {
+    if (horse.isRetired || !horse.stableId) continue;
+    const r = horse.record;
+    if (!r || r.starts === 0) continue;
+    const place = r.wins + r.seconds + r.thirds;
+    const t = totalsByStable.get(horse.stableId) ?? { starts: 0, wins: 0, place: 0 };
+    t.starts += r.starts;
+    t.wins += r.wins;
+    t.place += place;
+    totalsByStable.set(horse.stableId, t);
+    sumStarts += r.starts;
+    sumWins += r.wins;
+    sumPlace += place;
+  }
+  const avgWinRate = sumStarts > 0 ? sumWins / sumStarts : 0.5;
+  const avgPlaceRate = sumStarts > 0 ? sumPlace / sumStarts : 0.5;
+
+  const result = new Map();
+  for (const stableId of stableById.keys()) {
+    const t = totalsByStable.get(stableId) ?? { starts: 0, wins: 0, place: 0 };
+    const denom = t.starts + STABLE_SHRINKAGE_STARTS;
+    const winRate = (t.wins + STABLE_SHRINKAGE_STARTS * avgWinRate) / denom;
+    const placeRate = (t.place + STABLE_SHRINKAGE_STARTS * avgPlaceRate) / denom;
+    result.set(stableId, Math.min(1, Math.max(0, winRate * 0.5 + placeRate * 0.5)));
+  }
+  return result;
 }
 
 /** 鞍上の騎手のランク（新人〜トップの6段）。騎手が引けなければ中間値。 */
@@ -117,19 +176,29 @@ function pedigreeScore(horse, horseById) {
  *   （呼び出し側が馬番として使っている場合があるため。ここでは並びを読むだけ）
  * @param {Map<string, object>} horseById - ロースター全馬のMap（父の戦績を引くために使う。
  *   引退済みの馬も含めること——種牡馬は引退後も名簿に残る）
- * @param {Map<string, object>} stableById - ロースター全厩舎のMap
+ * @param {Map<string, number>} stableStrengthById - 厩舎idごとの強さ（0〜1・
+ *   `computeStableStrengthById`で週1回まとめて作った値をそのまま渡す。厩舎idが
+ *   引けなければ中間値0.5）
  * @param {(horse: object) => object|undefined} getJockeyForHorse - その馬に乗る騎手を引く関数
  *   （プレイヤーの鞍は自分の騎手、それ以外はNPC騎手を返すこと）
  * @returns {Map<string, number>} 馬idごとの人気（1が一番人気）
  */
-export function computePopularity(saveSeed, week, raceKey, field, horseById, stableById, getJockeyForHorse) {
+export function computePopularity(
+  saveSeed,
+  week,
+  raceKey,
+  field,
+  horseById,
+  stableStrengthById,
+  getJockeyForHorse
+) {
   const scored = field.map((horse) => {
     const jockey = getJockeyForHorse(horse);
     const publicScore =
       recordScore(horse) * WEIGHTS.record +
       classScore(horse) * WEIGHTS.classLevel +
       earningsScore(horse) * WEIGHTS.earnings +
-      stableScore(horse, stableById) * WEIGHTS.stable +
+      stableScore(horse, stableStrengthById) * WEIGHTS.stable +
       jockeyScore(jockey) * WEIGHTS.jockey +
       pedigreeScore(horse, horseById) * WEIGHTS.pedigree;
     const rand01 = streamRandom(saveSeed, RNG_STREAMS.POPULARITY, week, raceKey, horse.id);

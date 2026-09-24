@@ -61,7 +61,8 @@ function groupByPlannedRace(horses, excludeHorseIds) {
  * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数。
  *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——プレイヤーの鞍だけ騎手が乗る
  *   状態を作らないため、呼び出し側は必ず渡すこと。
- * @param {object[]} [stables] - ロースター全厩舎（人気の材料「厩舎の強さ」に使う。
+ * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
+ *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
  *   渡さないと中間値扱い）
  * @returns {{ horses: object[], racesRun: number, startsRun: number }}
  */
@@ -73,7 +74,7 @@ export function runNpcWeeklyRaces(
   excludeHorseIds = new Set(),
   excludeRaceIds = new Set(),
   getJockey = undefined,
-  stables = []
+  stableStrengthById = new Map()
 ) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, week);
   const card = buildWeeklyCard(saveSeed, week, year).filter(
@@ -81,7 +82,6 @@ export function runNpcWeeklyRaces(
   );
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
-  const stableById = new Map(stables.map((s) => [s.id, s]));
   const getJockeyForHorse = (h) => getJockey?.(h);
   const byRaceId = groupByPlannedRace(horses, excludeHorseIds);
 
@@ -125,7 +125,7 @@ export function runNpcWeeklyRaces(
       race.raceId,
       field,
       horseById,
-      stableById,
+      stableStrengthById,
       getJockeyForHorse
     );
     const condition = rollActualCondition(saveSeed, week, race.courseId);

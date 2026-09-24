@@ -75,13 +75,15 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
  * @param {object} horse
  * @param {object[]} allHorses - ロースター全馬（相手馬を実在の馬から組むために使う）
  * @param {{ jockeyPenalty?: number, playerJockey?: object, getJockey?: (h:object)=>object|undefined,
- *           condition?: string, stables?: object[], year?: number }} [options]
+ *           condition?: string, stableStrengthById?: Map<string, number>, year?: number }} [options]
  *   - `jockeyPenalty`：疲労による騎手の能力低下の倍率（1で無補正）。§6「疲労」が奪う3つのうち
  *     「騎手の能力が落ちる」をここで反映する
  *   - `playerJockey`：プレイヤー自身の騎手。渡さないと適性の倍率が1.0になる
  *   - `getJockey`：相手馬に乗るNPC騎手を引く関数
  *   - `condition`：馬場状態（good|yielding|soft|heavy）
- *   - `stables`：ロースター全厩舎（人気の材料「厩舎の強さ」に使う。渡さないと中間値扱い）
+ *   - `stableStrengthById`：厩舎idごとの強さ（0〜1・`domain/popularity.js`の
+ *     `computeStableStrengthById`で週1回まとめて作った値。人気の材料「厩舎の強さ」に使う。
+ *     渡さないと中間値扱い）
  *   - `year`：このレースが実際に開催される暦年。`mount.condition`（重賞の年齢・性別条件）の
  *     年齢を数えるのに使う（`devlog/wave11.md`§12）。渡さないと年齢の条件を見ない
  *     （`horse.js`の`isAgeSexEligible`の仕様どおり）
@@ -105,14 +107,14 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, opti
   // ⚠️`field`の並び（収得賞金の多い順＝馬番の元）はそのまま使い、人気は別の並びとして
   // 「公開されている情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
   const horseById = new Map(allHorses.map((h) => [h.id, h]));
-  const stableById = new Map((options.stables ?? []).map((s) => [s.id, s]));
+  const stableStrengthById = options.stableStrengthById ?? new Map();
   const popularityByHorseId = computePopularity(
     saveSeed,
     week,
     mount.raceId ?? mount.horseId,
     field,
     horseById,
-    stableById,
+    stableStrengthById,
     getJockeyForHorse
   );
   const popularity = popularityByHorseId.get(horse.id);

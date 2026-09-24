@@ -89,7 +89,8 @@ function priorityIdsForRace(gradedRacesThisYear, race, trialResultsForYear) {
  *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
  *   レース名をキーに年ごとに持つ）
  * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数
- * @param {object[]} [stables] - ロースター全厩舎（人気の材料「厩舎の強さ」に使う。
+ * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
+ *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
  *   渡さないと中間値扱い）
  * @returns {{ horses: object[], trialResults: object, racedHorseIds: Set<string>,
  *             racesRun: number, startsRun: number }}
@@ -103,7 +104,7 @@ export function runNpcGradedRaces(
   excludeRaceIds = new Set(),
   trialResults,
   getJockey,
-  stables = []
+  stableStrengthById = new Map()
 ) {
   if (!hasGradedRaceData(year)) {
     return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
@@ -119,7 +120,6 @@ export function runNpcGradedRaces(
   }
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
-  const stableById = new Map(stables.map((s) => [s.id, s]));
   const getJockeyForHorse = (h) => getJockey?.(h);
   const racedHorseIds = new Set();
   let nextTrialResults = trialResults;
@@ -172,7 +172,7 @@ export function runNpcGradedRaces(
       race.id,
       entries,
       horseById,
-      stableById,
+      stableStrengthById,
       getJockeyForHorse
     );
     const condition = rollActualCondition(saveSeed, week, race.courseId);

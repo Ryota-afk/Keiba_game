@@ -19,6 +19,7 @@ import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
 import { advanceInjuryByWeek, isSidelined } from "./fall.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
+import { computeStableStrengthById } from "./popularity.js";
 import {
   assignStablePrimaryJockeys,
   assignHorsePrimaryJockeys,
@@ -104,6 +105,11 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
   const stableJockeys = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
   const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, stableJockeys)) ?? undefined;
+  // ⭐人気の材料「厩舎の強さ」（`domain/popularity.js`）は、この週の全レース（プレイヤーの
+  // 鞍・NPC重賞・NPC一般競走）で共通して使い回す——厩舎×全馬の集計をレースごとに
+  // 繰り返さないため、週に1回だけここで作る（2026-09-22のユーザー決定・`TODO.md` #109）。
+  const stableById = new Map(roster.stables.map((s) => [s.id, s]));
+  const stableStrengthById = computeStableStrengthById(roster.horses, stableById);
 
   // 月曜：依頼一覧
   const requests = generateWeeklyRequests(saveSeed, week, roster, player);
@@ -152,7 +158,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       mount,
       roster.horses,
       getJockey,
-      roster.stables
+      stableStrengthById
     );
     nextPlayer = res.player;
     horsesById.set(horse.id, res.horse);
@@ -220,7 +226,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     riddenRaceIds,
     roster.trialResults ?? {},
     getJockey,
-    roster.stables
+    stableStrengthById
   );
   const npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds]);
   const npcResult = runNpcWeeklyRaces(
@@ -231,7 +237,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     npcExcluded,
     riddenRaceIds,
     getJockey,
-    roster.stables
+    stableStrengthById
   );
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 

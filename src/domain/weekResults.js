@@ -33,7 +33,9 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  *           distance?: number, raceId?: string }} mount
  * @param {object[]} allHorses - ロースター全馬（実在の相手馬を組むために使う）
  * @param {(horse: object) => object|undefined} [getJockey] - 相手馬に乗るNPC騎手を引く関数
- * @param {object[]} [stables] - ロースター全厩舎（人気の材料「厩舎の強さ」に使う）
+ * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
+ *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
+ *   人気の材料「厩舎の強さ」に使う）
  * @returns {{ player: object, horse: object, notifications: object[], raced: boolean,
  *   ride: { horseId: string, horseName: string, raceId: string|null|undefined,
  *     raceName: string|null|undefined, courseId: string|null|undefined,
@@ -42,7 +44,7 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  *     position: number|null, fieldSize: number|null, popularity: number|null,
  *     won: boolean, income: number, injuryType?: "fracture"|"bruise", weeksOut?: number } }}
  */
-export function processMountResult(saveSeed, week, player, horse, mount, allHorses, getJockey, stables) {
+export function processMountResult(saveSeed, week, player, horse, mount, allHorses, getJockey, stableStrengthById) {
   const notifications = [];
   // 画面へ渡す「この鞍で何が起きたか」——`mount`（依頼側の実データ）と、この先で
   // 計算される結果・収入を1つにまとめる。値そのものは元々計算済みのものをそのまま乗せるだけ。
@@ -89,7 +91,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     playerJockey: player.jockey,
     getJockey,
     condition,
-    stables,
+    stableStrengthById,
     // ⭐第11弾（`devlog/wave11.md`§12）：`mount.condition`（重賞の年齢・性別条件）の
     // 年齢を数える暦年。`assembleRealField`が相手馬を絞り込むのに使う。
     year: player.currentYear,
