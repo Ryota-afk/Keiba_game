@@ -22,13 +22,14 @@ import { parseRaceCondition } from "../data/raceConditions.js";
 const FICTIONAL_SPEED_BASE = 6;
 const FICTIONAL_SPEED_SPAN = 66;
 
-// ⚠️この値はユーザーが実測を見て決める。仮の値（`devlog/wave11.md`§7・§10）。
+// ⭐2026-09-24にユーザーが実測を見て1.0に決定（`devlog/wave11.md`§16・§17）。全段の幅が0になり、
+// こちらが決める値が残らない（番組表の実データだけで決まる）。
 // 確率STAMINA_PROGRAM_FITで「番組表の距離の分布から距離を引いてスタミナへ写す」新しい
 // 引き方を使い、残りの確率で従来どおりの一様分布（0〜99）にする。1.0なら全馬が新しい
 // 引き方、0.0なら従来どおり。⚠️`sim/stamina.js`の`optimalDistance`の式には触らない
 // （ダービー馬51頭で較正済み）——ここで変えるのは架空馬のスタミナの引き方だけ。
 // 史実馬のスタミナはウイポの値を直接読み込むので、この値を変えても影響しない。
-export const STAMINA_PROGRAM_FIT = 0.0;
+export const STAMINA_PROGRAM_FIT = 1.0;
 
 // `optimalDistance`（`sim/stamina.js`）の逆写像：
 // optimalDistance = round((1100 + stamina/100×2000) / 100) × 100 なので
