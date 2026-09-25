@@ -168,7 +168,8 @@ delta,change:"bigUp"|"up"|"down"|"bigDown"}], graded:[{raceName,courseName,surfa
 distance,winnerName,jockeyName,popularity,fieldSize}] }`。
 
 - `mainMounts`＝その週に乗った馬のうち**主戦でなかった馬だけ**（落馬した鞍は含まない）。
-- `trust`＝その週に乗った馬の**厩舎ごと**（変化0は含まない）。信頼が「大きく動いた」の
+- `trust`＝信頼が動いた**厩舎ごと**（変化0は含まない）。乗った厩舎が先、主戦を断って下がった
+  厩舎（乗っていない）が後。信頼が「大きく動いた」の
   境目は`TRUST_BIG_CHANGE_WORD`(5)——`domain/notifications.js`の`BIG_TRUST_CHANGE_THRESHOLD`
   （通知を出すかどうかの境目・4）とは別物。⚠️どちらも根拠の無い暫定値。
 - `graded`＝その週の重賞のうち**実際に行われたもの**（`afterRoster.horses`の

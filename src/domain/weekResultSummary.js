@@ -111,10 +111,16 @@ export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster,
     });
   }
 
+  // 乗った鞍の厩舎を先に並べ、そのあとに乗っていない厩舎を足す。⚠️主戦を断って下がった
+  // 信頼（乗っていない厩舎で起きる）もここに出す——`bigTrustChange`通知の閾値4に
+  // 減点2が届かず、断った後に下がったことを見せる経路が無かった（`TODO.md` #100）。
   const stableIds = new Set();
   for (const ride of rides) {
     const stableId = horseById.get(ride.horseId)?.stableId;
     if (stableId) stableIds.add(stableId);
+  }
+  for (const stableId of Object.keys({ ...beforePlayer.trainerTrust, ...afterPlayer.trainerTrust })) {
+    stableIds.add(stableId);
   }
   const stableById = new Map(afterRoster.stables.map((s) => [s.id, s]));
   const trust = [];
