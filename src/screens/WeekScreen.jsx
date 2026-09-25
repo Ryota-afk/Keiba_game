@@ -19,6 +19,7 @@ import { isSidelined } from "../domain/fall.js";
 import { deriveFavoredStrategy } from "../domain/strategy.js";
 import { GENDER_LABEL } from "../domain/horse.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
+import { buildWeekResultSummary } from "../domain/weekResultSummary.js";
 import { DAY } from "../data/weekDays.js";
 import { INJURY_LABELS } from "../data/injuryLabels.js";
 import { STRATEGY_LABELS } from "../data/aptitudeLabels.js";
@@ -33,6 +34,7 @@ import {
   EMPTY_WEEK_MESSAGE,
 } from "../view/weekOffersView.js";
 import { EntryListScreen } from "./EntryListScreen.jsx";
+import { WeekResultScreen } from "./WeekResultScreen.jsx";
 import "./WeekScreen.css";
 
 const DAY_LABEL = Object.freeze({ [DAY.SAT]: "土曜", [DAY.SUN]: "日曜" });
@@ -100,6 +102,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const [pickedHorseIds, setPickedHorseIds] = useState(() => new Set());
   const [openHorseId, setOpenHorseId] = useState(null);
   const [entryListRequest, setEntryListRequest] = useState(null);
+  const [weekResult, setWeekResult] = useState(null);
   const rootRef = useRef(null);
 
   const horsesById = useMemo(() => new Map(roster.horses.map((h) => [h.id, h])), [roster]);
@@ -174,6 +177,16 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
       chooseCourse: () => ({ [DAY.SAT]: goingCourseByDay[DAY.SAT], [DAY.SUN]: goingCourseByDay[DAY.SUN] }),
       chooseMounts: (candidates) => candidates.filter((c) => pickedHorseIds.has(c.horseId)),
     });
+    // ⭐週を進めた直後の結果画面（案C 掲示板・2026-09-25のユーザー決定）へ渡すデータを、
+    // 進める前のplayer（`beforePlayer`）と進めた後の結果からここで組む。
+    const summary = buildWeekResultSummary({
+      beforePlayer: player,
+      afterPlayer: res.player,
+      afterRoster: res.roster,
+      rides: res.rides,
+      week: player.currentWeek,
+      year: player.currentYear,
+    });
     setRoster(res.roster);
     setPlayer(res.player);
     setLastNotifications(res.notifications);
@@ -184,9 +197,25 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     setOpenHorseId(null);
     setSelectedDay(null);
     setViewCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
-    // 週が変わったら一覧の先頭へ戻す（前の週の位置のままだと見出しが画面の外に残る）。
-    rootRef.current?.closest(".screen-pane")?.scrollTo(0, 0);
+    setWeekResult(summary);
+    // 「この週を進める」は一覧の一番下にあるので、結果画面は先頭から見せる。
+    document.querySelector(".screen-pane--week")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
+  }
+
+  function handleWeekResultNext() {
+    setWeekResult(null);
+    // 週が変わったら一覧の先頭へ戻す（前の週の位置のままだと見出しが画面の外に残る）。
+    // ⚠️結果画面を出している間は`rootRef`の`<main>`（週の画面側）がアンマウントされて
+    // いるため、`rootRef`ではなく`app.jsx`側の安定した親（`.screen-pane--week`）を
+    // クラスで探す（既存の`handleAdvance`の`rootRef.current?.closest(".screen-pane")`と
+    // 同じ狙い・同じ対象を、参照ではなくクラス名で引く形に変えただけ）。
+    document.querySelector(".screen-pane--week")?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }
+
+  if (weekResult) {
+    return <WeekResultScreen summary={weekResult} onNext={handleWeekResultNext} />;
   }
 
   if (entryListRequest) {

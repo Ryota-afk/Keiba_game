@@ -1,0 +1,210 @@
+/*
+ * 週の結果の画面。見本：design/mocks/week-result-v1.html「案C 掲示板」（2026-09-25に合意）。
+ * 色は週の画面（WeekScreen.css）と同じ値。押すものの青は #1a5fb4（白文字とのコントラスト比6.29:1）。
+ * ⚠️見本の .frame の 390px 幅・min-height:720px は並べて見せるための値で、ここでは画面いっぱいに広げる
+ *   （CLAUDE.md §8「モックの実行環境の都合で入れた値を実装へそのまま持ち込まない」）。
+ * 級数は styles/type.css、余白は styles/space.css のトークンだけ。縦線を引かない。絵文字を使わない。
+ * ダートの色（--dirt）は芝の緑と並ぶデータの色（馬場の区別）で、UIの飾りには使わない（CLAUDE.md §9）。
+ */
+
+.week-result {
+  --panel: #1a2a18;
+  --board: #0f160e;
+  --fg: #f2ede0;
+  --muted: #9fb896;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --on-action: #ffffff;
+  --turf: #8fd07e;
+  --dirt: #d8b27a;
+  --rule: rgba(255, 255, 255, 0.1);
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  padding-bottom: max(var(--s2), env(safe-area-inset-bottom, 0px));
+}
+.week-result *,
+.week-result *::before,
+.week-result *::after {
+  box-sizing: border-box;
+}
+
+/* ── 上部：週と、今週のお金（右上） ── */
+.wr-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s1);
+  padding: max(var(--s2), env(safe-area-inset-top, 0px)) var(--s2) var(--s1);
+}
+.wr-hd__week {
+  font-size: var(--fs-body);
+}
+.wr-hd__money {
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.wr-hd__money b {
+  display: block;
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ── 掲示板（乗った鞍・2列） ── */
+.wr-boards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s1);
+  padding: 0 var(--s2);
+}
+.wr-board {
+  min-width: 0;
+  background: var(--board);
+  padding: var(--s1) var(--s1) var(--s2);
+}
+.wr-board__top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wr-board__pos {
+  margin-top: 2px;
+  font-size: var(--fs-display);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.wr-board__pos small {
+  margin-left: 2px;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--muted);
+}
+.wr-board.is-win .wr-board__pos {
+  color: var(--accent);
+}
+/* 落馬：数字の段と同じ高さに収め、板の並びを崩さない */
+.wr-board__pos.is-fell {
+  font-size: var(--fs-lead);
+  line-height: calc(var(--fs-display) * 1.1);
+  color: var(--muted);
+}
+.wr-board__name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.wr-board__race {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.wr-sf.is-turf {
+  color: var(--turf);
+}
+.wr-sf.is-dirt {
+  color: var(--dirt);
+}
+
+.wr-empty {
+  margin: 0;
+  padding: var(--s3) var(--s2);
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+
+/* ── 下の段（主戦・信頼・重賞） ── */
+.wr-sec {
+  padding: var(--s2) var(--s2) 0;
+}
+.wr-sec h2 {
+  margin: 0;
+  padding-bottom: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.wr-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s1);
+  padding: var(--s1) 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.wr-line:last-child,
+.wr-graded:last-child {
+  box-shadow: none;
+}
+.wr-line__v {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  text-align: right;
+}
+.wr-line__v.is-hot {
+  color: var(--accent);
+}
+.wr-graded {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 var(--s1);
+  padding: var(--s1) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.wr-graded__race {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wr-graded__winner {
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.wr-graded__jockey {
+  align-self: end;
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+
+/* ── 次の週へ（1画面に1つの押すもの） ── */
+.wr-foot {
+  margin-top: auto;
+  padding: var(--s4) var(--s2) 0;
+}
+.wr-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  text-align: center;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.wr-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

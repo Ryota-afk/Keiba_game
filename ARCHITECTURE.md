@@ -150,6 +150,39 @@
 ⚠️**弱い厩舎で信頼を積んでも良い馬には乗れない。** ⭐どの厩舎に出入りするかが長期の賭けになり、
 調教師の「見抜く力」（§8）が生きる。
 
+### 週の結果画面（2026-09-25・「案C 掲示板」で合意・世界が動いている感じを出す1枚）
+
+**月曜〜金曜の確定 → 週末のレース（`advanceWeek`）→ 結果画面（1枚）→「次の週へ」で月曜へ戻る。**
+
+`WeekScreen.jsx`の`handleAdvance`が`advanceWeek`を呼んだ直後、その戻り値から
+`domain/weekResultSummary.js`の`buildWeekResultSummary({ beforePlayer, afterPlayer,
+afterRoster, rides, week, year })`が画面用データを組み、`state`（`weekResult`）に置く。
+`weekResult`がある間は週の画面の代わりに`screens/WeekResultScreen.jsx`を出し、
+「次の週へ」で`weekResult`を`null`に戻す（月曜の画面へ）。
+
+渡すデータの形（画面はこれ以上計算しない）：
+`{ weekLabel, moneyGained, moneyAfter, rides:[{horseId,horseName,courseName,surface,
+distance,className,fell,position,fieldSize,popularity,won,income}], mainMounts:[{horseId,
+horseName,status:"became"|"progress",ridesLeft,needsWin}], trust:[{stableId,trainerName,
+delta,change:"bigUp"|"up"|"down"|"bigDown"}], graded:[{raceName,courseName,surface,
+distance,winnerName,jockeyName,popularity,fieldSize}] }`。
+
+- `mainMounts`＝その週に乗った馬のうち**主戦でなかった馬だけ**（落馬した鞍は含まない）。
+- `trust`＝その週に乗った馬の**厩舎ごと**（変化0は含まない）。信頼が「大きく動いた」の
+  境目は`TRUST_BIG_CHANGE_WORD`(5)——`domain/notifications.js`の`BIG_TRUST_CHANGE_THRESHOLD`
+  （通知を出すかどうかの境目・4）とは別物。⚠️どちらも根拠の無い暫定値。
+- `graded`＝その週の重賞のうち**実際に行われたもの**（`afterRoster.horses`の
+  `record.recentFinishes[0]`が一致する1着馬が見つかったもの）だけ。騎手は
+  `domain/npcGradedRace.js`の`runNpcGradedRaces`が実際にレースへ渡す騎手
+  （`assignStablePrimaryJockeys`→`jockeyIdForHorse`）と同じ経路で求める——
+  プレイヤーがその馬に乗った週はプレイヤー自身。
+- ⚠️`domain/weekResultSummary.js`は`view/weekOffersView.js`の`formatWeekLabel`を
+  1本だけ参照する（週表記の書式を2箇所に持たないため）。`view/`側は`domain/`を
+  importしない一方通行を保ったままなので、依存はサイクルにならない。
+- 「先週の出来事」（`WeekScreen.jsx`の`wk-notes`・怪我／主戦の喪失／疲れ／信頼の悪い知らせ）は
+  従来どおり月曜の画面に残す。結果画面は落馬を板に「落馬」と出すだけで、怪我の週数・
+  主戦を失った知らせを言い直さない（CLAUDE.md §7「画面に既に出ている情報を言い直さない」）。
+
 ### 代打騎乗
 
 **空きが出たときに、信頼の高い順で回る。**
