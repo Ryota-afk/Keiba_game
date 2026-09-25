@@ -1,0 +1,229 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>週の結果 v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 週の結果（「この週を進める」を押した後に1枚だけ挟む画面）の候補3案。
+ * 2026-09-25・Opus 5.5が作成（Fableの残量切れ。CLAUDE.md §2・arch/ui-fable.md §2のユーザー決定）。
+ * 実データ：saveSeed=year1-a・1974年・プレイヤー「芦田翔太」・1週に来た依頼を上から8件まで受けた場合。
+ * ⚠️モックの都合の値（.frame の 390px 幅・min-height）は実装へ持ち込まない。
+ * 級数・余白はトークンだけ。縦線なし。絵文字なし。accent＝読むもの（黄）、action＝押すもの（青）。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --tap:44px;
+  --panel:#1a2a18; --panel2:#223a20; --panel3:#2b482a; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896; --dim:#5f7659;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff;
+  --turf:#8fd07e; --dirt:#d8b27a;
+  --rule:rgba(255,255,255,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6)}
+.wrap{max-width:1260px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s6);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:56em;margin-top:var(--s1)}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;min-height:720px;background:var(--panel);box-shadow:0 0 0 1px #000;display:flex;flex-direction:column}
+.body{flex:1}
+.sf-turf{color:var(--turf)} .sf-dirt{color:var(--dirt)}
+.foot{padding:var(--s2)}
+.btn{display:block;width:100%;min-height:var(--tap);border:0;background:var(--action);color:var(--on-action);font:700 var(--fs-body)/var(--tap) "M PLUS 1p",sans-serif;text-align:center}
+.sec{padding:var(--s2) var(--s2) 0}
+.sec h3{font-size:var(--fs-caption);font-weight:500;color:var(--muted);letter-spacing:.08em;padding-bottom:var(--s1);box-shadow:inset 0 -1px 0 var(--rule)}
+.line{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;font-size:var(--fs-body);line-height:1.5;box-shadow:inset 0 -1px 0 var(--rule)}
+.line:last-child{box-shadow:none}
+.line .sub{font-size:var(--fs-caption);color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.acc{color:var(--accent)}
+.empty{font-size:var(--fs-body);color:var(--muted);padding:var(--s3) 0}
+
+/* ── 案A：成績表 ── */
+.a-hd{padding:var(--s2) var(--s2) var(--s1)}
+.a-hd .wk{font-size:var(--fs-body);color:var(--muted)}
+.a-hd .sum{display:flex;align-items:baseline;gap:var(--s2);margin-top:var(--s1)}
+.a-hd .sum b{font-size:var(--fs-title);font-weight:700}
+.a-hd .sum span{font-size:var(--fs-caption);color:var(--muted)}
+.a-row{display:grid;grid-template-columns:56px 1fr auto;gap:0 var(--s1);align-items:center;padding:var(--s1) var(--s2);box-shadow:inset 0 -1px 0 var(--rule)}
+.a-pos{font-size:var(--fs-title);font-weight:700;line-height:1;text-align:center}
+.a-pos small{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--muted);margin-top:2px}
+.a-pos.win{color:var(--accent)}
+.a-pos.fell{font-size:var(--fs-body);color:var(--muted)}
+.a-name{font-size:var(--fs-body);font-weight:700;line-height:1.4}
+.a-race{font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.a-right{text-align:right;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.a-right b{display:block;font-size:var(--fs-body);color:var(--fg);font-weight:500}
+
+/* ── 案B：勝った鞍が主役 ── */
+.b-hero{padding:var(--s3) var(--s2) var(--s2);background:var(--panel2)}
+.b-hero .wk{font-size:var(--fs-caption);color:var(--muted)}
+.b-hero .big{display:flex;align-items:baseline;gap:var(--s1);margin-top:var(--s1)}
+.b-hero .big b{font-size:var(--fs-display);font-weight:700;line-height:1;color:var(--accent)}
+.b-hero .big span{font-size:var(--fs-lead);font-weight:700}
+.b-hero .money{font-size:var(--fs-body);margin-top:var(--s1)}
+.b-hero .money small{font-size:var(--fs-caption);color:var(--muted);margin-left:var(--s1)}
+.b-win{margin:var(--s2) var(--s2) 0;padding:var(--s2);background:var(--panel3)}
+.b-win .name{font-size:var(--fs-lead);font-weight:700;line-height:1.3}
+.b-win .story{font-size:var(--fs-body);margin-top:2px}
+.b-win .race{font-size:var(--fs-caption);color:var(--muted);margin-top:var(--s1)}
+.b-rest{padding:var(--s2) var(--s2) 0}
+.b-rest .r{display:flex;justify-content:space-between;gap:var(--s1);padding:var(--s1) 0;font-size:var(--fs-body);box-shadow:inset 0 -1px 0 var(--rule)}
+.b-rest .r .pos{font-weight:700;min-width:3.5em}
+.b-rest .r .nm{flex:1}
+.b-rest .r .rc{font-size:var(--fs-caption);color:var(--muted);align-self:center}
+.b-news .n{font-size:var(--fs-body);line-height:1.6;padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.b-news .n:last-child{box-shadow:none}
+.b-news .n small{display:block;font-size:var(--fs-caption);color:var(--muted)}
+
+/* ── 案C：掲示板 ── */
+.c-hd{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) var(--s1)}
+.c-hd .wk{font-size:var(--fs-body)}
+.c-hd .money{text-align:right;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.c-hd .money b{display:block;font-size:var(--fs-lead);color:var(--accent);font-weight:700}
+.c-boards{display:grid;grid-template-columns:1fr 1fr;gap:var(--s1);padding:0 var(--s2)}
+.c-board{background:var(--board);padding:var(--s1) var(--s1) var(--s2)}
+.c-board .top{display:flex;justify-content:space-between;font-size:var(--fs-caption);color:var(--muted)}
+.c-board .pos{font-size:var(--fs-display);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--fg);margin-top:2px}
+.c-board .pos small{font-size:var(--fs-caption);font-weight:400;color:var(--muted);margin-left:2px}
+.c-board.win .pos{color:var(--accent)}
+.c-board .pos.fell{font-size:var(--fs-lead);line-height:2.3;color:var(--muted)}
+.c-board .nm{font-size:var(--fs-body);font-weight:700;line-height:1.3}
+.c-board .rc{font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.c-ticker .t{display:grid;grid-template-columns:1fr auto;gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.c-ticker .t:last-child{box-shadow:none}
+.c-ticker .t .rn{font-size:var(--fs-caption);color:var(--muted)}
+.c-ticker .t .w{font-size:var(--fs-body);font-weight:700}
+.c-ticker .t .j{font-size:var(--fs-caption);color:var(--muted);text-align:right;align-self:end}
+</style></head><body><div class="wrap">
+<h1>週の結果 v1（候補3案）</h1>
+<p class="intro">「この週を進める」を押した後に、1枚だけ挟む画面です。下の「次の週へ」で週の画面に戻ります。
+中身は、乗った鞍の結果・稼いだお金と所持金・主戦の進み具合・調教師からの信頼の変化・その週の重賞の勝ち馬の5つ（2026-09-25のご決定）。
+値はすべて実際のゲームの値です（1974年・芦田翔太・来た依頼を上から8件まで受けた場合）。
+3つの週で並べています：<b style="color:var(--fg)">勝った週</b>（12月1週・2勝）／<b style="color:var(--fg)">勝てなかった週</b>（11月4週）／<b style="color:var(--fg)">1鞍も乗らなかった週</b>。</p>
+<div id="root"></div>
+</div>
+<script>
+const WEEKS = {
+  win: {
+    label: "1974年 12月1週", moneyBefore: 9587500, moneyAfter: 10097500,
+    rides: [
+      { horse:"ミスティインパクト", course:"東京", surface:"dirt", distance:1700, cls:"未勝利", pos:1, field:12, pop:3, income:177500 },
+      { horse:"ヤマトドリーム", course:"京都", surface:"dirt", distance:1800, cls:"1勝クラス", pos:3, field:5, pop:5, income:27500 },
+      { horse:"リュウジンフェザー", course:"京都", surface:"dirt", distance:1200, cls:"2勝クラス", pos:2, field:12, pop:1, income:27500 },
+      { horse:"セイウンテンペスト", course:"京都", surface:"turf", distance:1200, cls:"1勝クラス", pos:1, field:17, pop:16, income:277500 },
+    ],
+    main: [
+      { horse:"セイウンテンペスト", became:true },
+      { horse:"ミスティインパクト", rides:2, hasWon:true },
+      { horse:"リュウジンフェザー", rides:3, hasWon:false },
+    ],
+    trust: [ { trainer:"今井一郎", before:125, after:135 } ],
+    graded: [ { race:"ＴＢＳ杯 クモハタ記念", course:"東京", surface:"turf", distance:1800, winner:"スターウィング", jockey:"土屋遼", pop:2, field:18 } ],
+  },
+  lose: {
+    label: "1974年 11月4週", moneyBefore: 9532500, moneyAfter: 9587500,
+    rides: [
+      { horse:"オーロラドリーム", course:"福島", surface:"turf", distance:2000, cls:"未勝利", pos:3, field:15, pop:8, income:27500 },
+      { horse:"オーロラテンペスト", course:"福島", surface:"turf", distance:2000, cls:"未勝利", pos:10, field:10, pop:10, income:27500 },
+    ],
+    main: [
+      { horse:"オーロラドリーム", rides:4, hasWon:false },
+      { horse:"オーロラテンペスト", rides:1, hasWon:false },
+    ],
+    trust: [ { trainer:"今井一郎", before:124, after:125 }, { trainer:"平尾昭夫", before:47, after:48 } ],
+    graded: [
+      { race:"農林省賞典 福島記念", course:"福島", surface:"turf", distance:2000, winner:"タイセイインパクト", jockey:"高梨修平", pop:5, field:17 },
+      { race:"京阪杯", course:"京都", surface:"turf", distance:2000, winner:"コスモウィング", jockey:"塚本康平", pop:11, field:18 },
+    ],
+  },
+  none: {
+    label: "1974年 11月4週", moneyBefore: 9532500, moneyAfter: 9532500,
+    rides: [], main: [], trust: [],
+    graded: [
+      { race:"農林省賞典 福島記念", course:"福島", surface:"turf", distance:2000, winner:"タイセイインパクト", jockey:"高梨修平", pop:5, field:17 },
+      { race:"京阪杯", course:"京都", surface:"turf", distance:2000, winner:"コスモウィング", jockey:"塚本康平", pop:11, field:18 },
+    ],
+  },
+};
+const yen = (n) => n.toLocaleString("ja-JP") + "円";
+const sf = (s) => `<span class="sf-${s}">${s === "turf" ? "芝" : "ダート"}</span>`;
+const raceText = (r) => `${r.course} ${sf(r.surface)}${r.distance}m ${r.cls ?? ""}`.trim();
+const wins = (w) => w.rides.filter((r) => r.pos === 1).length;
+const mainText = (m) => m.became ? `<span class="acc">主戦になりました</span>`
+  : m.hasWon ? `あと${Math.max(0, 5 - m.rides)}回乗れば主戦` : `あと${Math.max(0, 5 - m.rides)}回乗って、1勝すれば主戦`;
+const secMain = (w) => w.main.length ? `<div class="sec"><h3>主戦</h3>${w.main.map((m) => `<div class="line"><span>${m.horse}</span><span class="sub">${mainText(m)}</span></div>`).join("")}</div>` : "";
+const secTrust = (w, mode) => w.trust.length ? `<div class="sec"><h3>調教師からの信頼</h3>${w.trust.map((t) => {
+  const d = t.after - t.before;
+  const v = mode === "word" ? (d >= 5 ? "大きく上がりました" : d > 0 ? "少し上がりました" : d < 0 ? "下がりました" : "変わりません")
+    : `<span class="num">${d > 0 ? "+" : ""}${d}</span>`;
+  return `<div class="line"><span>${t.trainer}調教師</span><span class="sub">${v}</span></div>`; }).join("")}</div>` : "";
+const secGraded = (w, title = "今週の重賞") => w.graded.length ? `<div class="sec"><h3>${title}</h3>${w.graded.map((g) =>
+  `<div class="line"><span>${g.race}<br><span class="sub">${g.course} ${sf(g.surface)}${g.distance}m</span></span><span class="sub" style="text-align:right">${g.winner}<br>${g.jockey}・${g.pop}番人気</span></div>`).join("")}</div>` : "";
+
+function candA(w) {
+  const gained = w.moneyAfter - w.moneyBefore;
+  const rows = w.rides.length ? w.rides.map((r) => `
+    <div class="a-row">
+      <div class="a-pos ${r.pos === 1 ? "win" : ""}">${r.pos}<small>${r.field}頭立て</small></div>
+      <div><div class="a-name">${r.horse}</div><div class="a-race">${raceText(r)}</div></div>
+      <div class="a-right"><b class="num">${r.pop}番人気</b>${yen(r.income)}</div>
+    </div>`).join("") : `<div class="sec"><p class="empty">今週は乗りませんでした。</p></div>`;
+  return `<div class="body">
+    <div class="a-hd"><div class="wk">${w.label}の結果</div>
+      <div class="sum"><b class="num">${w.rides.length}鞍 ${wins(w)}勝</b><span>今週 <span class="acc num">+${yen(gained)}</span>　所持金 <span class="num">${yen(w.moneyAfter)}</span></span></div></div>
+    ${rows}${secMain(w)}${secTrust(w, "num")}${secGraded(w)}
+  </div><div class="foot"><button class="btn">次の週へ</button></div>`;
+}
+function candB(w) {
+  const gained = w.moneyAfter - w.moneyBefore;
+  const winsList = w.rides.filter((r) => r.pos === 1);
+  const rest = w.rides.filter((r) => r.pos !== 1);
+  const hero = `<div class="b-hero"><div class="wk">${w.label}</div>
+    <div class="big"><b class="num">${wins(w)}</b><span>勝</span><span style="font-size:var(--fs-body);font-weight:400;color:var(--muted)">／${w.rides.length}鞍</span></div>
+    <div class="money"><span class="acc num">+${yen(gained)}</span><small>所持金 ${yen(w.moneyAfter)}</small></div></div>`;
+  const winCards = winsList.map((r) => `<div class="b-win"><div class="name">${r.horse}</div>
+    <div class="story">${r.pop}番人気で1着（${r.field}頭立て）</div><div class="race">${raceText(r)}・${yen(r.income)}</div></div>`).join("");
+  const restRows = rest.length ? `<div class="b-rest">${rest.map((r) => `<div class="r"><span class="pos num">${r.pos}着</span><span class="nm">${r.horse}</span><span class="rc">${r.field}頭立て・${r.pop}番人気</span></div>`).join("")}</div>` : "";
+  const empty = w.rides.length ? "" : `<div class="sec"><p class="empty">今週は乗りませんでした。</p></div>`;
+  const news = [
+    ...w.main.map((m) => ({ t: m.became ? `${m.horse}の主戦になりました。` : `${m.horse}：${mainText(m)}`, s: "主戦", hot: m.became })),
+    ...w.trust.map((t) => { const d = t.after - t.before; return { t: `${t.trainer}調教師からの信頼が${d >= 5 ? "大きく上がりました" : d > 0 ? "少し上がりました" : "下がりました"}。`, s: "信頼" }; }),
+    ...w.graded.map((g) => ({ t: `${g.race}は${g.winner}が勝ちました。`, s: `${g.jockey}・${g.pop}番人気・${g.course} ${g.surface === "turf" ? "芝" : "ダート"}${g.distance}m` })),
+  ];
+  const newsSec = news.length ? `<div class="sec b-news"><h3>今週のできごと</h3>${news.map((n) => `<div class="n">${n.hot ? `<span class="acc">${n.t}</span>` : n.t}<small>${n.s}</small></div>`).join("")}</div>` : "";
+  return `<div class="body">${hero}${winCards}${restRows}${empty}${newsSec}</div><div class="foot"><button class="btn">次の週へ</button></div>`;
+}
+function candC(w) {
+  const gained = w.moneyAfter - w.moneyBefore;
+  const boards = w.rides.length ? `<div class="c-boards">${w.rides.map((r) => `
+    <div class="c-board ${r.pos === 1 ? "win" : ""}">
+      <div class="top"><span>${r.course}</span><span>${r.pop}番人気</span></div>
+      <div class="pos num">${r.pos}<small>着／${r.field}頭立て</small></div>
+      <div class="nm">${r.horse}</div><div class="rc">${sf(r.surface)}${r.distance}m ${r.cls}</div>
+    </div>`).join("")}</div>` : `<div class="sec"><p class="empty">今週は乗りませんでした。</p></div>`;
+  const ticker = w.graded.length ? `<div class="sec c-ticker"><h3>今週の重賞</h3>${w.graded.map((g) => `
+    <div class="t"><div><div class="rn">${g.race}・${g.course}</div><div class="w">${g.winner}</div></div><div class="j">${g.jockey}<br>${g.pop}番人気</div></div>`).join("")}</div>` : "";
+  return `<div class="body">
+    <div class="c-hd"><div class="wk">${w.label}</div><div class="money">今週<b class="num">+${yen(gained)}</b>所持金 ${yen(w.moneyAfter)}</div></div>
+    ${boards}${secMain(w)}${secTrust(w, "word")}${ticker}
+  </div><div class="foot"><button class="btn">次の週へ</button></div>`;
+}
+const CANDS = [
+  ["案A：成績表", "乗った鞍を1行ずつ。着順の数字を左に大きく置き、人気と騎乗料を右に。下に主戦・信頼（数字）・重賞を順に並べる。", candA],
+  ["案B：勝った鞍が主役", "一番上に今週の勝ち数とお金を大きく。勝った鞍だけを1枚ずつ大きく見せ（何番人気で何頭の1着か）、負けた鞍は1行に縮める。主戦・信頼・重賞は「今週のできごと」として文でまとめる。", candB],
+  ["案C：掲示板", "競馬場の着順掲示板のように、乗った鞍を2列の板で並べる。お金は右上。信頼は言葉（少し上がりました／大きく上がりました）。重賞は一番下に。", candC],
+];
+const STATES = [["win", "勝った週（12月1週）"], ["lose", "勝てなかった週（11月4週）"], ["none", "1鞍も乗らなかった週"]];
+document.getElementById("root").innerHTML = CANDS.map(([t, d, fn]) => `
+  <h2>${t}<small>${d}</small></h2>
+  <div class="gallery">${STATES.map(([k, cap]) => `<div class="shot"><p class="cap"><b>${cap}</b></p><div class="frame">${fn(WEEKS[k])}</div></div>`).join("")}</div>`).join("");
+</script></body></html>
