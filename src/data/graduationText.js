@@ -53,7 +53,8 @@ export function dreamRecordChoices(strategyLabel) {
     {
       id: "reject",
       label: "一から覚え直す",
-      hint: "四つとも同じになります。",
+      // 2026-09-27にユーザーが案Aで決定（通しプレイ②の指摘⑦：「四つ」が何か分からない）。
+      hint: "逃げ・先行・差し・追込が、どれも同じ腕前から始まります。",
     },
   ];
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./styles/type.css";
 import "./styles/space.css";
 import "./styles/motion.css";
@@ -71,7 +71,14 @@ export function App() {
     readSave().then(setExistingSave);
   }, []);
 
+  // ⚠️「騎手になる」は暗転のあいだも押せる（暗幕が`pointer-events: none`）。2回目以降を無視しないと
+  // 押すたびに暗転がやり直しになり、事前シミュレーションも重ねて走る（実測：6回押すと夢のダービーまで
+  // 5.7秒→22.5秒。通しプレイ②の指摘⑤・`devlog/wave12.md`§7）。
+  const startedRef = useRef(false);
+
   function handleStart(year, difficulty) {
+    if (startedRef.current) return;
+    startedRef.current = true;
     const saveSeed = createSaveSeed();
     setCareer({ saveSeed, year, difficulty });
     setIntroLine(pickDerbyIntroLine(saveSeed));
