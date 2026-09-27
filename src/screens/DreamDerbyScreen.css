@@ -344,7 +344,8 @@
 .display-hidden .hs-name { display: none; }
 
 /* ゲート内〜発走直後は全馬が同じ列にいてラベルが重なるため、表示モードに関わらず消す
- * （`.world-zoom.is-crowded`は`screens/dreamDerbyEngine.js`の`renderWorld`が付け外しする。
+ * （`.world-zoom.is-crowded`は`screens/dreamDerbyEngine.js`の`renderWorld`が、
+ * `data/dreamDerbyCourse.js`の`CROWDED_SPREAD_M`を閾値に付け外しする。
  * `devlog/wave05.md`§64・`TODO.md` #66）。 */
 .world-zoom.is-crowded .hs-name,
 .world-zoom.is-crowded .hs-numlabel {

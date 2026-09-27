@@ -21,9 +21,21 @@ export const D_MID_CARD = 1200; // 道中の判断カード（残り1200m＝レ�
 // チュートリアル発火の時刻定数（レース時計に対する秒）。
 // ⚠️発火そのものは`beginRace`からの連鎖（`screens/dreamDerbyEngine.js`）で、この定数は
 // 「何秒あたりに出す想定か」の記録として残している。消すと想定値が失われる。
+// ⚠️`T_TUT_DISPLAY`は目安に過ぎない：実際の発火はカメラの説明が終わった後、隊列が
+// `CROWDED_SPREAD_M`まで広がるのを待ってから1.5秒後（`dreamDerbyEngine.js`の
+// `pendingSpreadWait`）。隊列が広がる前に出すと馬名/馬番のラベルが1つも見えない状態で
+// 「3回押してみてください」が表示される不具合になる（2026-09-25の通しプレイ②⑥で発覚）。
 export const T_TUT_CAMERA = 10;
 export const T_TUT_DISPLAY = 26;
 export const T_TUT_SPEED = 40;
+
+// 発走直後、隊列（先頭〜最後方）の幅がこのm未満のとき`.world-zoom`に`is-crowded`が付き、
+// 表示モードに関わらず馬名/馬番のラベルを消す（`DreamDerbyScreen.css`の
+// `.world-zoom.is-crowded .hs-name, .hs-numlabel`／`dreamDerbyEngine.js`の`renderWorld`）。
+// 根拠は理屈ではなく実見：この値でスクリーンショットを撮り、ラベルが重ならずに読めることを
+// 確かめた（`TODO.md` #66）。表示モードのチュートリアルは、この値を上回ってラベルが
+// 実際に見えるようになってから出す（`dreamDerbyEngine.js`の`pendingSpreadWait`）。
+export const CROWDED_SPREAD_M = 15;
 
 // カメラ・世界座標
 export const VIEW_SPAN = 32;

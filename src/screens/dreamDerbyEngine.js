@@ -35,6 +35,7 @@ import {
   AMP_MAX,
   POST_SPACING_M,
   BUMP_SPACING_M,
+  CROWDED_SPREAD_M,
 } from "../data/dreamDerbyCourse.js";
 import { WAKE_LINES } from "../data/dreamDerbyCommentary.js";
 import { marginLabelFor } from "../data/raceMargins.js";
@@ -105,6 +106,11 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   let tutorialActive = false;
   let tutorialDismissHandler = () => hideTutorialInternal();
   let activeButtonTutorial = null; // { kind: "camera"|"display", onPress(label) }
+  let lastSpreadM = 0; // 隊列の先頭〜最後方の幅(m)。renderWorldで毎フレーム更新。
+  // カメラの説明が終わった後、隊列が`CROWDED_SPREAD_M`を超えて広がる（＝ラベルが実際に
+  // 見えるようになる）のを待ってから表示の説明を出すためのフック。tickClock側で毎フレーム
+  // 判定し、条件を満たしたら1回だけfn()を呼んでnullに戻す。
+  let pendingSpreadWait = null; // { fn() }
   let pendingCard = null; // { kind: "mid"|"stretch", choices }
   // ⚠️`midBand`/`midForward`/`stretchEarly`は戦法4の写像に使う（`domain/graduation.js`の
   // `strategyFromDreamChoices`）。`midSituationId`/`stretchSituationId`は最終着差の計算
@@ -329,7 +335,8 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     // 重ならずに読めることを確かめた（画面上は12.2px/m換算で15mが183px）。
     // ⚠️出馬表タブに同じ情報（馬番・馬名）が既にあるので、消しても発走直後の
     // 数秒だけは大きな支障がないはず（この間はどの馬か見分ける必要が薄い場面）。
-    refs.worldZoom.classList.toggle("is-crowded", maxD - minD < 15);
+    lastSpreadM = maxD - minD;
+    refs.worldZoom.classList.toggle("is-crowded", lastSpreadM < CROWDED_SPREAD_M);
     positionWorldFixedEl(refs.startGate, 0, cameraDistance, anchor);
     distMarkerEls.forEach((m) => positionWorldFixedEl(m.el, m.distance, cameraDistance, anchor));
     positionWorldFixedEl(refs.goalPost, TOTAL_DISTANCE, cameraDistance, anchor);
@@ -378,6 +385,11 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
       raceSeconds = Math.min(raceEndTime(), raceSeconds + deltaSec * speedScale);
       updateHudDom();
       renderWorld(raceSeconds);
+      if (pendingSpreadWait && lastSpreadM >= CROWDED_SPREAD_M) {
+        const fn = pendingSpreadWait.fn;
+        pendingSpreadWait = null;
+        fn();
+      }
       checkMilestones();
     }
     lastTick = now;
@@ -480,7 +492,12 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
         raceTimeout(() => {
           hideTutorialInternal();
           resumeClock();
-          raceTimeout(tutDisplayMilestone, 1500);
+          // ⚠️発走直後は隊列が固まっていて`.is-crowded`が付き、馬名/馬番のラベルが
+          // 1つも見えない（`renderWorld`参照）。表示切替の説明はラベルが実際に読める
+          // 状態になってから出す——隊列が`CROWDED_SPREAD_M`まで広がるのを`tickClock`側の
+          // 判定で待ち、そこから1.5秒後に`tutDisplayMilestone`を呼ぶ
+          // （通しプレイ②⑥・2026-09-25で発覚した不具合の直し）。
+          pendingSpreadWait = { fn: () => raceTimeout(tutDisplayMilestone, 1500) };
         }, 1400);
       },
     };
@@ -772,6 +789,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   function destroy() {
     if (rafId != null) cancelAnimationFrame(rafId);
     clearPendingTimers();
+    pendingSpreadWait = null;
     sprites.clear();
     chips.clear();
     distMarkerEls.length = 0;
