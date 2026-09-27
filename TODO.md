@@ -270,6 +270,10 @@
     第2弾実装中にgrepで確認）。`src/domain/jockey.js`の`growAptitude`と`src/domain/horse.js`の
     `growAdaptability`は関数として存在するが呼び出し元が無く、**騎手の適性・馬の適応能力は
     レースを重ねても一切成長しない**状態が続いている。
+    ⚠️**2026-09-27に実測で再確認し、範囲が広いと分かった**（`devlog/wave12.md`§8）：52週・279鞍・20勝の後も
+    `player.jockey`はJSONで完全一致。適性10個に加え、**ランク**（`data/ranks.js`の`promotionRequirement`を
+    読む関数が無い）・**スキル**（`learnSkill`の呼び出し0件）・度胸・体力も変わらない。
+    ⚠️**プレイヤー自身の通算成績（何戦何勝）もどこにも記録されていない**（`player`のキーに無い）。
 
 29. ⚠️**プレースホルダーsim（`raceOutcome.js`）が騎手の適性を一切読まない**（2026-09-04・
     第2弾の計測で判明。CLAUDE.md §10「動かなかった数値も記録する」に基づく記録）。
