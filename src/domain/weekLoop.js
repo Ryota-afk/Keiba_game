@@ -26,7 +26,7 @@ import {
   jockeyIdForHorse,
 } from "./jockeyAssignment.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
-import { trustFor, adjustTrust } from "./player.js";
+import { trustFor, adjustTrust, withPlayerDefaults } from "./player.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { DAY } from "../data/weekDays.js";
 import {
@@ -35,6 +35,12 @@ import {
   newRequestNotification,
   bigTrustChangeNotification,
 } from "./notifications.js";
+import { withJockeyDefaults } from "./jockey.js";
+import { applyRideExperience } from "./aptitudeGrowth.js";
+import { applyRideToRecord } from "./playerRecord.js";
+import { checkRankPromotions } from "./jockeyRank.js";
+import { recordJockeyWins, maxNpcWinsInYear } from "./npcJockeyWins.js";
+import { distanceBandOf } from "../data/aptitudeCategories.js";
 
 // 主戦の座を持つが今週乗らなかった馬に、他騎手が勝つ確率（暫定。仮simの平均勝率
 // （約1/12＝8.3%）に近い値を置く。ARCHITECTURE.md §15の数値の一つとして実測して調整する）。
@@ -93,11 +99,19 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   maxMounts?: number,
  * }} [options]
  * @returns {{ roster: object, player: object, notifications: object[], requestHorseIds: Set<string>,
- *   rides: object[] }} `rides`はこの週にプレイヤーが乗った鞍の結果（`weekResults.js`の`ride`を
- *   並べたもの。土日で複数あり得るため配列。落馬した鞍は`fell: true`で`position`等が`null`）
+ *   rides: object[], growth: { aptitudeChanges: {key:string, from:string, to:string}[],
+ *   rankChange: {from:string, to:string, week:number}|null } }} `rides`はこの週にプレイヤーが
+ *   乗った鞍の結果（`weekResults.js`の`ride`を並べたもの。土日で複数あり得るため配列。
+ *   落馬した鞍は`fell: true`で`position`等が`null`）。`growth`は⚠️2026-09-27追加
+ *   （ARCHITECTURE.md §4「適性の成長」・§8「騎手ランク」・`devlog/wave12.md`§9）——
+ *   画面ではまだ使わない
  */
 export function advanceWeek(saveSeed, roster, player, options = {}) {
   const week = player.currentWeek;
+  // ⚠️古いセーブ対策（`record`・騎手の`aptitudeXp`等を持たないまま読み込まれても動くように、
+  // 毎週の入口で既定値を補う。CLAUDE.md §4「古いセーブでも動くこと」・`devlog/wave12.md`§9）。
+  player = withPlayerDefaults(player);
+  roster = { ...roster, npcJockeys: roster.npcJockeys.map(withJockeyDefaults) };
   const notifications = [];
   const horsesById = new Map(roster.horses.map((h) => [h.id, h]));
   // ⭐本物のsimは騎手の適性も見る（`devlog/wave08.md`§2）。相手馬にも必ず騎手を乗せる
@@ -148,8 +162,14 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // ⭐この週にプレイヤーが乗った結果（`processMountResult`が返す`ride`）を、画面へ渡すために集める
   // （従来はここで捨てていた。`devlog/`参照）。土日で複数の鞍に乗れるため配列。
   const rides = [];
+  // ⭐適性の成長（ARCHITECTURE.md §4「適性の成長」・`devlog/wave12.md`§9）：上がった・
+  // 下がった適性の一覧（画面へ渡す。今は画面側では使わない）。
+  const aptitudeChanges = [];
   for (const mount of mounts) {
     const horse = horsesById.get(mount.horseId);
+    // ⚠️主戦かどうかは**乗る前**の時点で判定する（`processMountResult`が同じ鞍の結果で
+    // `mainMounts`を更新してしまうため、後で読むと「この鞍で主戦になった」瞬間もカウントされる）。
+    const wasMainMountBefore = isMainMount(nextPlayer.mainMounts, mount.horseId);
     const res = processMountResult(
       saveSeed,
       week,
@@ -164,6 +184,36 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     horsesById.set(horse.id, res.horse);
     notifications.push(...res.notifications);
     rides.push(res.ride);
+
+    // 経験：落馬していない鞍だけ、その鞍の3つ（走り方・距離帯・馬場）に積む。
+    if (!res.ride.fell) {
+      const growth = applyRideExperience(nextPlayer.jockey, {
+        strategy: mount.declaredStrategy,
+        distance: mount.distance,
+        surface: mount.surface,
+        won: res.ride.won,
+        isMainMount: wasMainMountBefore,
+        week,
+      });
+      nextPlayer = { ...nextPlayer, jockey: growth.jockey };
+      aptitudeChanges.push(...growth.changes);
+    }
+
+    // 通算成績：落馬した鞍も1戦に数える（勝ちではない。`domain/playerRecord.js`）。
+    nextPlayer = {
+      ...nextPlayer,
+      record: applyRideToRecord(nextPlayer.record, {
+        won: res.ride.won,
+        grade: res.ride.grade,
+        raceName: res.ride.raceName,
+        year: nextPlayer.currentYear,
+        aptitudeKeys: [
+          `strategy:${mount.declaredStrategy}`,
+          `distance:${distanceBandOf(mount.distance)}`,
+          `surface:${mount.surface}`,
+        ],
+      }),
+    };
   }
 
   // ⭐断るコスト（`DECLINE_MAIN_MOUNT_TRUST_LOSS`のコメント参照）：
@@ -250,6 +300,24 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     return horse ?? h;
   });
 
+  // ⭐NPC騎手の年間勝ち数（ARCHITECTURE.md §8「一流＝最多勝利騎手」の判定材料）：
+  // 今週勝った馬（プレイヤーが乗った馬は除く＝プレイヤーの勝ちは`player.record`側で数える）を
+  // 探し、その馬に乗った騎手を`jockeyIdForHorse`（実際にレースへ渡した騎手と同じ経路）で
+  // 特定して積む。⚠️`horse.record.recentFinishes[0]`が今週・1着かどうかで「今週勝った」を
+  // 判定する（`npcWeeklyRace.js`/`npcGradedRace.js`の戻り値を直接は使わない——両ファイルは
+  // 勝者一覧を返さないため。同じ`stableJockeys`を使うので、実際にレースへ渡した騎手と食い違わない
+  // ——`domain/weekResultSummary.js`の`buildGradedResults`と同じ考え方）。
+  const npcWinnerJockeyCounts = new Map();
+  for (const horse of mergedHorses) {
+    if (riddenThisWeek.has(horse.id)) continue; // プレイヤーが乗った馬は対象外
+    const last = horse.record?.recentFinishes?.[0];
+    if (!last || last.week !== week || last.position !== 1) continue;
+    const jockeyId = jockeyIdForHorse(horse, stableJockeys);
+    if (!jockeyId) continue;
+    npcWinnerJockeyCounts.set(jockeyId, (npcWinnerJockeyCounts.get(jockeyId) ?? 0) + 1);
+  }
+  const npcJockeysWithWins = recordJockeyWins(roster.npcJockeys, npcWinnerJockeyCounts, nextPlayer.currentYear);
+
   // ⭐第10弾：計画が今週で期限切れ・またはまだ計画の無い馬に、次の計画を立て直す
   // （`devlog/wave10.md`§3.5「除外された馬は、その週のうちに目標を組み直す」・
   // `domain/rotation.js`の`replanStaleHorses`）。⚠️これが無いと#95（走りたい馬が
@@ -270,6 +338,25 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // `lastRaceWeek`方式で実測発見・`isDueForNextRace`は撤去済みだが理由は変わらない）。
   // 年は52週ごとに繰り上げる。週×競馬場の暦を引くときは`weekOfYear`で1〜52へ変換する。
   const wrapsToNextYear = week % WEEKS_PER_YEAR === 0;
+
+  // ⭐騎手ランクの昇格（ARCHITECTURE.md §8「騎手ランク」・`devlog/wave12.md`§9）：
+  // 「一流＝最多勝利騎手」だけは年末（この週で年が繰り上がるとき）に、終わったばかりの年の
+  // 総数で判定する——それ以外の週は`isTopWinnerThisYear`を`false`にする（実力派より下に
+  // 留まっている限り、この値は見られないので実害は無い）。それ以外の条件（初勝利・重賞勝利・
+  // G1〈またはそれ以前は八大競走〉勝利）は`player.record`の積み上げなので毎週判定してよい。
+  const isTopWinnerThisYear =
+    wrapsToNextYear &&
+    (nextPlayer.record.byYear[nextPlayer.currentYear]?.wins ?? 0) >=
+      maxNpcWinsInYear(npcJockeysWithWins, nextPlayer.currentYear);
+  const promotion = checkRankPromotions(nextPlayer.jockey.rank, nextPlayer.record, isTopWinnerThisYear);
+  if (promotion.changes.length > 0) {
+    nextPlayer = { ...nextPlayer, jockey: { ...nextPlayer.jockey, rank: promotion.rank } };
+  }
+  const rankChange =
+    promotion.changes.length > 0
+      ? { from: promotion.changes[0].from, to: promotion.rank, week }
+      : null;
+
   nextPlayer = {
     ...nextPlayer,
     currentWeek: week + 1,
@@ -277,10 +364,17 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   };
 
   return {
-    roster: { ...roster, horses: advancedHorses, trialResults: gradedResult.trialResults },
+    roster: {
+      ...roster,
+      horses: advancedHorses,
+      npcJockeys: npcJockeysWithWins,
+      trialResults: gradedResult.trialResults,
+    },
     player: nextPlayer,
     notifications,
     requestHorseIds,
     rides,
+    // ⭐この週に動いた適性・ランク（画面ではまだ使わない。ARCHITECTURE.md §4・§8）。
+    growth: { aptitudeChanges, rankChange },
   };
 }

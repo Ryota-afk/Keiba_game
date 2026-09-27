@@ -46,6 +46,9 @@ export function generateJockey(saveSeed, key, opts = {}) {
     skills: [], // 習得済みスキルのID一覧
     stableId: opts.stableId ?? null, // 所属厩舎（§6「所属厩舎の決まり方」）
     isActive: true, // 引退したらfalse（世代交代）
+    aptitudeXp: {}, // key -> 経験値。段が上がると要る分だけ引かれ、残りは持ち越す（§4「適性の成長」）
+    aptitudeLastWeek: {}, // key -> 最後にその適性で乗った週（合計の上限に届いたときの降格先選びに使う）
+    winsByYear: {}, // year -> 勝ち数（NPC騎手・プレイヤー騎手共通。§8「一流＝最多勝利騎手」の判定材料）
   };
 }
 
@@ -84,4 +87,19 @@ export function growAptitude(jockey, aptitudeKey, cap = rankSpec(jockey.rank)?.a
     if (sCount >= cap) return jockey; // ⚠️最高評価にできる数の上限に達している
   }
   return { ...jockey, aptitudes: { ...jockey.aptitudes, [aptitudeKey]: next } };
+}
+
+/**
+ * 古いセーブ（`aptitudeXp`・`aptitudeLastWeek`・`winsByYear`を持たない騎手）に既定値を補う。
+ * 純関数——既に全部持っていれば同じオブジェクトを返す（2026-09-27・`devlog/wave12.md`§9）。
+ * プレイヤー騎手・NPC騎手の両方に使う（`generateJockey`が両方に同じ形を返すため）。
+ */
+export function withJockeyDefaults(jockey) {
+  if (jockey.aptitudeXp && jockey.aptitudeLastWeek && jockey.winsByYear) return jockey;
+  return {
+    ...jockey,
+    aptitudeXp: jockey.aptitudeXp ?? {},
+    aptitudeLastWeek: jockey.aptitudeLastWeek ?? {},
+    winsByYear: jockey.winsByYear ?? {},
+  };
 }

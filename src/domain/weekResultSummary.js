@@ -75,11 +75,14 @@ function buildGradedResults(afterRoster, afterPlayer, rides, week, year) {
 /**
  * 週の結果画面に渡すデータを組む。純関数。
  * @param {{ beforePlayer: object, afterPlayer: object, afterRoster: object,
- *   rides: object[], week: number, year: number }} args - `week`・`year`は進める前の
- *   絶対週・暦年（`beforePlayer.currentWeek`・`beforePlayer.currentYear`）。
- *   `rides`・`afterPlayer`・`afterRoster`は`advanceWeek`の戻り値の`rides`・`player`・`roster`。
+ *   rides: object[], week: number, year: number, growth?: { aptitudeChanges: object[],
+ *   rankChange: {from:string, to:string, week:number}|null } }} args - `week`・`year`は
+ *   進める前の絶対週・暦年（`beforePlayer.currentWeek`・`beforePlayer.currentYear`）。
+ *   `rides`・`afterPlayer`・`afterRoster`・`growth`は`advanceWeek`の戻り値の
+ *   `rides`・`player`・`roster`・`growth`（`growth`は⚠️2026-09-27追加・画面ではまだ使わない
+ *   ——ARCHITECTURE.md §4「適性の成長」・§8「騎手ランク」）。
  */
-export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster, rides, week, year }) {
+export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster, rides, week, year, growth }) {
   const horseById = new Map(afterRoster.horses.map((h) => [h.id, h]));
 
   const rideSummaries = rides.map((ride) => ({
@@ -145,5 +148,8 @@ export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster,
     mainMounts,
     trust,
     graded: buildGradedResults(afterRoster, afterPlayer, rides, week, year),
+    // ⭐画面ではまだ使わない（ARCHITECTURE.md §4「適性の成長」・§8「騎手ランク」・
+    // `devlog/wave12.md`§9）。渡されなければ空にしておく（呼び出し側が古いままでも壊れない）。
+    growth: growth ?? { aptitudeChanges: [], rankChange: null },
   };
 }

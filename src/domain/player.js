@@ -3,11 +3,12 @@
 // ⚠️セーブ形式そのもの（localStorageへの読み書き）は`state/`が別途持つ。ここは
 // 「プレイヤー状態とは何か」という形と、初期値を作る関数だけを持つ。
 
-import { generateJockey } from "./jockey.js";
+import { generateJockey, withJockeyDefaults } from "./jockey.js";
 import { RANK_LADDER } from "../data/ranks.js";
 import { DEFAULT_START_YEAR } from "../data/startYears.js";
 import { DEFAULT_DIFFICULTY } from "../data/difficulty.js";
 import { MAIN_TIMELINE_START_WEEK } from "../data/calendar.js";
+import { createEmptyPlayerRecord } from "./playerRecord.js";
 
 // 初期所持金（暫定・ARCHITECTURE.md §15「暫定・未定の数値」）。
 export const STARTING_MONEY = 100000;
@@ -38,6 +39,7 @@ export function createPlayer(saveSeed, opts = {}) {
     ownerTrust: {}, // ownerId -> 信頼値
     reputation: 0, // 評判（信頼の上位数件の平均。実装の弾で計算方法を確定）
     mainMounts: {}, // horseId -> { rides: number, hasWon: boolean, isMain: boolean }（主戦の座の進捗）
+    record: createEmptyPlayerRecord(), // 通算成績（§4「騎手」・`domain/playerRecord.js`）
     fatigue: 0, // 疲労（0〜100。§6「疲労」。詳細は`domain/fatigue.js`）
     // ⭐本編は週1からではなく、事前シミュレーション104週の続き（週105）から始まる
     // （2026-09-20のユーザー決定・`data/calendar.js`の`MAIN_TIMELINE_START_WEEK`）。
@@ -57,4 +59,16 @@ export function trustFor(trustMap, id) {
 /** 信頼値を加算する。純関数——引数のtrustMapを書き換えず新しいオブジェクトを返す。 */
 export function adjustTrust(trustMap, id, delta) {
   return { ...trustMap, [id]: trustFor(trustMap, id) + delta };
+}
+
+/**
+ * 古いセーブ（`record`・騎手の`aptitudeXp`等を持たないプレイヤー）に既定値を補う。
+ * 純関数——既に全部持っていれば同じオブジェクトを返す（2026-09-27・`devlog/wave12.md`§9）。
+ * `domain/weekLoop.js`の`advanceWeek`の入口で必ず通す。
+ */
+export function withPlayerDefaults(player) {
+  const jockey = withJockeyDefaults(player.jockey);
+  const record = player.record ?? createEmptyPlayerRecord();
+  if (jockey === player.jockey && record === player.record) return player;
+  return { ...player, jockey, record };
 }

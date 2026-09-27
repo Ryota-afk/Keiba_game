@@ -34,14 +34,18 @@ export const RANK_LABELS = Object.freeze({
  * 1レースあたりの依頼数の上限）。
  * ⚠️`maxRequestsPerRace`は2026-09-20にユーザーが決定（同じレースに依頼が集中しすぎる
  * 問題の対策・`src/domain/weeklyRequests.js`）。
+ * ⚠️`aptitudeTotalCap`は2026-09-27にユーザーが決定（適性10個の段の合計の上限。
+ * `devlog/wave12.md`§9・§10・`domain/aptitudeGrowth.js`）。固定値ではなくランクで広がる
+ * （キャリアの終わりまで伸び続けるようにするため）。⭐最初の45〜115を、伸びる速さの較正後に
+ * 50〜125へ広げた（45〜115のままだと若手が2年目の途中で頭打ちになった・実測）。
  */
 export const RANK_SPECS = Object.freeze({
-  rookie: { promotionRequirement: null, weekdaySlots: 1, skillSlots: 2, aptitudeSCap: 2, maxRequestsPerRace: 3 },
-  young: { promotionRequirement: "firstWin", weekdaySlots: 1, skillSlots: 3, aptitudeSCap: 2, maxRequestsPerRace: 3 },
-  midCareer: { promotionRequirement: "gradedWin", weekdaySlots: 2, skillSlots: 4, aptitudeSCap: 3, maxRequestsPerRace: 3 },
-  veteran: { promotionRequirement: "g1Win", weekdaySlots: 2, skillSlots: 5, aptitudeSCap: 4, maxRequestsPerRace: 4 },
-  elite: { promotionRequirement: "topWinner", weekdaySlots: 3, skillSlots: 6, aptitudeSCap: 4, maxRequestsPerRace: 4 },
-  top: { promotionRequirement: "arcDeTriompheWin", weekdaySlots: 3, skillSlots: 8, aptitudeSCap: 5, maxRequestsPerRace: 5 },
+  rookie: { promotionRequirement: null, weekdaySlots: 1, skillSlots: 2, aptitudeSCap: 2, maxRequestsPerRace: 3, aptitudeTotalCap: 50 },
+  young: { promotionRequirement: "firstWin", weekdaySlots: 1, skillSlots: 3, aptitudeSCap: 2, maxRequestsPerRace: 3, aptitudeTotalCap: 65 },
+  midCareer: { promotionRequirement: "gradedWin", weekdaySlots: 2, skillSlots: 4, aptitudeSCap: 3, maxRequestsPerRace: 3, aptitudeTotalCap: 80 },
+  veteran: { promotionRequirement: "g1Win", weekdaySlots: 2, skillSlots: 5, aptitudeSCap: 4, maxRequestsPerRace: 4, aptitudeTotalCap: 95 },
+  elite: { promotionRequirement: "topWinner", weekdaySlots: 3, skillSlots: 6, aptitudeSCap: 4, maxRequestsPerRace: 4, aptitudeTotalCap: 110 },
+  top: { promotionRequirement: "arcDeTriompheWin", weekdaySlots: 3, skillSlots: 8, aptitudeSCap: 5, maxRequestsPerRace: 5, aptitudeTotalCap: 125 },
 });
 
 export function rankIndex(rankId) {

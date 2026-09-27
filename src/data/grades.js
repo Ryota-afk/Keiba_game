@@ -50,3 +50,13 @@ export function gradeToNumber(grade) {
   const idx = GRADE_SCALE.indexOf(grade);
   return idx < 0 ? 0 : idx;
 }
+
+/**
+ * 等級を1段下げる。既に最低評価（G）なら変わらない。自己完結の純関数。
+ * `nextGrade`の逆（`domain/aptitudeGrowth.js`の適性合計上限で使う）。
+ */
+export function prevGrade(grade) {
+  const idx = GRADE_SCALE.indexOf(grade);
+  if (idx <= 0) return grade;
+  return GRADE_SCALE[idx - 1];
+}

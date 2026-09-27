@@ -12,3 +12,17 @@ export const APTITUDE_KEYS = Object.freeze([
   ...DISTANCE_BANDS.map((d) => `distance:${d}`),
   ...SURFACES.map((s) => `surface:${s}`),
 ]);
+
+/**
+ * 距離（メートル）を距離帯へ変換する。純関数。
+ * ⚠️⚠️**`src/sim/raceSim.js`の`jockeyAptitudeFactor`と同じ境目にすること**
+ * （`sprint`≦1400／`mile`≦1800／`intermediate`≦2400／それ以上`long`）。`src/sim/`は
+ * 変更しないため、境目を変えるときは両方を手で揃える（2026-09-27・`domain/aptitudeGrowth.js`
+ * が鞍の経験を積む距離帯の判定に使う）。
+ */
+export function distanceBandOf(distance) {
+  if (distance <= 1400) return "sprint";
+  if (distance <= 1800) return "mile";
+  if (distance <= 2400) return "intermediate";
+  return "long";
+}
