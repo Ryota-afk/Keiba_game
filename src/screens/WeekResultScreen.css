@@ -163,6 +163,29 @@
 .wr-line__v.is-hot {
   color: var(--accent);
 }
+/* 「能力」の段（design/mocks/jockey-profile-v1.html 案C の結果画面）。
+   ランクが上がった行は黄の1行。適性は左に名前（下がった行は理由を小さく）・右に「D → E+」。
+   上がった行の記号は黄、下がった行は弱い文字 */
+.wr-line__hot {
+  color: var(--accent);
+}
+.wr-line__l small {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wr-line__gch {
+  font-family: "M PLUS 1 Code", monospace;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.wr-line__gch.is-up {
+  color: var(--accent);
+}
+.wr-line__gch.is-down {
+  color: var(--muted);
+}
 .wr-graded {
   display: grid;
   grid-template-columns: 1fr auto;

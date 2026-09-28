@@ -8,6 +8,7 @@
 // 「先週の出来事」が出すので、ここでは言い直さない（CLAUDE.md §7）。
 
 import React from "react";
+import { buildGrowthLines } from "../view/jockeyProfileView.js";
 import "./WeekResultScreen.css";
 
 const yen = (n) => `${n.toLocaleString("ja-JP")}円`;
@@ -54,6 +55,10 @@ function Board({ ride }) {
 
 export function WeekResultScreen({ summary, onNext }) {
   const { weekLabel, moneyGained, moneyAfter, rides, mainMounts, trust, graded } = summary;
+  // 「能力」の段（案C 梯子・2026-09-27）：上がった適性は黄、下がった適性は弱い文字＋理由の一言、
+  // ランクが上がったら「◯◯に上がりました」。何も動かなかった週は段ごと出さない。
+  const growth = buildGrowthLines(summary.growth);
+  const hasGrowth = growth.rankLine != null || growth.lines.length > 0;
   return (
     <main className="week-result">
       <div className="wr-hd">
@@ -93,6 +98,28 @@ export function WeekResultScreen({ summary, onNext }) {
             <div className="wr-line" key={t.stableId}>
               <span>{t.trainerName}調教師</span>
               <span className="wr-line__v">{TRUST_WORDS[t.change]}</span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {hasGrowth && (
+        <section className="wr-sec">
+          <h2>能力</h2>
+          {growth.rankLine && (
+            <div className="wr-line">
+              <span className="wr-line__hot">{growth.rankLine}</span>
+            </div>
+          )}
+          {growth.lines.map((g) => (
+            <div className="wr-line" key={g.key}>
+              <span className="wr-line__l">
+                {g.label}
+                {g.reason && <small>{g.reason}</small>}
+              </span>
+              <span className={["wr-line__gch", g.up ? "is-up" : "is-down"].join(" ")}>
+                {g.from} → {g.to}
+              </span>
             </div>
           ))}
         </section>

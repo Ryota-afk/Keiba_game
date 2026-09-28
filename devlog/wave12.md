@@ -245,3 +245,15 @@ Sonnetサブエージェントの変更（`dreamDerbyEngine.js`の`pendingSpread
 （週の画面の中に開き、下の「乗らずに進める」はそのまま）。結果画面には「能力」の段（上がった／下がった・
 「若手に上がりました」）。距離はメートル表記（`data/aptitudeLabels.js`の既存の決定）。
 見た目の実装はFableサブエージェント。表示用の小さな計算（あと◯鞍・次に下がるもの）は`src/view/`の純関数に置く。
+
+## §14 ⑧の実装（2026-09-28・Fableサブエージェント）
+`src/view/jockeyProfileView.js`（表示用の純関数：`buildJockeyProfile`・`buildGrowthLines`・`ridesToNextStep`・
+`pickDropMarks`）・`src/screens/JockeyProfile.jsx`／`.css`（新規）・`WeekScreen.jsx`（「自分」タブ）・
+`WeekResultScreen.jsx`／`.css`（「能力」の段：ランク→上がった→下がった。変化の無い週は出さない。同じ週に
+同じ適性が2段動いたら1行にまとめる）。
+⚠️見つけて直したもの：`handleAdvance`が`advanceWeek`の`growth`を`buildWeekResultSummary`へ渡しておらず、
+結果画面に常に空が届いていた（呼び出し側1行）。
+⚠️画面の「次に上がると下がります」は種類で一番古いものに付く。実際の下がる処理はその鞍で上がる適性自身を
+除くので、一番古いものがちょうど上がると2番目が下がる（乗るまでどれが上がるか決まらないため、この形にした）。
+確認：iPhone 13・ビルド版で「自分」タブ（卒業直後・20週後）・初勝利の週の「若手に上がりました」・
+適性の上がった週・確認用の状態（65／65・S+）を撮って絵を見た。本体でも8週通してJSエラー0件。
