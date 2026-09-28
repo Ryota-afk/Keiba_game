@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>名前入力の建物 候補</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fs-caption: 11px; --fs-body: 14px; --fs-lead: 19px; --fs-title: 26px; --fs-display: 44px; --fs-input: 16px;
+    --s1: 8px; --s2: 16px; --s3: 24px; --s4: 32px; --s5: 40px; --s6: 48px;
+    --panel: #1a2a18; --panel2: #223a20; --muted: #9fb896; --fg: #f2ede0; --accent: #ffd83d; --action: #2f7fe6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #0f0c0a; font-family: "M PLUS 1p", sans-serif; color: var(--fg); }
+  .page { width: min(430px, 100vw); margin: 0 auto; padding: var(--s3) 0 var(--s6); }
+  .page-title { font-size: var(--fs-lead); font-weight: 700; margin: 0 var(--s2) var(--s1); }
+  .page-note { font-size: var(--fs-caption); color: var(--muted); margin: 0 var(--s2) var(--s3); line-height: 1.7; }
+  .option { margin: 0 0 var(--s5); }
+  .option-head { padding: 0 var(--s2) var(--s1); }
+  .option-name { font-size: var(--fs-body); font-weight: 700; color: var(--accent); letter-spacing: 0.08em; }
+  .option-aim { font-size: var(--fs-caption); color: var(--muted); line-height: 1.7; margin-top: 4px; }
+  /* 本体の枠（DreamDerbyScreen / GraduationScreen と同じ寸法。720は本体の既定値） */
+  .frame { width: 100%; height: min(720px, 100dvh); background: var(--panel); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 0 1px #000; }
+  .top { height: min(300px, calc(100dvh - 330px)); flex-shrink: 0; position: relative; overflow: hidden; background: #000; }
+  .top svg { display: block; width: 100%; height: 100%; }
+  .bottom { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: var(--s2) var(--s2) var(--s2); }
+  .lines { flex: 1; min-height: 0; overflow: hidden; }
+  .line { font-size: var(--fs-body); line-height: 1.8; padding: var(--s1) 0; border-bottom: 1px solid rgba(255,255,255,0.08); margin: 0; }
+  .line:last-child { border-bottom: none; }
+  .btn { width: 100%; text-align: center; font-weight: 700; font-size: var(--fs-body); letter-spacing: 0.1em; color: #fff; background: var(--action); padding: var(--s2); }
+  .btn--narrow { width: 70%; }
+  .btn--off { background: #362f22; color: #6d6656; }
+  .toast { background: var(--fg); color: #1c1712; padding: var(--s2); box-shadow: 0 2px 10px rgba(0,0,0,0.4); font-size: var(--fs-caption); line-height: 1.7; }
+  .form { display: flex; gap: var(--s2); margin: var(--s2) 0 var(--s3); }
+  .field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: var(--fs-caption); color: var(--muted); letter-spacing: 0.08em; }
+  .field .input { height: 36px; border-bottom: 1px solid rgba(255,255,255,0.3); font-size: var(--fs-input); }
+  .spacer { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1 class="page-title">名前入力の建物（競馬学校）</h1><p class="page-note">上半分だけを描き直す。校舎は3案で同じ形（横長の連続窓・玄関のひさし・屋上の時計）。</p>
+<section class="option" id="schoolA">
+  <div class="option-head"><div class="option-name">案A　校舎と調教コース</div><div class="option-aim">校舎の手前に楕円の調教コースを置き、馬が3頭走っている。「馬の学校」を馬で言う。<br>建物を小さくし、画面の下半分を走路に渡す。</div></div>
+  <div class="frame">
+    <div class="top" data-scene="schoolA"></div>
+    <div class="bottom"><div class="toast">名前を教えてください。</div><div class="form"><div class="field"><label>姓</label><div class="input"></div></div><div class="field"><label>名</label><div class="input"></div></div></div><div class="btn btn--off">次へ</div><div class="spacer"></div></div>
+  </div>
+</section>
+<section class="option" id="schoolB">
+  <div class="option-head"><div class="option-name">案B　厩舎と馬（校舎を捨てる）</div><div class="option-aim">校舎は奥に小さく。手前に馬房の列、戸から顔を出す馬、馬を引く生徒。<br>建物の正面図をやめ、生徒と馬の距離が近い場所として見せる。</div></div>
+  <div class="frame">
+    <div class="top" data-scene="schoolB"></div>
+    <div class="bottom"><div class="toast">名前を教えてください。</div><div class="form"><div class="field"><label>姓</label><div class="input"></div></div><div class="field"><label>名</label><div class="input"></div></div></div><div class="btn btn--off">次へ</div><div class="spacer"></div></div>
+  </div>
+</section>
+<section class="option" id="schoolC">
+  <div class="option-head"><div class="option-name">案C　校門と桜</div><div class="option-aim">門柱・表札・馬の頭の紋、その奥に校舎。桜が咲き、生徒が門を入る。<br>「学校」と「春」を先に伝え、馬は遠くに1頭だけ。</div></div>
+  <div class="frame">
+    <div class="top" data-scene="schoolC"></div>
+    <div class="bottom"><div class="toast">名前を教えてください。</div><div class="form"><div class="field"><label>姓</label><div class="input"></div></div><div class="field"><label>名</label><div class="input"></div></div></div><div class="btn btn--off">次へ</div><div class="spacer"></div></div>
+  </div>
+</section>
+</div>
+<script src="wake-grad-scenes.js"></script>
+<script>
+  document.querySelectorAll("[data-scene]").forEach((el) => { el.innerHTML = window.WAKE_GRAD_SCENES[el.dataset.scene](); });
+</script>
+</body>
+</html>

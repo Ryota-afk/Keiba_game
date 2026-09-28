@@ -1,0 +1,158 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>出馬表の候補 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:#1a2a18; --panel2:#223a20; --panel3:#2b482a; --muted:#9fb896;
+  --fg:#f2ede0; --accent:#ffd83d; --action:#2f7fe6; --good:#7ed77a; --bad:#e07a7a;
+  --t-hero:22px; --t-lead:16px; --t-body:13px; --t-sub:11px; --t-micro:10px; --sp:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding-block:24px;padding-inline:16px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:32px}
+h1{font-size:var(--t-lead);font-weight:500;color:var(--muted);line-height:1.6}
+.row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.col{flex:1 1 300px;min-width:0}
+.cap{font-size:var(--t-body);color:var(--accent);margin-bottom:var(--sp)}
+.note{font-size:var(--t-sub);color:var(--muted);margin-top:var(--sp);line-height:1.7}
+.frame{width:min(390px,100%);background:var(--panel);overflow:hidden}
+.head{padding:calc(var(--sp)*1.5) var(--sp) var(--sp)}
+.head .grade{font-size:var(--t-sub);color:var(--accent);letter-spacing:.08em}
+.head .name{font-size:var(--t-hero);font-weight:700;line-height:1.2;margin-top:2px}
+.head .where{font-size:var(--t-body);margin-top:6px}
+.head .cond{font-size:var(--t-sub);color:var(--muted);margin-top:2px}
+.rule{height:1px;background:#0000004d}
+.w1{background:#e9e4d8;color:#111}.w2{background:#1d1d1d;color:#eee}.w3{background:#c0392b;color:#fff}
+.w4{background:#2f6fb5;color:#fff}.w5{background:#e3c12a;color:#111}.w6{background:#3f8f4a;color:#fff}
+.w7{background:#d2732b;color:#fff}.w8{background:#d08aa6;color:#111}
+.waku{width:16px;height:16px;display:grid;place-items:center;font-size:var(--t-micro);flex:0 0 auto}
+.num{width:18px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.tab{font-variant-numeric:tabular-nums}
+
+/* ── 案D：一覧＋タップで馬柱 ── */
+.d-row{display:flex;align-items:center;gap:6px;padding:8px var(--sp);font-size:var(--t-sub)}
+.d-row+.d-row{border-top:1px solid #ffffff14}
+.d-row.self{background:var(--panel2)}
+.d-name{flex:1 1 auto;font-size:var(--t-body);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d-last{color:var(--muted);white-space:nowrap}
+.d-pop{width:44px;text-align:right;color:var(--accent)}
+.sheet{background:var(--panel3);padding:var(--sp)}
+.sheet .who{display:flex;align-items:baseline;gap:8px;font-size:var(--t-lead);font-weight:700}
+.sheet .who small{font-size:var(--t-sub);font-weight:400;color:var(--muted)}
+.pp{margin-top:6px;font-size:var(--t-sub)}
+.pp .r{display:grid;grid-template-columns:44px 30px 1fr 64px 46px;gap:4px;padding:4px 0;align-items:baseline}
+.pp .r+.r{border-top:1px solid #ffffff14}
+.pp .d{color:var(--muted)}
+.pp .n{font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp .m{color:var(--muted);text-align:right}
+.pp .p{text-align:right}
+.pp .p b{font-size:var(--t-body);font-weight:700}
+.pp .p.win b{color:var(--good)}
+.pp .h{color:var(--muted);font-size:var(--t-micro);padding-bottom:2px}
+
+/* ── 案E：競馬新聞の馬柱（横スクロール） ── */
+.scroller{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cols{display:flex;gap:6px;padding:var(--sp);width:max-content}
+.colm{width:132px;flex:0 0 auto;background:var(--panel2);padding:6px}
+.colm.self{background:var(--panel3)}
+.colm .top{display:flex;align-items:center;gap:4px}
+.colm .nm{font-size:var(--t-body);font-weight:700;margin-top:4px;line-height:1.2}
+.colm .jk{font-size:var(--t-sub);color:var(--muted);margin-top:2px}
+.colm .pop{font-size:var(--t-sub);color:var(--accent)}
+.colm .race{margin-top:6px;padding-top:4px;border-top:1px solid #ffffff14;font-size:var(--t-micro);color:var(--muted);line-height:1.35}
+.colm .race b{display:block;font-size:var(--t-sub);color:var(--fg);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.colm .race .fin{font-size:var(--t-body);color:var(--fg);font-weight:700}
+.colm .race .fin.win{color:var(--good)}
+</style></head><body><div class="wrap">
+
+<h1>出馬表の候補 v2（1974年 東京優駿・実データ。近5走も馬ごとの戦績表の実データ）<br>
+出典：馬柱の欄の構成はWikipedia「競馬新聞」（枠番・馬番・馬名・負担重量・騎手名・厩舎名・前4〜7走の成績）。各走の項目は優駿達の蹄跡の戦績表と同じ（日付・競馬場・レース名・距離・馬場・頭数・人気・着順）。</h1>
+
+<div class="row">
+
+<!-- ═══ 案D ═══ -->
+<div class="col"><div class="cap">案D：一覧は1頭1行。行を押すと、その馬の近5走（馬柱）が開く</div>
+<div class="frame">
+  <div class="head"><div class="grade">第41回</div><div class="name">東京優駿</div>
+    <div class="where">東京 芝2400m　23頭</div><div class="cond">3歳 牡牝 定量　1着 4,000万円</div></div>
+  <div class="rule"></div>
+  <div class="d-row"><span class="waku w7">7</span><span class="num">19</span><span class="d-name">キタノカチドキ</span><span class="d-last">前走 皐月賞 1着</span><span class="d-pop">1番人気</span></div>
+  <div class="d-row self"><span class="waku w2">2</span><span class="num">5</span><span class="d-name">コーネルランサー</span><span class="d-last">前走 皐月賞 2着</span><span class="d-pop">2番人気</span></div>
+  <div class="sheet">
+    <div class="who">コーネルランサー <small>牡3　57.0　中島啓之　勝又忠</small></div>
+    <div class="pp">
+      <div class="r h"><span>日付</span><span>場</span><span>レース</span><span>距離 馬場</span><span>着順</span></div>
+      <div class="r"><span class="d tab">74.05.03</span><span>東京</span><span class="n">皐月賞</span><span class="m tab">芝2000 良</span><span class="p tab"><b>2</b>着/14頭 4人気</span></div>
+      <div class="r"><span class="d tab">74.03.03</span><span>中山</span><span class="n">弥生賞</span><span class="m tab">芝1800 良</span><span class="p tab"><b>3</b>着/8頭 3人気</span></div>
+      <div class="r"><span class="d tab">74.01.13</span><span>東京</span><span class="n">京成杯</span><span class="m tab">芝1600 良</span><span class="p tab"><b>2</b>着/7頭 3人気</span></div>
+      <div class="r"><span class="d tab">73.12.16</span><span>中山</span><span class="n">ひいらぎ賞</span><span class="m tab">芝1600 良</span><span class="p win tab"><b>1</b>着/9頭 3人気</span></div>
+      <div class="r"><span class="d tab">73.11.25</span><span>東京</span><span class="n">府中3歳S</span><span class="m tab">芝1600 良</span><span class="p tab"><b>3</b>着/8頭 3人気</span></div>
+    </div>
+  </div>
+  <div class="d-row"><span class="waku w8">8</span><span class="num">21</span><span class="d-name">ナスノカゲ</span><span class="d-last">前走 NHK杯 1着</span><span class="d-pop">3番人気</span></div>
+  <div class="d-row"><span class="waku w5">5</span><span class="num">14</span><span class="d-name">インターグッド</span><span class="d-last">前走 オープン 1着</span><span class="d-pop">6番人気</span></div>
+  <div class="d-row"><span class="waku w4">4</span><span class="num">11</span><span class="d-name">エクセルラナー</span><span class="d-last">前走 ローズS 2着</span><span class="d-pop">7番人気</span></div>
+  <div class="d-row" style="color:var(--action)"><span class="waku" style="background:none"></span><span class="num"></span><span class="d-name" style="color:var(--action);font-weight:400">…残り18頭</span></div>
+</div>
+<div class="note">一覧の1行には「前走のレース名と着順」だけを置き、押すと5走ぶんが日付・競馬場・レース名・距離・馬場・頭数・人気つきで開きます。開いているのは自分の馬。上の5走は実データです。</div>
+</div>
+
+<!-- ═══ 案E ═══ -->
+<div class="col"><div class="cap">案E：競馬新聞の馬柱をそのまま横に並べる（横スクロール）</div>
+<div class="frame">
+  <div class="head"><div class="grade">第41回</div><div class="name">東京優駿</div>
+    <div class="where">東京 芝2400m　23頭</div><div class="cond">3歳 牡牝 定量　1着 4,000万円</div></div>
+  <div class="rule"></div>
+  <div class="scroller"><div class="cols">
+    <div class="colm"><div class="top"><span class="waku w7">7</span><span class="num">19</span><span class="pop">1番人気</span></div>
+      <div class="nm">キタノカチドキ</div><div class="jk">牡3 57.0 武邦彦</div>
+      <div class="race"><b>皐月賞</b>74.05.03 東京 芝2000 良<br><span class="fin win">1着</span>/14頭 1人気</div>
+      <div class="race"><b>スプリングS</b>74.03.24 中山 芝1800 良<br><span class="fin win">1着</span>/6頭 1人気</div>
+      <div class="race"><b>きさらぎ賞</b>74.02.10 中京 芝1800 良<br><span class="fin win">1着</span>/7頭 1人気</div>
+      <div class="race"><b>阪神3歳S</b>73.12.09 阪神 芝1600 良<br><span class="fin win">1着</span>/11頭 1人気</div>
+      <div class="race"><b>オープン</b>73.11.10 京都 芝1400 重<br><span class="fin win">1着</span>/6頭 1人気</div></div>
+    <div class="colm self"><div class="top"><span class="waku w2">2</span><span class="num">5</span><span class="pop">2番人気</span></div>
+      <div class="nm">コーネルランサー</div><div class="jk">牡3 57.0 中島啓之</div>
+      <div class="race"><b>皐月賞</b>74.05.03 東京 芝2000 良<br><span class="fin">2着</span>/14頭 4人気</div>
+      <div class="race"><b>弥生賞</b>74.03.03 中山 芝1800 良<br><span class="fin">3着</span>/8頭 3人気</div>
+      <div class="race"><b>京成杯</b>74.01.13 東京 芝1600 良<br><span class="fin">2着</span>/7頭 3人気</div>
+      <div class="race"><b>ひいらぎ賞</b>73.12.16 中山 芝1600 良<br><span class="fin win">1着</span>/9頭 3人気</div>
+      <div class="race"><b>府中3歳S</b>73.11.25 東京 芝1600 良<br><span class="fin">3着</span>/8頭 3人気</div></div>
+    <div class="colm"><div class="top"><span class="waku w8">8</span><span class="num">21</span><span class="pop">3番人気</span></div>
+      <div class="nm">ナスノカゲ</div><div class="jk">牡3 57.0 嶋田功</div>
+      <div class="race"><b>NHK杯</b>74.05.03 東京 芝2000 良<br><span class="fin win">1着</span>/18頭 5人気</div>
+      <div class="race"><b>200万下</b>74.03.30 中山 芝1800 稍重<br><span class="fin win">1着</span>/10頭 1人気</div>
+      <div class="race"><b>れんげ賞</b>74.03.17 中山 芝1800 良<br><span class="fin">2着</span>/13頭 3人気</div>
+      <div class="race"><b>アネモネ賞</b>74.03.02 中京 芝1800 良<br><span class="fin">3着</span>/10頭 2人気</div>
+      <div class="race"><b>ジャスミン賞</b>74.02.16 中京 芝1700 稍重<br><span class="fin">2着</span>/9頭 4人気</div></div>
+    <div class="colm"><div class="top"><span class="waku w5">5</span><span class="num">14</span><span class="pop">6番人気</span></div>
+      <div class="nm">インターグッド</div><div class="jk">牡3 57.0 笹倉武久</div>
+      <div class="race"><b>オープン</b>74.05.04 東京 芝1600 良<br><span class="fin win">1着</span>/7頭 1人気</div>
+      <div class="race"><b>弥生賞</b>74.03.03 中山 芝1800 良<br><span class="fin">6着</span>/8頭 4人気</div>
+      <div class="race"><b>東京4歳S</b>74.02.10 東京 芝1800 重<br><span class="fin">6着</span>/7頭 6人気</div>
+      <div class="race"><b>京成杯</b>74.01.13 東京 芝1600 良<br><span class="fin">取消</span></div>
+      <div class="race"><b>葉牡丹賞</b>73.12.15 中山 芝1600 良<br><span class="fin win">1着</span>/11頭 1人気</div></div>
+    <div class="colm"><div class="top"><span class="waku w4">4</span><span class="num">11</span><span class="pop">7番人気</span></div>
+      <div class="nm">エクセルラナー</div><div class="jk">牡3 57.0 嶋田潤</div>
+      <div class="race"><b>ローズS</b>74.05.12 東京 芝1800 良<br><span class="fin">2着</span>/6頭 3人気</div>
+      <div class="race"><b>ヴァイオレット賞</b>74.03.16 中山 芝1800 良<br><span class="fin">11着</span>/15頭 4人気</div>
+      <div class="race"><b>500万下</b>74.03.02 中山 ダ1700 良<br><span class="fin">6着</span>/9頭 1人気</div>
+      <div class="race"><b>東京4歳S</b>74.02.10 東京 芝1800 重<br><span class="fin">4着</span>/7頭 3人気</div>
+      <div class="race"><b>朝日杯3歳S</b>73.12.09 中山 芝1600 良<br><span class="fin">3着</span>/10頭 9人気</div></div>
+    <div class="colm" style="opacity:.5"><div class="top"><span class="waku w4">4</span><span class="num">10</span><span class="pop">4番人気</span></div><div class="nm">フェアーリュウ</div><div class="jk">牡3 57.0 星野信幸</div><div class="race">（残り18頭も同じ形）</div></div>
+  </div></div>
+</div>
+<div class="note">1頭が1列、上から新しい順に5走。競馬新聞と同じ形です。幅390pxには2.8頭ぶん入り、23頭は横にスクロールします。列の境は背景の明暗だけで、縦線は引いていません。</div>
+</div>
+
+</div>
+
+<div class="note">
+共通：枠の色はデータが持つ色。絵文字なし。1着だけ色を変えています（結果の良し悪しの色）。<br>
+⚠️前回の案では近5走を「3-1-4-2-1」と数字だけで並べていました。実在の出馬表を確かめずに作った手抜きです。今回は各走にレース名・日付・競馬場・距離・馬場・頭数・人気を付け、数字も全部実データにしました。<br>
+⚠️「前走 皐月賞 2着」の「前走」を1行に置く案Dは、2走目より前が見えません。5走全部を常に見せたいなら案Eです。
+</div>
+</div></body></html>

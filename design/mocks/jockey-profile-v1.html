@@ -1,0 +1,361 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>自分の能力 v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&family=M+PLUS+1+Code:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 自分の騎手の能力を見る画面（候補3案）。2026-09-27・Fable 5.1が作成。
+ * 各案：能力の画面（卒業直後／60週後／120週後＝合計が若手の65に届いている）＋週の画面からの入口＋
+ * 週の結果に足す行。値は1974年開始・土日1鞍ずつ乗った実測（芦田翔太・柳沢厩舎）。
+ * 結果画面の枠は week-result-v1.html 案C（掲示板・採用済み）の実データ（1974年11月4週・12月1週）に
+ * 新しい段を足したもの。入口の枠は week-offers-v4.html 案C の行（1976年1月1週の実データ）を
+ * 位置を見せるために借り、ヘッダーだけ今の「1974年 1月1週／あと6件」にしている。
+ * 注意：モックの都合の値（.frame の 390px 幅・min-height）は実装へ持ち込まない。
+ * 級数・余白はトークンだけ。縦線なし。絵文字なし。accent＝読むもの（黄）、action＝押すもの（青）。
+ * 距離帯の画面表記はメートルのみ（data/aptitudeLabels.js・「マイル」は出さない）。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --tap:44px;
+  --panel:#1a2a18; --panel2:#223a20; --panel3:#2b482a; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896; --dim:#5f7659;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff;
+  --turf:#8fd07e; --dirt:#d8b27a;
+  --rule:rgba(255,255,255,.1);
+  --mono:"M PLUS 1 Code",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6)}
+.wrap{max-width:1260px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s6);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:56em;margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:500}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;min-height:720px;background:var(--panel);box-shadow:0 0 0 1px #000;display:flex;flex-direction:column}
+.frame.host > .grow{flex:1 1 auto}
+.num{font-variant-numeric:tabular-nums}
+.acc{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.sf-turf{color:var(--turf)} .sf-dirt{color:var(--dirt)}
+
+/* ── 能力の画面・共通の上部（名前・ランク・厩舎・通算） ── */
+.ph{display:flex;justify-content:space-between;align-items:flex-start;padding:var(--s2) var(--s2) 0}
+.ph .name{font-size:var(--fs-lead);font-weight:700;line-height:1.3}
+.ph .who{font-size:var(--fs-caption);color:var(--muted);margin-top:2px}
+.ph .who b{color:var(--accent);font-weight:700;margin-right:var(--s1)}
+.lnk{all:unset;box-sizing:border-box;cursor:pointer;min-height:var(--tap);line-height:var(--tap);padding:0 var(--s1);margin:calc(var(--s2) * -1) calc(var(--s1) * -1) 0 0;font-size:var(--fs-body);font-weight:700;color:var(--action);white-space:nowrap}
+.career{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s2) var(--s2) 0;font-size:var(--fs-body);line-height:1.5}
+.career .l b{font-weight:700}
+.career .l span{color:var(--muted);margin-left:var(--s1)}
+.career .yr{font-size:var(--fs-caption);color:var(--muted);text-align:right;white-space:nowrap}
+
+/* 押すもの2種（v4と同じ） */
+.btn{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;min-height:var(--s6);line-height:var(--s6);text-align:center;background:var(--action);color:var(--on-action);font-size:var(--fs-body);font-weight:700}
+.bar{padding:var(--s2);background:var(--panel2)}
+.bar.two{display:flex;gap:var(--s1);align-items:center}
+.bar.two .btn{flex:1 1 auto}
+.bar.two .lnk{flex:0 0 auto;margin:0;padding:0 var(--s2)}
+
+/* ══ 案A：表 ══ */
+.a-total{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) 0;font-size:var(--fs-body)}
+.a-total b{font-size:var(--fs-lead);font-weight:700;margin-right:2px}
+.a-total .to{color:var(--muted)}
+.a-total .full{color:var(--accent)}
+.a-grp{padding:var(--s2) var(--s2) 0}
+.a-grp h3{font-size:var(--fs-caption);font-weight:500;color:var(--muted);letter-spacing:.08em;padding-bottom:4px;box-shadow:inset 0 -1px 0 var(--rule)}
+.a-th,.a-r{display:grid;grid-template-columns:minmax(0,1fr) 48px 88px 64px;gap:0 var(--s1);align-items:center}
+.a-th{font-size:var(--fs-caption);color:var(--dim);padding:var(--s1) 0 0}
+.a-th .c{text-align:center}.a-th .tr{text-align:right}
+.a-r{min-height:var(--tap);padding:4px 0;box-shadow:inset 0 -1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted)}
+.a-r:last-child{box-shadow:none}
+.a-r .nm{font-size:var(--fs-body);color:var(--fg);line-height:1.3}
+.a-r .nm small{display:block;font-size:var(--fs-caption);color:var(--accent);line-height:1.5}
+.a-r .gr{font-family:var(--mono);font-size:var(--fs-title);font-weight:700;color:var(--fg);text-align:center;line-height:1}
+.a-r .gr.top{color:var(--accent)}
+.a-r .nx{text-align:center}
+.a-r .rec{text-align:right}
+
+/* ══ 案B：板 ══ */
+.b-sum{display:grid;grid-template-columns:1fr 1fr;gap:var(--s1);padding:var(--s2) var(--s2) 0}
+.b-sum .bd{background:var(--board);padding:var(--s1) var(--s1) var(--s2)}
+.b-sum .bd .k{font-size:var(--fs-caption);color:var(--muted)}
+.b-sum .bd .v{font-size:var(--fs-title);font-weight:700;line-height:1.2;margin-top:2px}
+.b-sum .bd .v small{font-size:var(--fs-body);font-weight:400;color:var(--muted)}
+.b-sum .bd .v.full{color:var(--accent)}
+.b-sum .bd .s{font-size:var(--fs-caption);color:var(--muted);line-height:1.5;margin-top:2px}
+.b-sum .bd .s.full{color:var(--accent)}
+.b-grp{padding:var(--s2) var(--s2) 0}
+.b-grp h3{font-size:var(--fs-caption);font-weight:500;color:var(--muted);letter-spacing:.08em;padding-bottom:var(--s1)}
+.b-cells{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s1)}
+.b-cells.two{grid-template-columns:1fr 1fr}
+.b-cell{background:var(--board);padding:var(--s1) 4px var(--s1) var(--s1);display:flex;flex-direction:column;gap:2px}
+.b-cell .nm{font-size:var(--fs-caption);color:var(--muted);line-height:1.4;min-height:calc(var(--fs-caption) * 2.8)}
+.b-cells.two .b-cell .nm{min-height:0}
+.b-cell .gr{font-family:var(--mono);font-size:var(--fs-display);font-weight:700;line-height:1;margin-top:2px}
+.b-cell .gr.top{color:var(--accent)}
+.b-cell .nx{font-size:var(--fs-caption);color:var(--fg);margin-top:4px;white-space:nowrap}
+.b-cell .rec{font-size:var(--fs-caption);color:var(--muted);white-space:nowrap}
+.b-cell .dn{font-size:var(--fs-caption);color:var(--accent);line-height:1.4;margin-top:4px}
+
+/* ══ 案C：梯子 ══ */
+.c-head{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) 0}
+.c-head .tot{font-size:var(--fs-body)}
+.c-head .tot b{font-size:var(--fs-lead);font-weight:700;margin-right:2px}
+.c-head .tot .to{color:var(--muted)}
+.c-head .tot.full b{color:var(--accent)}
+.c-scale{display:flex;align-items:center;gap:var(--s1);font-family:var(--mono);font-size:var(--fs-caption);color:var(--muted);width:110px}
+.c-scale i{flex:1;height:1px;background:var(--rule)}
+.c-note{padding:4px var(--s2) 0;font-size:var(--fs-caption);color:var(--muted)}
+.c-note.full{color:var(--accent)}
+.c-grp{padding:var(--s2) var(--s2) 0}
+.c-grp h3{font-size:var(--fs-caption);font-weight:500;color:var(--accent);letter-spacing:.16em;padding-bottom:4px}
+.c-row{padding:var(--s1) 0 4px}
+.c-row .l1{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.c-row .l1 .nm{color:var(--fg);font-size:var(--fs-body)}
+.c-row .l1 .nm small{font-size:var(--fs-caption);color:var(--accent);margin-left:var(--s1)}
+.c-row .l2{display:flex;align-items:center;gap:var(--s1);margin-top:4px}
+.c-lad{flex:1 1 auto;display:grid;grid-template-columns:repeat(16,1fr);gap:2px;height:8px}
+.c-lad i{display:block;background:rgba(255,255,255,.08);position:relative;overflow:hidden}
+.c-lad i.on{background:rgba(255,255,255,.55)}
+.c-lad i.on.top{background:var(--accent)}
+.c-lad i.risk{background:none;box-shadow:inset 0 0 0 1px var(--accent)}
+.c-lad i.next::after{content:"";position:absolute;inset:0;width:var(--p);background:rgba(255,255,255,.28)}
+.c-row .gr{font-family:var(--mono);font-size:var(--fs-lead);font-weight:700;color:var(--muted);width:2em;text-align:left;line-height:1;white-space:nowrap}
+.c-row .gr.top{color:var(--accent)}
+.c-row .nx{font-size:var(--fs-caption);color:var(--muted);width:56px;text-align:right;white-space:nowrap}
+
+/* ── 週の画面（v4 案Cの見た目。入口の位置を見せる） ── */
+.hd{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) var(--s1)}
+.hd .wk{font-size:var(--fs-body)}
+.hd .left{font-size:var(--fs-caption);color:var(--muted)}
+.hd .left b{font-size:var(--fs-lead);color:var(--accent);font-weight:700;margin:0 2px}
+.hd .me{display:block;font-size:var(--fs-body);font-weight:700;color:var(--action);line-height:1.6;margin-top:2px}
+.hd .rgt{display:flex;align-items:baseline;gap:var(--s2)}
+.hd .rgt .lnk2{font-size:var(--fs-body);font-weight:700;color:var(--action)}
+.days{display:flex;padding:0 var(--s2);box-shadow:inset 0 -1px 0 var(--rule)}
+.days button{all:unset;box-sizing:border-box;cursor:pointer;flex:1;text-align:center;min-height:var(--tap);line-height:var(--tap);font-size:var(--fs-body);font-weight:700;color:var(--muted);border-bottom:2px solid transparent}
+.days button.on{color:var(--action);border-bottom-color:var(--action)}
+.courses{display:flex;gap:var(--s1);padding:var(--s1) var(--s2) 0}
+.courses button{all:unset;box-sizing:border-box;cursor:pointer;min-height:var(--tap);padding:0 var(--s2);display:flex;align-items:center;gap:6px;font-size:var(--fs-body);color:var(--muted);background:var(--panel2)}
+.courses button.on{background:var(--action);color:#fff}
+.courses button .n{font-size:var(--fs-caption);font-weight:700}
+.race{padding:var(--s2) var(--s2) 0}
+.race .big{font-size:var(--fs-title);font-weight:700;line-height:1.1}
+.race .big .cls{font-size:var(--fs-body);font-weight:400;color:var(--muted);margin-left:var(--s1)}
+.t{padding:var(--s1) var(--s2) 0}
+.th,.r{display:grid;grid-template-columns:minmax(0,1fr) 28px 36px 32px 80px;gap:6px;align-items:center}
+.th{font-size:var(--fs-caption);color:var(--dim);padding:var(--s1) 0 4px}
+.th .c{text-align:center}.th .tr{text-align:right}
+.r{min-height:52px;padding:6px 0;box-shadow:inset 0 1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted)}
+.r .name{font-size:var(--fs-body);font-weight:700;color:var(--fg);line-height:1.3}
+.r .name small{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.r .sym{display:block;width:20px;height:20px;margin:0 auto;color:var(--fg)}
+.r .tr{text-align:right;line-height:1.4}
+.r .tr small{display:block}
+
+/* ── 週の結果（v1 案C 掲示板の見た目） ── */
+.c-hd{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) var(--s1)}
+.c-hd .wk{font-size:var(--fs-body)}
+.c-hd .money{text-align:right;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.c-hd .money b{display:block;font-size:var(--fs-lead);color:var(--accent);font-weight:700}
+.c-boards{display:grid;grid-template-columns:1fr 1fr;gap:var(--s1);padding:0 var(--s2)}
+.c-board{background:var(--board);padding:var(--s1) var(--s1) var(--s2)}
+.c-board .top{display:flex;justify-content:space-between;font-size:var(--fs-caption);color:var(--muted)}
+.c-board .pos{font-size:var(--fs-display);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--fg);margin-top:2px}
+.c-board .pos small{font-size:var(--fs-caption);font-weight:400;color:var(--muted);margin-left:2px}
+.c-board.win .pos{color:var(--accent)}
+.c-board .nm{font-size:var(--fs-body);font-weight:700;line-height:1.3}
+.c-board .rc{font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.sec{padding:var(--s2) var(--s2) 0}
+.sec h3{font-size:var(--fs-caption);font-weight:500;color:var(--muted);letter-spacing:.08em;padding-bottom:var(--s1);box-shadow:inset 0 -1px 0 var(--rule)}
+.line{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;font-size:var(--fs-body);line-height:1.5;box-shadow:inset 0 -1px 0 var(--rule)}
+.line:last-child{box-shadow:none}
+.line .sub{font-size:var(--fs-caption);color:var(--muted)}
+.line .l small{display:block;font-size:var(--fs-caption);color:var(--muted)}
+.line .gch{font-family:var(--mono);font-size:var(--fs-body);font-weight:700;white-space:nowrap}
+.line .gch.up{color:var(--accent)}
+.line .gch.dn{color:var(--muted)}
+.c-ticker .tk{display:grid;grid-template-columns:1fr auto;gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.c-ticker .tk:last-child{box-shadow:none}
+.c-ticker .tk .rn{font-size:var(--fs-caption);color:var(--muted)}
+.c-ticker .tk .w{font-size:var(--fs-body);font-weight:700}
+.c-ticker .tk .j{font-size:var(--fs-caption);color:var(--muted);text-align:right;align-self:end}
+.foot{padding:var(--s2)}
+.body{flex:1}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="m-1" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="m-3" viewBox="0 0 20 20"><path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+</svg>
+<div class="wrap">
+<h1>自分の能力 v1（候補3案）</h1>
+<p class="intro">自分がいまどの走り方・どの距離・どの馬場が得意かを見る画面です。各案とも、<b>能力の画面</b>（卒業直後／60週後／120週後＝合計が若手の65に届いている）と、<b>週の画面からの入口</b>、<b>週の結果に足す行</b>の順に並べています。
+値は1974年開始・土日1鞍ずつ乗った実測（芦田翔太・柳沢厩舎）。距離帯は画面の決まりどおりメートルで書いています。
+評価がS+の適性は「あと◯鞍」の代わりに「これ以上上がりません」と出しますが、この3つの時点にはS+が無いので絵には出てきません。</p>
+<div id="root"></div>
+</div>
+<script>
+const SCALE = ["G","G+","F","F+","E","E+","D","D+","C","C+","B","B+","A","A+","S","S+"];
+const gnum = (g) => SCALE.indexOf(g);
+const need = (g) => 8 * (1 + gnum(g) / 4);   // data/aptitudeGrowth.js requiredXpForStep
+const GROUPS = [
+  ["走り方", "strategy", [["nige","逃げ"],["senko","先行"],["sashi","差し"],["oikomi","追込"]]],
+  ["距離", "distance", [["sprint","〜1400m"],["mile","1400〜1800m"],["inter","1800〜2400m"],["long","2400m〜"]]],
+  ["馬場", "surface", [["turf","芝"],["dirt","ダート"]]],
+];
+// [評価, あと◯鞍, 戦数, 勝ち]
+const STATES = {
+  grad: { cap:"卒業直後（1974年1月1週・新人・0戦）", rank:"新人", limit:50, total:30,
+    career:{ starts:0, wins:0, graded:0, yStarts:0, yWins:0 }, drop:{},
+    apt:{ nige:["F",12,0,0], senko:["F",12,0,0], sashi:["D",20,0,0], oikomi:["G",8,0,0],
+          sprint:["E",16,0,0], mile:["F",12,0,0], inter:["G",8,0,0], long:["D",20,0,0],
+          turf:["F",12,0,0], dirt:["D",20,0,0] } },
+  w60: { cap:"60週後（1975年・若手・120戦5勝）", rank:"若手", limit:65, total:51,
+    career:{ starts:120, wins:5, graded:0, yStarts:16, yWins:1 }, drop:{},
+    apt:{ nige:["F+",12,12,1], senko:["E+",16,41,2], sashi:["C+",23,63,2], oikomi:["G",4,4,0],
+          sprint:["E+",5,26,2], mile:["D",7,67,3], inter:["F",5,25,0], long:["D",18,2,0],
+          turf:["D",17,59,2], dirt:["C+",26,61,3] } },
+  w120: { cap:"120週後（1976年・若手・240戦10勝）。合計65が若手の65に届いている", rank:"若手", limit:65, total:65,
+    career:{ starts:240, wins:10, graded:0, yStarts:32, yWins:0 }, drop:{ strategy:"oikomi", distance:"long", surface:"turf" },
+    apt:{ nige:["F",7,25,3], senko:["D+",2,86,5], sashi:["B+",24,120,2], oikomi:["G+",9,9,0],
+          sprint:["D+",5,62,5], mile:["C+",23,121,4], inter:["E",4,54,1], long:["E+",15,3,0],
+          turf:["C",5,111,5], dirt:["B+",12,129,5] } },
+};
+const topOf = (s, keys) => Math.max(...keys.map(([k]) => gnum(s.apt[k][0])));
+const pct = (w) => (w.starts ? (w.wins / w.starts * 100).toFixed(1) + "%" : "—");
+const nx = (a) => a[0] === "S+" ? "これ以上上がりません" : `あと${a[1]}鞍`;
+const rec = (a) => `${a[2]}戦${a[3]}勝`;
+const head = (s, close) => `<div class="ph"><div><div class="name">芦田翔太</div><div class="who"><b>${s.rank}</b>柳沢厩舎</div></div>${close ? `<button class="lnk" type="button">閉じる</button>` : ""}</div>`;
+const career = (s) => { const c = s.career; return `<div class="career"><div class="l"><b class="num">${c.starts}戦 ${c.wins}勝</b><span class="num">勝率 ${pct(c)}</span><span class="num">重賞 ${c.graded}勝</span></div><div class="yr num">今年 ${c.yStarts}戦 ${c.yWins}勝</div></div>`; };
+
+// ── 案A：表 ──
+function planA(s, close = true) {
+  const full = s.total >= s.limit;
+  const total = `<div class="a-total"><div><b class="num ${full ? "full" : ""}">${s.total}</b><span class="to num">／${s.limit}</span></div><div class="to">${s.rank}は ${s.limit} まで</div></div>`;
+  const grps = GROUPS.map(([label, cat, keys]) => {
+    const top = topOf(s, keys);
+    return `<div class="a-grp"><h3>${label}</h3>
+      <div class="a-th"><span></span><span></span><span class="c">次の段まで</span><span class="tr">成績</span></div>
+      ${keys.map(([k, name]) => { const a = s.apt[k]; const dn = s.drop[cat] === k;
+        return `<div class="a-r"><span class="nm">${name}${dn ? `<small>次に上がると下がります</small>` : ""}</span><span class="gr ${gnum(a[0]) === top ? "top" : ""}">${a[0]}</span><span class="nx num">${nx(a)}</span><span class="rec num">${rec(a)}</span></div>`; }).join("")}
+    </div>`; }).join("");
+  return `<div class="body">${head(s, close)}${career(s)}${total}${grps}<div style="height:var(--s3)"></div></div>`;
+}
+
+// ── 案B：板 ──
+function planB(s, close = true) {
+  const full = s.total >= s.limit;
+  const c = s.career;
+  const sum = `<div class="b-sum">
+    <div class="bd"><div class="k">通算</div><div class="v num">${c.starts}戦 ${c.wins}勝</div><div class="s num">勝率 ${pct(c)}　重賞 ${c.graded}勝<br>今年 ${c.yStarts}戦 ${c.yWins}勝</div></div>
+    <div class="bd"><div class="k">合計</div><div class="v num ${full ? "full" : ""}">${s.total}<small>／${s.limit}</small></div><div class="s ${full ? "full" : ""}">${full ? "使い切りました。次に1つ上がると、同じ種類の1つが下がります" : `${s.rank}のあいだに伸ばせる分`}</div></div>
+  </div>`;
+  const grps = GROUPS.map(([label, cat, keys]) => {
+    const top = topOf(s, keys);
+    return `<div class="b-grp"><h3>${label}</h3><div class="b-cells ${keys.length === 2 ? "two" : ""}">
+      ${keys.map(([k, name]) => { const a = s.apt[k]; const dn = s.drop[cat] === k;
+        return `<div class="b-cell"><div class="nm">${name.replace("1400〜1800m","1400〜<br>1800m").replace("1800〜2400m","1800〜<br>2400m")}</div><div class="gr ${gnum(a[0]) === top ? "top" : ""}">${a[0]}</div><div class="nx num">${nx(a)}</div><div class="rec num">${rec(a)}</div>${dn ? `<div class="dn">次に上がると<br>下がります</div>` : ""}</div>`; }).join("")}
+    </div></div>`; }).join("");
+  return `<div class="body">${head(s, close)}${sum}${grps}<div style="height:var(--s3)"></div></div>`;
+}
+
+// ── 案C：梯子 ──
+function planC(s, close = true) {
+  const full = s.total >= s.limit;
+  const th = `<div class="c-head"><div class="tot ${full ? "full" : ""}"><b class="num">${s.total}</b><span class="to num">／${s.limit}</span></div><div class="c-scale"><span>G</span><i></i><span>S+</span></div></div>
+    <div class="c-note ${full ? "full" : ""}">${full ? `${s.rank}のあいだは、これ以上増えません` : `${s.rank}のあいだに、あと ${s.limit - s.total} 増やせます`}</div>`;
+  const grps = GROUPS.map(([label, cat, keys]) => {
+    const top = topOf(s, keys);
+    return `<div class="c-grp"><h3>${label}</h3>
+      ${keys.map(([k, name]) => { const a = s.apt[k]; const n = gnum(a[0]); const dn = s.drop[cat] === k; const isTop = n === top;
+        const p = Math.round((1 - a[1] / need(a[0])) * 100);
+        const cells = SCALE.map((_, i) => i < n ? `<i class="on ${isTop ? "top" : ""} ${dn && i === n - 1 ? "risk" : ""}"></i>` : i === n && a[0] !== "S+" ? `<i class="next" style="--p:${p}%"></i>` : `<i></i>`).join("");
+        return `<div class="c-row"><div class="l1"><span class="nm">${name}${dn ? `<small>次に上がると下がります</small>` : ""}</span><span class="num">${rec(a)}</span></div>
+          <div class="l2"><div class="c-lad">${cells}</div><span class="gr ${isTop ? "top" : ""}">${a[0]}</span><span class="nx num">${nx(a)}</span></div></div>`; }).join("")}
+    </div>`; }).join("");
+  return `<div class="body">${head(s, close)}${career(s)}${th}${grps}<div style="height:var(--s3)"></div></div>`;
+}
+
+// ── 週の画面（入口） ──
+const ROWS = `<div class="courses"><button class="on">京都<span class="n">5</span></button></div>
+<div class="race"><div class="big"><span class="sf-turf">芝</span>1800m<span class="cls">新馬</span></div></div>
+<div class="t"><div class="th"><span>馬名</span><span>性</span><span>走り方</span><span class="c">芝</span><span class="tr">調教師</span></div>
+<div class="r"><span class="name">レイクロスブレイズ<small>0戦0勝</small></span><span>セン</span><span>差し</span><svg class="sym"><use href="#m-1"/></svg><span class="tr">篠原昭夫</span></div>
+<div class="r"><span class="name">コスモシャドウ<small>0戦0勝</small></span><span>セン</span><span>先行</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">篠原昭夫</span></div>
+<div class="r"><span class="name">リュウジンミスティ<small>0戦0勝</small></span><span>牝</span><span>差し</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
+<div class="r"><span class="name">セイウンノヴァ<small>0戦0勝</small></span><span>牝</span><span>先行</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div>
+<div class="r"><span class="name">アカネブレイズ<small>0戦0勝</small></span><span>牡</span><span>差し</span><svg class="sym"><use href="#m-3"/></svg><span class="tr">桐山竜也<small>自分の厩舎</small></span></div></div>`;
+const weekA = () => `<div class="grow"><div class="hd"><div><div class="wk">1974年 1月1週</div><span class="me">芦田翔太</span></div><div class="left">あと<b>6</b>件</div></div>
+  <div class="days"><button class="on">土曜</button><button>日曜</button></div>${ROWS}</div><div class="bar"><button class="btn" type="button">乗らずに進める</button></div>`;
+const weekB = () => `<div class="grow"><div class="hd"><div class="wk">1974年 1月1週</div><div class="rgt"><span class="lnk2">能力</span><span class="left">あと<b>6</b>件</span></div></div>
+  <div class="days"><button class="on">土曜</button><button>日曜</button></div>${ROWS}</div><div class="bar"><button class="btn" type="button">乗らずに進める</button></div>`;
+const weekC = (open) => `<div class="grow"><div class="hd"><div class="wk">1974年 1月1週</div><div class="left">あと<b>6</b>件</div></div>
+  <div class="days"><button class="${open ? "" : "on"}">土曜</button><button>日曜</button><button class="${open ? "on" : ""}">自分</button></div>${open ? planC(STATES.grad, false) : ROWS}</div><div class="bar"><button class="btn" type="button">乗らずに進める</button></div>`;
+
+// ── 週の結果（掲示板・採用済み）に足す段 ──
+const LOSE = { label:"1974年 11月4週", gained:55000, money:9587500,
+  rides:[ { horse:"オーロラドリーム", course:"福島", sf:"turf", d:2000, cls:"未勝利", pos:3, field:15, pop:8 },
+          { horse:"オーロラテンペスト", course:"福島", sf:"turf", d:2000, cls:"未勝利", pos:10, field:10, pop:10 } ],
+  main:[ ["オーロラドリーム","あと1回乗って、1勝すれば主戦"], ["オーロラテンペスト","あと4回乗って、1勝すれば主戦"] ],
+  trust:[ ["今井一郎調教師","少し上がりました"], ["平尾昭夫調教師","少し上がりました"] ],
+  graded:[ ["農林省賞典 福島記念・福島","タイセイインパクト","高梨修平","5番人気"], ["京阪杯・京都","コスモウィング","塚本康平","11番人気"] ] };
+const WIN = { label:"1974年 12月1週", gained:510000, money:10097500,
+  rides:[ { horse:"ミスティインパクト", course:"東京", sf:"dirt", d:1700, cls:"未勝利", pos:1, field:12, pop:3 },
+          { horse:"ヤマトドリーム", course:"京都", sf:"dirt", d:1800, cls:"1勝クラス", pos:3, field:5, pop:5 },
+          { horse:"リュウジンフェザー", course:"京都", sf:"dirt", d:1200, cls:"2勝クラス", pos:2, field:12, pop:1 },
+          { horse:"セイウンテンペスト", course:"京都", sf:"turf", d:1200, cls:"1勝クラス", pos:1, field:17, pop:16 } ],
+  main:[ ["セイウンテンペスト",`<span class="acc">主戦になりました</span>`], ["ミスティインパクト","あと3回乗れば主戦"], ["リュウジンフェザー","あと2回乗って、1勝すれば主戦"] ],
+  trust:[ ["今井一郎調教師","大きく上がりました"] ],
+  graded:[ ["ＴＢＳ杯 クモハタ記念・東京","スターウィング","土屋遼","2番人気"] ] };
+const yen = (n) => n.toLocaleString("ja-JP") + "円";
+const sf = (s) => `<span class="sf-${s}">${s === "turf" ? "芝" : "ダート"}</span>`;
+function resultFrame(w, extraSec) {
+  return `<div class="body">
+    <div class="c-hd"><div class="wk">${w.label}</div><div class="money">今週<b class="num">+${yen(w.gained)}</b>所持金 ${yen(w.money)}</div></div>
+    <div class="c-boards">${w.rides.map((r) => `<div class="c-board ${r.pos === 1 ? "win" : ""}"><div class="top"><span>${r.course}</span><span>${r.pop}番人気</span></div><div class="pos num">${r.pos}<small>着／${r.field}頭立て</small></div><div class="nm">${r.horse}</div><div class="rc">${sf(r.sf)}${r.d}m ${r.cls}</div></div>`).join("")}</div>
+    <div class="sec"><h3>主戦</h3>${w.main.map(([h, t]) => `<div class="line"><span>${h}</span><span class="sub">${t}</span></div>`).join("")}</div>
+    <div class="sec"><h3>調教師からの信頼</h3>${w.trust.map(([h, t]) => `<div class="line"><span>${h}</span><span class="sub">${t}</span></div>`).join("")}</div>
+    ${extraSec}
+    <div class="sec c-ticker"><h3>今週の重賞</h3>${w.graded.map(([rn, h, j, p]) => `<div class="tk"><div><div class="rn">${rn}</div><div class="w">${h}</div></div><div class="j">${j}<br>${p}</div></div>`).join("")}</div>
+  </div><div class="foot"><button class="btn">次の週へ</button></div>`;
+}
+const gch = (f, t, up) => `<span class="gch ${up ? "up" : "dn"}">${f} → ${t}</span>`;
+const secApt = (why) => `<div class="sec"><h3>能力</h3>
+  <div class="line"><span>1400〜1800m</span>${gch("C","C+",true)}</div>
+  <div class="line"><span class="l">2400m〜<small>${why}</small></span>${gch("D","E+",false)}</div></div>`;
+const secRank = () => `<div class="sec"><h3>能力</h3><div class="line"><span class="acc">若手に上がりました</span></div></div>`;
+const WHY = { A: "合計が 65 に届いているため", B: "1400〜1800mが上がった分", C: "これ以上は増やせないため" };
+
+const PLANS = [
+  ["A", "案A：表", "1行に1つ。名前・評価・「あと◯鞍」・成績を横に並べ、3つのまとまりを小見出しで分ける。合計は「51／65　若手は 65 まで」の1行。届いていれば、次に下がる行の名前の下に黄色で書く。入口は週の下の青い名前。",
+    (s) => planA(s), weekA,
+    ["週の下に青い文字で「芦田翔太」。押すと能力の画面が開く（右上の「閉じる」で戻る）。ヘッダーが1行ぶん高くなる"]],
+  ["B", "案B：板", "評価の記号を大きく並べる（掲示板の板と同じ地）。走り方4枚・距離4枚・馬場2枚で、一目で高い所と低い所が分かる。通算と合計は板2枚。届いていれば、下がる板の下に「次に上がると下がります」。入口は「あと6件」の左の青い「能力」。",
+    (s) => planB(s), weekB,
+    ["「あと6件」の左に青い文字で「能力」。押すと能力の画面が開く（右上の「閉じる」で戻る）。ヘッダーの高さは変わらない"]],
+  ["C", "案C：梯子", "G〜S+の16段を並べた梯子で位置を見せる（卒業式の成績表と同じ形）。次の段は、たまった分だけ薄く埋まる。届いていれば、次に下がる段を黄色の枠にする。入口は土曜・日曜の隣の「自分」のタブで、週の画面の中に開く。",
+    (s) => planC(s), null,
+    ["「自分」のタブを押すと、週の画面の中に能力が開く。下の帯はそのまま。土曜を押せば戻る。タブが3つになるので1つの幅が狭くなる"]],
+];
+const STATE_KEYS = ["grad", "w60", "w120"];
+document.getElementById("root").innerHTML = PLANS.map(([id, t, d, fn, wk, wcap]) => {
+  const shots = STATE_KEYS.map((k) => `<div class="shot"><p class="cap"><b>${STATES[k].cap}</b></p><div class="frame">${fn(STATES[k])}</div></div>`);
+  const entry = id === "C"
+    ? [`<div class="shot"><p class="cap"><b>入口：週の画面のタブ</b>。${wcap[0]}。行は位置を見せるためのv4の実データ（1976年1月1週）</p><div class="frame host">${weekC(false)}</div></div>`,
+       `<div class="shot"><p class="cap"><b>「自分」を押したところ</b>（卒業直後の値）</p><div class="frame host">${weekC(true)}</div></div>`]
+    : [`<div class="shot"><p class="cap"><b>入口：週の画面のヘッダー</b>。${wcap[0]}。行は位置を見せるためのv4の実データ（1976年1月1週）</p><div class="frame host">${wk()}</div></div>`];
+  const results = [
+    `<div class="shot"><p class="cap"><b>週の結果に足す段：適性が上がった・下がった</b>。上の板と主戦・信頼・重賞は1974年11月4週の実データ（week-result-v1）。「能力」の段は120週後の直前の週の実際の変化で、並びを見せるために置いた</p><div class="frame">${resultFrame(LOSE, secApt(WHY[id]))}</div></div>`,
+    `<div class="shot"><p class="cap"><b>週の結果に足す段：ランクが上がった</b>。初勝利の週に出る行。上は1974年12月1週の実データ（この週が初勝利かどうかは元データに無い。並びを見せるためだけに置いた）</p><div class="frame">${resultFrame(WIN, secRank())}</div></div>`,
+  ];
+  return `<h2>${t}<small>${d}</small></h2><div class="gallery" data-plan="${id}">${[...shots, ...entry, ...results].join("")}</div>`;
+}).join("");
+</script></body></html>
