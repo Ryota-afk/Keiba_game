@@ -145,17 +145,24 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
     // NPC馬とズレる不整合があった）。⭐距離は`mount.distance`（週の番組表・実データが
     // 決めた具体的なメートル数。`arch/race-program.md`§10）をそのまま使う。
-    record: appendRaceResult(horse.record, horse.classId, {
-      position: result.position,
-      fieldSize: result.fieldSize,
-      popularity: result.popularity,
-      week,
-      year: player.currentYear,
-      courseId: mount.courseId ?? null,
-      surface: mount.surface ?? null,
-      distance: mount.distance ?? null,
-      condition,
-    }),
+    // ⚠️`mount.raceName`は重賞だけが持つ値（`domain/playerRecord.js`）。賞金と`gradedWins`は従来どおり
+    // クラス基準のまま、番付の「今年勝った重賞」（`yearStats.lastBigWinName`）にだけ名前を残す。
+    record: appendRaceResult(
+      horse.record,
+      horse.classId,
+      {
+        position: result.position,
+        fieldSize: result.fieldSize,
+        popularity: result.popularity,
+        week,
+        year: player.currentYear,
+        courseId: mount.courseId ?? null,
+        surface: mount.surface ?? null,
+        distance: mount.distance ?? null,
+        condition,
+      },
+      mount.raceName ?? null
+    ),
   };
 
   const ride = {

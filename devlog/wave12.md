@@ -331,3 +331,16 @@ Sonnetサブエージェントの変更（`dreamDerbyEngine.js`の`pendingSpread
 **前の年の番付も見られるようにする**（ユーザー決定。年が替わると今年の番付が空になるため）。
 動き：行の出現は`t-stagger-seq`（モーションリファレンス・1行40ms間隔・各400ms・easeOutCubic）をFableが見本で採用。
 実装の順：①データ（Sonnet：馬の今年の成績・前年の番付の保存・番付を組む純関数）→②画面（Fable）。
+
+## §20 番付のデータ側の実装（2026-10-11・Sonnetサブエージェント）
+`domain/horseYearStats.js`（馬の`record.yearStats`：今年の獲得賞金・戦数・勝ち数・芝ダの出走数・距離の合計・
+今年勝った一番新しい重賞名。レースの年が変わると0から）・`data/banzukeBoards.js`（7つの番付のidと表記・10頭・
+マイル短距離の境目1800m）・`view/banzukeView.js`（`buildBanzuke({roster, player, year})`・`lastYearBanzuke(roster)`）・
+`arch/banzuke.md`。年が替わる週に`advanceWeek`が`roster.lastYearBanzuke`へ年末の番付を保存し、事前シミュレーションの
+年の境目でも作る（本編1年目の1月に1973年の番付が見られる。そのため事前シミュレーションでもNPC騎手の勝ち数を数える）。
+プレイヤーの`record.byYear[year].horseIds`（今年乗った馬）を足した。
+**確かめ**：1974年・g-a・土日1鞍・52週で、見本用データ（§18）と馬70行中66行が完全一致（残り4行は同額の並び順＝
+馬idの順の決定どおり）。騎手の上位10人とプレイヤー89位／127人・10勝も一致。53週目の後の前年の番付＝年末の番付。
+週あたりの処理時間は変化なし（177〜192ms／前184〜194ms）。セーブの往復で前年の番付と`yearStats`が残る（1枚約10KB）。
+本体でもビルド・iPhone 13で8週通してJSエラー0件。
+⚠️プレイヤーが乗った重賞の鞍の賞金は重賞の1着賞金ではなくクラス基準のまま（前からの不整合）→`TODO.md` #114に追記。

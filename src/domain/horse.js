@@ -15,6 +15,7 @@ import {
 } from "../data/raceProgram.js";
 import { weekOfYear } from "../data/calendar.js";
 import { parseRaceCondition } from "../data/raceConditions.js";
+import { bumpYearStats } from "./horseYearStats.js";
 
 // ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
 // ダービー馬51頭は65〜92なので、この上限（理論上の最大に近い値で71〜72）なら
@@ -272,8 +273,17 @@ export function earningsForResult(classId, position) {
  *   他は出馬表の馬柱に出す表示用の詳細（分かる範囲でよい）
  * @param {number} earningsGain - このレースで得た収得賞金（円）
  * @param {boolean} [isGraded] - 重賞（g1/g2/g3）を勝った場合に`gradedWins`を積む
+ * @param {string|null} [bigRaceName] - 今年の成績（`record.yearStats.lastBigWinName`・番付に出す）に
+ *   残す重賞の名前。省略すると、`isGraded`なら`historyEntry.raceName`、そうでなければ無し。
+ *   プレイヤーが乗った重賞の鞍は`isGraded`を立てない（`gradedWins`・賞金は従来どおり）が、名前だけ渡す
  */
-export function appendRaceResultWithEarnings(record, historyEntry, earningsGain, isGraded = false) {
+export function appendRaceResultWithEarnings(
+  record,
+  historyEntry,
+  earningsGain,
+  isGraded = false,
+  bigRaceName = isGraded ? (historyEntry.raceName ?? null) : null
+) {
   const { position } = historyEntry;
   const won = position === 1;
   return {
@@ -284,6 +294,8 @@ export function appendRaceResultWithEarnings(record, historyEntry, earningsGain,
     earnings: record.earnings + earningsGain,
     gradedWins: (record.gradedWins ?? 0) + (won && isGraded ? 1 : 0),
     recentFinishes: [historyEntry, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
+    // ⭐今年の成績（番付の材料）。年が変わったら0から数え直す。古いセーブ（欄が無い馬）でも落ちない
+    yearStats: bumpYearStats(record.yearStats, historyEntry, earningsGain, bigRaceName),
   };
 }
 
@@ -291,10 +303,12 @@ export function appendRaceResultWithEarnings(record, historyEntry, earningsGain,
  * 一般競走（新馬〜3勝クラス）用のレース結果の積み方。
  * @param {string} classId - レース時点のクラス（賞金額の参照に使う。馬柱の「レース名」にも使う）
  * @param {object} historyEntry - `position`必須。`raceName`を省略すると`classId`の表記で埋める
+ * @param {string|null} [bigRaceName] - プレイヤーが乗った重賞の鞍で、そのレース名を今年の成績に残すとき
+ *   （`appendRaceResultWithEarnings`の第5引数）。一般競走は省略
  */
-export function appendRaceResult(record, classId, historyEntry) {
+export function appendRaceResult(record, classId, historyEntry, bigRaceName = null) {
   const entry = { raceName: classDisplayName(classId), ...historyEntry };
-  return appendRaceResultWithEarnings(record, entry, earningsForResult(classId, entry.position), false);
+  return appendRaceResultWithEarnings(record, entry, earningsForResult(classId, entry.position), false, bigRaceName);
 }
 
 // ⚠️**ローテーションの間隔を機械的に引く旧方式（`pickRotationIntervalWeeks`・

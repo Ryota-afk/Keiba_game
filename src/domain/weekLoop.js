@@ -42,7 +42,8 @@ import { withJockeyDefaults } from "./jockey.js";
 import { applyRideExperience } from "./aptitudeGrowth.js";
 import { applyRideToRecord } from "./playerRecord.js";
 import { checkRankPromotions } from "./jockeyRank.js";
-import { recordJockeyWins, maxNpcWinsInYear } from "./npcJockeyWins.js";
+import { recordJockeyWins, maxNpcWinsInYear, countWinnerJockeys } from "./npcJockeyWins.js";
+import { buildBanzuke } from "../view/banzukeView.js";
 import { distanceBandOf } from "../data/aptitudeCategories.js";
 
 // 主戦の座を持つが今週乗らなかった馬に、他騎手が勝つ確率（暫定。仮simの平均勝率
@@ -248,6 +249,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
         grade: res.ride.grade,
         raceName: res.ride.raceName,
         year: nextPlayer.currentYear,
+        horseId: mount.horseId,
         aptitudeKeys: [
           `strategy:${mount.declaredStrategy}`,
           `distance:${distanceBandOf(mount.distance)}`,
@@ -358,15 +360,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // 同じもの）から引いて積む。⚠️`horse.record.recentFinishes[0]`が今週・1着かどうかで
   // 「今週勝った」を判定する（`npcWeeklyRace.js`/`npcGradedRace.js`の戻り値を直接は使わない
   // ——両ファイルは勝者一覧を返さないため）。
-  const npcWinnerJockeyCounts = new Map();
-  for (const horse of mergedHorses) {
-    if (riddenThisWeek.has(horse.id)) continue; // プレイヤーが乗った馬は対象外
-    const last = horse.record?.recentFinishes?.[0];
-    if (!last || last.week !== week || last.position !== 1) continue;
-    const jockeyId = jockeyIdOf(horse);
-    if (!jockeyId) continue;
-    npcWinnerJockeyCounts.set(jockeyId, (npcWinnerJockeyCounts.get(jockeyId) ?? 0) + 1);
-  }
+  const npcWinnerJockeyCounts = countWinnerJockeys(mergedHorses, week, riddenThisWeek, jockeyIdOf);
   const npcJockeysWithWins = recordJockeyWins(roster.npcJockeys, npcWinnerJockeyCounts, nextPlayer.currentYear);
 
   // ⭐第10弾：計画が今週で期限切れ・またはまだ計画の無い馬に、次の計画を立て直す
@@ -414,6 +408,17 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       ? { from: promotion.changes[0].from, to: promotion.rank, week }
       : null;
 
+  // ⭐番付（`view/banzukeView.js`・`arch/banzuke.md`）：年が替わるこの週の終わりに、終わったばかりの年の
+  // 番付を1年分だけ`roster.lastYearBanzuke`へ保存する。⚠️年の区切りの処理（引退・補充）で馬が名簿から
+  // 抜ける前の、今の顔ぶれで作る（名前・賞金は保存した番付の中に持つので、後から馬が消えても見られる）。
+  const lastYearBanzuke = wrapsToNextYear
+    ? buildBanzuke({
+        roster: { horses: advancedHorses, npcJockeys: npcJockeysWithWins },
+        player: nextPlayer,
+        year: nextPlayer.currentYear,
+      })
+    : roster.lastYearBanzuke;
+
   nextPlayer = {
     ...nextPlayer,
     currentWeek: week + 1,
@@ -426,6 +431,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       horses: advancedHorses,
       npcJockeys: npcJockeysWithWins,
       trialResults: gradedResult.trialResults,
+      ...(lastYearBanzuke ? { lastYearBanzuke } : {}),
     },
     player: nextPlayer,
     notifications,

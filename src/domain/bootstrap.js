@@ -18,6 +18,8 @@ import {
   jockeyIdForHorse,
 } from "./jockeyAssignment.js";
 import { processYearBoundary } from "./yearBoundary.js";
+import { recordJockeyWins, countWinnerJockeys } from "./npcJockeyWins.js";
+import { buildBanzuke } from "../view/banzukeView.js";
 import { WEEKS_PER_YEAR, BOOTSTRAP_YEARS, BOOTSTRAP_WEEKS } from "../data/calendar.js";
 import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { concentrationAlphaForYear } from "../data/jockeyConcentration.js";
@@ -126,6 +128,13 @@ export function runBootstrapWeek(saveSeed, week, year, roster, options = {}) {
   const yearIndex = buildYearIndex(saveSeed, week, year, ROTATION_SEARCH_WEEKS);
   const replannedHorses = replanStaleHorses(saveSeed, npcResult.horses, yearIndex, week, year);
 
+  // ⭐NPC騎手の年間勝ち数（本編の`advanceWeek`と同じ数え方）。番付の「騎手の勝ち数」の材料——
+  // 本編1年目の1月に前の年の番付が見られるように、事前シミュレーションでも数える。
+  const winnerCounts = countWinnerJockeys(npcResult.horses, week, null, (h) =>
+    weekBooking.booking.jockeyByHorseId.get(h.id) ?? jockeyIdForHorse(h, primaryJockeyByStable)
+  );
+  const npcJockeys = recordJockeyWins(roster.npcJockeys, winnerCounts, year);
+
   const advancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
   const jockeyedHorses = assignHorsePrimaryJockeys(
     advancedHorses,
@@ -134,7 +143,7 @@ export function runBootstrapWeek(saveSeed, week, year, roster, options = {}) {
     saveSeed,
     alpha
   );
-  return { roster: { ...roster, horses: jockeyedHorses, trialResults: gradedResult.trialResults } };
+  return { roster: { ...roster, horses: jockeyedHorses, npcJockeys, trialResults: gradedResult.trialResults } };
 }
 
 /**
@@ -156,8 +165,10 @@ export function bootstrapRoster(saveSeed, startYear, options = {}) {
   for (let week = 1; week <= BOOTSTRAP_WEEKS; week += 1) {
     roster = runBootstrapWeek(saveSeed, week, year, roster, options).roster;
     if (week % WEEKS_PER_YEAR === 0) {
+      // ⭐年の区切りで馬が名簿から抜ける前に、終わった年の番付を残す（プレイヤーはまだいない）
+      const lastYearBanzuke = buildBanzuke({ roster, player: null, year });
       const yb = processYearBoundary(saveSeed, year + 1, roster, { mainMounts: {} });
-      roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool };
+      roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool, lastYearBanzuke };
       year += 1;
     }
   }
@@ -189,8 +200,10 @@ export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
   for (let week = 1; week <= BOOTSTRAP_WEEKS; week += 1) {
     roster = runBootstrapWeek(saveSeed, week, year, roster, options).roster;
     if (week % WEEKS_PER_YEAR === 0) {
+      // ⭐年の区切りで馬が名簿から抜ける前に、終わった年の番付を残す（プレイヤーはまだいない）
+      const lastYearBanzuke = buildBanzuke({ roster, player: null, year });
       const yb = processYearBoundary(saveSeed, year + 1, roster, { mainMounts: {} });
-      roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool };
+      roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool, lastYearBanzuke };
       year += 1;
     }
     if (week % weeksPerChunk === 0) {

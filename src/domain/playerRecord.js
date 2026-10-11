@@ -11,7 +11,7 @@ export function createEmptyPlayerRecord() {
     wins: 0,
     gradedWins: 0, // 重賞（`grade`有り）を勝った数
     bigRaceWins: 0, // G1、または1984年より前は八大競走を勝った数
-    byYear: {}, // year -> { starts, wins }
+    byYear: {}, // year -> { starts, wins, horseIds }（horseIds＝その年に乗った馬のid・重複なし。番付の「自分が乗った馬」）
     byAptitude: {}, // 適性キー（strategy:.../distance:.../surface:...） -> { starts, wins }
   };
 }
@@ -21,16 +21,28 @@ function bumpBucket(bucket, won) {
   return { starts: current.starts + 1, wins: current.wins + (won ? 1 : 0) };
 }
 
+// 年ごとの欄。`horseIds`は古いセーブ（欄が無い年）でも落ちないよう`?? []`で補う。
+function bumpYearBucket(bucket, won, horseId) {
+  const current = bucket ?? { starts: 0, wins: 0 };
+  const horseIds = current.horseIds ?? [];
+  return {
+    starts: current.starts + 1,
+    wins: current.wins + (won ? 1 : 0),
+    horseIds: horseId == null || horseIds.includes(horseId) ? horseIds : [...horseIds, horseId],
+  };
+}
+
 /**
  * 1鞍ぶんの結果を通算成績へ積む。純関数——引数の`record`を書き換えず新しいオブジェクトを返す。
  * ⚠️**落馬した鞍も1戦に数える（勝ちではない）**——`domain/weekLoop.js`は落馬した鞍でも
  * この関数を呼ぶこと（経験（`domain/aptitudeGrowth.js`）とは扱いが違う点に注意）。
  * @param {object} record - `createEmptyPlayerRecord`の形
  * @param {{ won: boolean, grade: string|null|undefined, raceName: string|null|undefined,
- *   year: number, aptitudeKeys: string[] }} ride - `aptitudeKeys`はその鞍で宣言した3つ
- *   （`strategy:...`・`distance:...`・`surface:...`）
+ *   year: number, aptitudeKeys: string[], horseId?: string }} ride - `aptitudeKeys`はその鞍で宣言した3つ
+ *   （`strategy:...`・`distance:...`・`surface:...`）。`horseId`はその年に乗った馬の一覧
+ *   （`byYear[year].horseIds`）に積む
  */
-export function applyRideToRecord(record, { won, grade, raceName, year, aptitudeKeys }) {
+export function applyRideToRecord(record, { won, grade, raceName, year, aptitudeKeys, horseId }) {
   // ⚠️「重賞かどうか」は`grade`ではなく`raceName`の有無で判定する——`grade`（G1/G2/G3）は
   // 1984年より前は格付け制度そのものが無く全部nullだが、`raceName`は`weeklyCard.js`の
   // 重賞（`RACE_SOURCE.GRADED`）だけが持つ値で、年代を問わず「重賞」を指す
@@ -42,7 +54,7 @@ export function applyRideToRecord(record, { won, grade, raceName, year, aptitude
   // （ARCHITECTURE.md §8・`data/eightGreatRaces.js`）。
   const isBigRaceWin = won && (grade === "g1" || (year < 1984 && EIGHT_GREAT_RACE_NAMES.has(raceName)));
 
-  const byYear = { ...record.byYear, [year]: bumpBucket(record.byYear[year], won) };
+  const byYear = { ...record.byYear, [year]: bumpYearBucket(record.byYear[year], won, horseId) };
   let byAptitude = record.byAptitude;
   for (const key of aptitudeKeys) {
     byAptitude = { ...byAptitude, [key]: bumpBucket(byAptitude[key], won) };

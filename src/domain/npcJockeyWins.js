@@ -33,3 +33,27 @@ export function maxNpcWinsInYear(npcJockeys, year) {
   }
   return max;
 }
+
+/**
+ * その週に勝った馬を探し、乗っていた騎手idごとの勝ち数を数える（`recordJockeyWins`の入力）。
+ * 「今週勝った」は`horse.record.recentFinishes[0]`が今週・1着かどうかで判定する
+ * （`npcWeeklyRace.js`/`npcGradedRace.js`は勝者一覧を返さないため）。`weekLoop.js`（本編）と
+ * `bootstrap.js`（事前シミュレーション）の両方が使う。
+ * @param {object[]} horses - その週のレースが終わった後の全馬
+ * @param {number} week - 絶対週
+ * @param {Set<string>|null} excludeHorseIds - 数えない馬（プレイヤーが乗った馬）
+ * @param {(horse: object) => string|undefined} jockeyIdOf
+ * @returns {Map<string, number>}
+ */
+export function countWinnerJockeys(horses, week, excludeHorseIds, jockeyIdOf) {
+  const counts = new Map();
+  for (const horse of horses) {
+    if (excludeHorseIds?.has(horse.id)) continue;
+    const last = horse.record?.recentFinishes?.[0];
+    if (!last || last.week !== week || last.position !== 1) continue;
+    const jockeyId = jockeyIdOf(horse);
+    if (!jockeyId) continue;
+    counts.set(jockeyId, (counts.get(jockeyId) ?? 0) + 1);
+  }
+  return counts;
+}
