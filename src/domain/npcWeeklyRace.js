@@ -50,43 +50,29 @@ function groupByPlannedRace(horses, excludeHorseIds) {
 }
 
 /**
- * 一般競走（新馬〜3勝クラス）＋オープン特別のNPC週次レースを全部走らせる。自己完結の純関数。
- * @param {number|string} saveSeed
- * @param {number} week - 絶対週（折り返さない。`player.currentWeek`と同じ数え方）
- * @param {number} year - 番組表の実測値を引くための暦年（`player.currentYear`）
- * @param {object[]} horses - ロースター全馬
- * @param {Set<string>} [excludeHorseIds] - 今週プレイヤーが乗った馬（対象外にする）
- * @param {Set<string>} [excludeRaceIds] - 今週プレイヤーが乗ったレース（同じレースが
- *   二重に開催されないよう、週の番組表からその枠を外す）
- * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数。
- *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——プレイヤーの鞍だけ騎手が乗る
- *   状態を作らないため、呼び出し側は必ず渡すこと。
- * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
- *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
- *   渡さないと中間値扱い）
- * @returns {{ horses: object[], racesRun: number, startsRun: number }}
+ * ⭐今週の一般競走・オープン特別それぞれの出走馬を決める（走らせる前の段階）。自己完結の純関数。
+ * `runNpcWeeklyRaces`が使う出走枠と**同じもの**——週の最初に騎手を割り当てる
+ * （`domain/jockeyBooking.js`）ために、走らせる前に同じ枠を求められるよう切り出した。
+ * ⚠️乱数（`RNG_STREAMS.NPC_RACE`）は番組表の順に1本の列を消費する。走らせる側が
+ * 同じ列を二重に消費しないよう、必ず一方（走らせる側が渡された枠を使う）だけが引く。
+ * 引数の意味は`runNpcWeeklyRaces`と同じ。
+ * @returns {{ race: object, field: object[], fieldSize: number }[]} 出走が成立したレース
+ *   （並びは番組表の順＝走らせる順）。`field`の並びは馬番の元
  */
-export function runNpcWeeklyRaces(
+export function planNpcWeeklyFields(
   saveSeed,
   week,
   year,
   horses,
   excludeHorseIds = new Set(),
-  excludeRaceIds = new Set(),
-  getJockey = undefined,
-  stableStrengthById = new Map()
+  excludeRaceIds = new Set()
 ) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, week);
   const card = buildWeeklyCard(saveSeed, week, year).filter(
     (race) => race.source !== RACE_SOURCE.GRADED && !excludeRaceIds.has(race.raceId)
   );
-
-  const horseById = new Map(horses.map((h) => [h.id, h]));
-  const getJockeyForHorse = (h) => getJockey?.(h);
   const byRaceId = groupByPlannedRace(horses, excludeHorseIds);
-
-  let racesRun = 0;
-  let startsRun = 0;
+  const planned = [];
 
   for (const race of card) {
     const registered = byRaceId.get(race.raceId);
@@ -117,6 +103,51 @@ export function runNpcWeeklyRaces(
     // `plan`をそのままにしておけば、目標だった馬は`domain/rotation.js`の`isPlanStale`が
     // 「今週で期限切れ」と判定して次の計画を立て直す（前哨戦止まりの馬は目標がまだ先なので
     // 立て直さない＝前哨戦を1回逃しても目標へ向かい続ける）。
+    planned.push({ race, field, fieldSize });
+  }
+  return planned;
+}
+
+/**
+ * 一般競走（新馬〜3勝クラス）＋オープン特別のNPC週次レースを全部走らせる。自己完結の純関数。
+ * @param {number|string} saveSeed
+ * @param {number} week - 絶対週（折り返さない。`player.currentWeek`と同じ数え方）
+ * @param {number} year - 番組表の実測値を引くための暦年（`player.currentYear`）
+ * @param {object[]} horses - ロースター全馬
+ * @param {Set<string>} [excludeHorseIds] - 今週プレイヤーが乗った馬（対象外にする）
+ * @param {Set<string>} [excludeRaceIds] - 今週プレイヤーが乗ったレース（同じレースが
+ *   二重に開催されないよう、週の番組表からその枠を外す）
+ * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数。
+ *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——プレイヤーの鞍だけ騎手が乗る
+ *   状態を作らないため、呼び出し側は必ず渡すこと。
+ * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
+ *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
+ *   渡さないと中間値扱い）
+ * @param {{ race: object, field: object[], fieldSize: number }[]} [plannedFields] - 先に
+ *   `planNpcWeeklyFields`で求めた出走枠。渡せば同じ計算を繰り返さない（渡さなければここで求める）
+ * @returns {{ horses: object[], racesRun: number, startsRun: number }}
+ */
+export function runNpcWeeklyRaces(
+  saveSeed,
+  week,
+  year,
+  horses,
+  excludeHorseIds = new Set(),
+  excludeRaceIds = new Set(),
+  getJockey = undefined,
+  stableStrengthById = new Map(),
+  plannedFields = undefined
+) {
+  const fields =
+    plannedFields ?? planNpcWeeklyFields(saveSeed, week, year, horses, excludeHorseIds, excludeRaceIds);
+
+  const horseById = new Map(horses.map((h) => [h.id, h]));
+  const getJockeyForHorse = (h) => getJockey?.(h);
+
+  let racesRun = 0;
+  let startsRun = 0;
+
+  for (const { race, field, fieldSize } of fields) {
     // ⚠️`field`の並び（馬番の元）はそのまま使い、人気は別の並びとして「公開されている
     // 情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
     const popularityByHorseId = computePopularity(

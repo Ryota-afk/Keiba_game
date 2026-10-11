@@ -31,10 +31,10 @@ function trustChangeWord(delta) {
 
 /**
  * その週の重賞のうち、実際に行われたもの（1着の馬が見つかったもの）だけを組む。
- * ⚠️騎手の決め方は`domain/npcGradedRace.js`の`runNpcGradedRaces`が実際にレースへ渡す
- * 騎手（`getJockey(h)` = `jockeyById.get(jockeyIdForHorse(h, stableJockeys))`、
- * `stableJockeys = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys)`）と
- * 同じ経路で求める。プレイヤーがその馬に乗った週はプレイヤー自身が騎手なので、
+ * ⚠️勝ち騎手は、`domain/weekLoop.js`が勝った1走の記録（`recentFinishes[0].jockeyId`）に
+ * 添えた、実際にレースへ渡した騎手を使う（騎乗は週の最初に日ごとに割り当てられ、
+ * あとからは求められないため）。記録が無い古い状態は、従来の厩舎の主戦
+ * （`jockeyIdForHorse`）で補う。プレイヤーがその馬に乗った週はプレイヤー自身が騎手なので、
  * `rides`（この週プレイヤーが乗った鞍）にその馬がいればプレイヤーの名前を使う。
  */
 function buildGradedResults(afterRoster, afterPlayer, rides, week, year) {
@@ -55,7 +55,7 @@ function buildGradedResults(afterRoster, afterPlayer, rides, week, year) {
 
     const jockeyName = riddenHorseIds.has(winner.id)
       ? afterPlayer.jockey.name
-      : jockeyById.get(jockeyIdForHorse(winner, stableJockeys))?.name ?? "";
+      : jockeyById.get(winner.record.recentFinishes[0].jockeyId ?? jockeyIdForHorse(winner, stableJockeys))?.name ?? "";
 
     const last = winner.record.recentFinishes[0];
     results.push({

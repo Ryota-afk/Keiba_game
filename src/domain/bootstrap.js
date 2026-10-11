@@ -9,6 +9,7 @@ import { streamRandom, RNG_STREAMS, weightedPick } from "../core/rng.js";
 import { createInitialRoster } from "./career.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
+import { planWeekWithBookings } from "./weekBooking.js";
 import { computeStableStrengthById } from "./popularity.js";
 import { advanceInjuryByWeek } from "./fall.js";
 import {
@@ -19,6 +20,7 @@ import {
 import { processYearBoundary } from "./yearBoundary.js";
 import { WEEKS_PER_YEAR, BOOTSTRAP_YEARS, BOOTSTRAP_WEEKS } from "../data/calendar.js";
 import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
+import { concentrationAlphaForYear } from "../data/jockeyConcentration.js";
 import { buildYearIndex } from "./weeklyCard.js";
 import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
 
@@ -59,13 +61,30 @@ function assignInitialBornYears(saveSeed, horses, bootstrapStartYear) {
  * @param {number} week - 絶対週（1始まり。ここでは折り返さず104まで進む）
  * @param {number} year - 暦年
  * @param {{ stables: object[], horses: object[], npcJockeys: object[], trialResults?: object }} roster
+ * @param {{ jockeyConcentration?: number }} [options] - NPC騎手の騎乗が腕に集まる強さα
+ *   （渡さなければ`data/jockeyConcentration.js`のその年の値。`advanceWeek`と同じ）
  * @returns {{ roster: object }}
  */
-export function runBootstrapWeek(saveSeed, week, year, roster) {
+export function runBootstrapWeek(saveSeed, week, year, roster, options = {}) {
   // 本物のsimは騎手の適性も見るので、事前シミュレーションでも騎手を乗せる。
   const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
   const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
-  const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, primaryJockeyByStable)) ?? undefined;
+  // ⭐騎乗の割り当ては本編（`domain/weekLoop.js`の`advanceWeek`）と同じ手順
+  // （`domain/weekBooking.js`）。事前シミュレーションにプレイヤーはいない。
+  const alpha = options.jockeyConcentration ?? concentrationAlphaForYear(year);
+  const weekBooking = planWeekWithBookings({
+    saveSeed,
+    week,
+    year,
+    horses: roster.horses,
+    trialResults: roster.trialResults ?? {},
+    npcJockeys: roster.npcJockeys,
+    alpha,
+    stableJockeys: primaryJockeyByStable,
+  });
+  const getJockey = (horse) =>
+    jockeyById.get(weekBooking.booking.jockeyByHorseId.get(horse.id) ?? jockeyIdForHorse(horse, primaryJockeyByStable)) ??
+    undefined;
   // ⭐`domain/weekLoop.js`の`advanceWeek`と同じ理由で週に1回だけ作る
   // （`domain/popularity.js`の`computeStableStrengthById`。2026-09-22・`TODO.md` #109）。
   const stableById = new Map(roster.stables.map((s) => [s.id, s]));
@@ -80,7 +99,8 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     new Set(), // 事前シミュレーションにプレイヤーはいない
     roster.trialResults ?? {},
     getJockey,
-    stableStrengthById
+    stableStrengthById,
+    weekBooking.gradedFields
   );
   // ⚠️第11弾（`devlog/wave11.md`§12）：重賞で走った馬を一般競走の除外に渡す。
   // ⭐`domain/weekLoop.js`の本編ループは既に`gradedResult.racedHorseIds`を除外に
@@ -94,7 +114,8 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
     gradedResult.racedHorseIds,
     new Set(),
     getJockey,
-    stableStrengthById
+    stableStrengthById,
+    weekBooking.weeklyFields
   );
 
   // ⭐第10弾：計画が今週で期限切れ・まだ計画の無い馬に、次の計画を立て直す
@@ -106,7 +127,13 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
   const replannedHorses = replanStaleHorses(saveSeed, npcResult.horses, yearIndex, week, year);
 
   const advancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
-  const jockeyedHorses = assignHorsePrimaryJockeys(advancedHorses, primaryJockeyByStable, roster.npcJockeys);
+  const jockeyedHorses = assignHorsePrimaryJockeys(
+    advancedHorses,
+    primaryJockeyByStable,
+    roster.npcJockeys,
+    saveSeed,
+    alpha
+  );
   return { roster: { ...roster, horses: jockeyedHorses, trialResults: gradedResult.trialResults } };
 }
 
@@ -117,16 +144,17 @@ export function runBootstrapWeek(saveSeed, week, year, roster) {
  * 「計測」）。UIから使うときは`bootstrapRosterAsync`でコマ切れにして呼ぶこと。
  * @param {number|string} saveSeed
  * @param {number} startYear
+ * @param {{ jockeyConcentration?: number }} [options] - `runBootstrapWeek`と同じ
  * @returns {{ roster: object }}
  */
-export function bootstrapRoster(saveSeed, startYear) {
+export function bootstrapRoster(saveSeed, startYear, options = {}) {
   const bootstrapStartYear = startYear - BOOTSTRAP_YEARS;
   const initial = createInitialRoster(saveSeed);
   let roster = { ...initial, horses: assignInitialBornYears(saveSeed, initial.horses, bootstrapStartYear) };
 
   let year = bootstrapStartYear;
   for (let week = 1; week <= BOOTSTRAP_WEEKS; week += 1) {
-    roster = runBootstrapWeek(saveSeed, week, year, roster).roster;
+    roster = runBootstrapWeek(saveSeed, week, year, roster, options).roster;
     if (week % WEEKS_PER_YEAR === 0) {
       const yb = processYearBoundary(saveSeed, year + 1, roster, { mainMounts: {} });
       roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool };
@@ -143,7 +171,7 @@ export function bootstrapRoster(saveSeed, startYear) {
  * （夢のダービーの実況・アニメーションのフレームを挟めるようにするため）。
  * @param {number|string} saveSeed
  * @param {number} startYear
- * @param {{ weeksPerChunk?: number, yield?: () => Promise<void> }} [options]
+ * @param {{ weeksPerChunk?: number, yield?: () => Promise<void>, jockeyConcentration?: number }} [options]
  * @returns {Promise<{ roster: object }>}
  */
 export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
@@ -159,7 +187,7 @@ export async function bootstrapRosterAsync(saveSeed, startYear, options = {}) {
 
   let year = bootstrapStartYear;
   for (let week = 1; week <= BOOTSTRAP_WEEKS; week += 1) {
-    roster = runBootstrapWeek(saveSeed, week, year, roster).roster;
+    roster = runBootstrapWeek(saveSeed, week, year, roster, options).roster;
     if (week % WEEKS_PER_YEAR === 0) {
       const yb = processYearBoundary(saveSeed, year + 1, roster, { mainMounts: {} });
       roster = { ...roster, horses: yb.roster.horses, breedingPool: yb.roster.breedingPool };

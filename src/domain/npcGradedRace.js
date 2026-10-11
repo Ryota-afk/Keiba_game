@@ -73,64 +73,40 @@ function priorityIdsForRace(gradedRacesThisYear, race, trialResultsForYear) {
 }
 
 /**
- * ある年・その週に行われる重賞を全部走らせる。自己完結の純関数。
- * @param {number|string} saveSeed
- * @param {number} week - 絶対週
- * @param {number} year - `player.currentYear`
- * @param {object[]} horses - ロースター全馬
- * @param {Set<string>} excludeHorseIds - 今週プレイヤーが乗った馬
- * @param {Set<string>} [excludeRaceIds] - ⭐第11弾（`devlog/wave11.md`§15「訂正：
- *   プレイヤーが乗った重賞がもう1度走る」）：プレイヤーが今週乗ったレースのid
- *   （`mount.raceId`）。ここに含まれるレースはこの週のNPC側で走らせない——渡さないと
- *   プレイヤーが乗った重賞をNPC側がプレイヤーの馬を除いてもう1度走らせてしまい、
- *   その結果で`trialResults`が上書きされる（プレイヤーの馬が優先出走権の対象から漏れる）。
- *   `domain/npcWeeklyRace.js`の`excludeRaceIds`と同じ役割・同じ位置。
- * @param {object} trialResults - `{ [year]: { [レース名]: string[] } }`（優先出走権の材料。
- *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
- *   レース名をキーに年ごとに持つ）
- * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数
- * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
- *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
- *   渡さないと中間値扱い）
- * @returns {{ horses: object[], trialResults: object, racedHorseIds: Set<string>,
- *             racesRun: number, startsRun: number }}
+ * ⭐今週の重賞それぞれの出走馬を決める（走らせる前の段階）。自己完結の純関数。
+ * `runNpcGradedRaces`が使う出走枠と**同じもの**——週の最初に騎手を割り当てる
+ * （`domain/jockeyBooking.js`）ために、走らせる前に同じ枠を求められるよう切り出した。
+ * 出走馬は今週の初めのロースター（`horses`）だけで決まる（同じ週の別のレースの結果には
+ * 依存しない。同じ週の複数の重賞に同じ馬が2回出ないよう、選ばれた馬は次のレースの
+ * 候補から除く）。引数の意味は`runNpcGradedRaces`と同じ。
+ * @returns {{ race: object, entries: object[], fieldSize: number }[]} 今週行われる重賞
+ *   （出走が成立したものだけ。並びは`gradedRacesForYear`の順＝走らせる順）
  */
-export function runNpcGradedRaces(
-  saveSeed,
+export function planNpcGradedFields(
   week,
   year,
   horses,
   excludeHorseIds,
   excludeRaceIds = new Set(),
-  trialResults,
-  getJockey,
-  stableStrengthById = new Map()
+  trialResults
 ) {
-  if (!hasGradedRaceData(year)) {
-    return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
-  }
+  if (!hasGradedRaceData(year)) return [];
 
   const thisWeek = weekOfYear(week);
   const gradedRacesThisYear = gradedRacesForYear(year);
   const racesToday = gradedRacesThisYear.filter(
     (r) => r.week === thisWeek && !excludeRaceIds.has(r.id)
   );
-  if (racesToday.length === 0) {
-    return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
-  }
+  if (racesToday.length === 0) return [];
 
-  const horseById = new Map(horses.map((h) => [h.id, h]));
-  const getJockeyForHorse = (h) => getJockey?.(h);
   const racedHorseIds = new Set();
-  let nextTrialResults = trialResults;
-  let racesRun = 0;
-  let startsRun = 0;
+  const planned = [];
 
   // 出走候補プール（オープン以上・引退していない・今週まだ走っていない・出走間隔が来ている）。
   // ⚠️レースごとに候補を毎回作り直す——同じ週の複数の重賞に同じ馬が2回出ないよう、
   // 選ばれた馬は`racedHorseIds`へ積んで次のレースの候補から除く。
   for (const race of racesToday) {
-    const priorityIds = priorityIdsForRace(gradedRacesThisYear, race, nextTrialResults[year]);
+    const priorityIds = priorityIdsForRace(gradedRacesThisYear, race, trialResults[year]);
 
     const candidates = [];
     for (const horse of horses) {
@@ -164,6 +140,63 @@ export function runNpcGradedRaces(
       ...candidates.filter((h) => priorityIds.has(h.id) && !suited.includes(h)),
     ];
     const { entries } = determineEntries(withPriority, fieldSize, priorityIds);
+    for (const h of entries) racedHorseIds.add(h.id);
+    planned.push({ race, entries, fieldSize });
+  }
+  return planned;
+}
+
+/**
+ * ある年・その週に行われる重賞を全部走らせる。自己完結の純関数。
+ * @param {number|string} saveSeed
+ * @param {number} week - 絶対週
+ * @param {number} year - `player.currentYear`
+ * @param {object[]} horses - ロースター全馬
+ * @param {Set<string>} excludeHorseIds - 今週プレイヤーが乗った馬
+ * @param {Set<string>} [excludeRaceIds] - ⭐第11弾（`devlog/wave11.md`§15「訂正：
+ *   プレイヤーが乗った重賞がもう1度走る」）：プレイヤーが今週乗ったレースのid
+ *   （`mount.raceId`）。ここに含まれるレースはこの週のNPC側で走らせない——渡さないと
+ *   プレイヤーが乗った重賞をNPC側がプレイヤーの馬を除いてもう1度走らせてしまい、
+ *   その結果で`trialResults`が上書きされる（プレイヤーの馬が優先出走権の対象から漏れる）。
+ *   `domain/npcWeeklyRace.js`の`excludeRaceIds`と同じ役割・同じ位置。
+ * @param {object} trialResults - `{ [year]: { [レース名]: string[] } }`（優先出走権の材料。
+ *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
+ *   レース名をキーに年ごとに持つ）
+ * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数
+ * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
+ *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
+ *   渡さないと中間値扱い）
+ * @param {{ race: object, entries: object[], fieldSize: number }[]} [plannedFields] - 先に
+ *   `planNpcGradedFields`で求めた出走枠。渡せば同じ計算を繰り返さない（渡さなければここで求める）
+ * @returns {{ horses: object[], trialResults: object, racedHorseIds: Set<string>,
+ *             racesRun: number, startsRun: number }}
+ */
+export function runNpcGradedRaces(
+  saveSeed,
+  week,
+  year,
+  horses,
+  excludeHorseIds,
+  excludeRaceIds = new Set(),
+  trialResults,
+  getJockey,
+  stableStrengthById = new Map(),
+  plannedFields = undefined
+) {
+  const fields =
+    plannedFields ?? planNpcGradedFields(week, year, horses, excludeHorseIds, excludeRaceIds, trialResults);
+  if (fields.length === 0) {
+    return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
+  }
+
+  const horseById = new Map(horses.map((h) => [h.id, h]));
+  const getJockeyForHorse = (h) => getJockey?.(h);
+  const racedHorseIds = new Set();
+  let nextTrialResults = trialResults;
+  let racesRun = 0;
+  let startsRun = 0;
+
+  for (const { race, entries, fieldSize } of fields) {
     // ⚠️`entries`の並び（優先出走権→収得賞金順・馬番の元）はそのまま使い、人気は別の並びとして
     // 「公開されている情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
     const popularityByHorseId = computePopularity(

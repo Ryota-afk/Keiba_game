@@ -19,6 +19,9 @@ import { applyWeeklyFatigue, crossedDangerThreshold } from "./fatigue.js";
 import { advanceInjuryByWeek, isSidelined } from "./fall.js";
 import { runNpcWeeklyRaces } from "./npcWeeklyRace.js";
 import { runNpcGradedRaces } from "./npcGradedRace.js";
+import { assemblePlayerMountField } from "./raceOutcome.js";
+import { planWeekWithBookings } from "./weekBooking.js";
+import { concentrationAlphaForYear } from "../data/jockeyConcentration.js";
 import { computeStableStrengthById } from "./popularity.js";
 import {
   assignStablePrimaryJockeys,
@@ -97,7 +100,11 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   chooseMounts?: (candidates: object[], maxSlots: number) => object[],
  *   chooseStrategy?: (mount: object, horse: object) => string,
  *   maxMounts?: number,
- * }} [options]
+ *   jockeyConcentration?: number,
+ *   onJockeyBooking?: (info: object) => void,
+ * }} [options] - `jockeyConcentration`＝NPC騎手の騎乗が腕に集まる強さα（渡さなければ
+ *   `data/jockeyConcentration.js`のその年の値。計測用に外から上書きできる）。
+ *   `onJockeyBooking`＝その週の騎乗の割り当てを受け取る計測用の口（画面は使わない）
  * @returns {{ roster: object, player: object, notifications: object[], requestHorseIds: Set<string>,
  *   rides: object[], growth: { aptitudeChanges: {key:string, from:string, to:string}[],
  *   rankChange: {from:string, to:string, week:number}|null } }} `rides`はこの週にプレイヤーが
@@ -118,7 +125,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // ——プレイヤーの鞍だけ騎手が乗ると、プレイヤーの適性の良し悪しが一方的な下駄になる。
   const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
   const stableJockeys = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);
-  const getJockey = (horse) => jockeyById.get(jockeyIdForHorse(horse, stableJockeys)) ?? undefined;
+  const alpha = options.jockeyConcentration ?? concentrationAlphaForYear(player.currentYear);
   // ⭐人気の材料「厩舎の強さ」（`domain/popularity.js`）は、この週の全レース（プレイヤーの
   // 鞍・NPC重賞・NPC一般競走）で共通して使い回す——厩舎×全馬の集計をレースごとに
   // 繰り返さないため、週に1回だけここで作る（2026-09-22のユーザー決定・`TODO.md` #109）。
@@ -155,6 +162,40 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
         : deriveFavoredStrategy(horse);
       return declareStrategy(m, strategyId);
     });
+
+  // ⭐NPC騎手の騎乗の割り当て（`domain/jockeyBooking.js`・`devlog/wave12.md`§15）：
+  // 週の最初に、今週の全レース（NPCの一般競走・重賞・プレイヤーの鞍の相手馬）の出走馬へ
+  // 日ごとにまとめて騎手を決める。プレイヤーが乗る馬はプレイヤー自身が騎手なので含めない。
+  // 出走枠はここで決めたものをそのまま走らせる側へ渡す。
+  const riddenThisWeek = new Set(mounts.map((m) => m.horseId));
+  const riddenRaceIds = new Set(mounts.map((m) => m.raceId).filter(Boolean));
+  const playerFields = mounts.map((m) => {
+    const anchor = horsesById.get(m.horseId);
+    const field = assemblePlayerMountField(saveSeed, week, m, anchor, roster.horses, player.currentYear);
+    return {
+      raceId: m.raceId ?? `player-${m.horseId}`,
+      day: m.day,
+      distance: m.distance ?? 2000,
+      surface: m.surface ?? "turf",
+      horses: field.filter((h) => h.id !== m.horseId),
+    };
+  });
+  const weekBooking = planWeekWithBookings({
+    saveSeed,
+    week,
+    year: player.currentYear,
+    horses: roster.horses,
+    excludeHorseIds: riddenThisWeek,
+    excludeRaceIds: riddenRaceIds,
+    trialResults: roster.trialResults ?? {},
+    playerFields,
+    npcJockeys: roster.npcJockeys,
+    alpha,
+    stableJockeys,
+  });
+  const jockeyIdOf = (horse) => weekBooking.booking.jockeyByHorseId.get(horse.id) ?? jockeyIdForHorse(horse, stableJockeys);
+  const getJockey = (horse) => jockeyById.get(jockeyIdOf(horse)) ?? undefined;
+  options.onJockeyBooking?.({ ...weekBooking.booking, fieldsByDay: weekBooking.fieldsByDay });
 
   // 結果処理
   let nextPlayer = player;
@@ -241,8 +282,6 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   }
 
   // 主戦の座を持つが今週乗らなかった馬：他騎手が勝てば失う（§6「主戦の座」）。
-  const riddenThisWeek = new Set(mounts.map((m) => m.horseId));
-  const riddenRaceIds = new Set(mounts.map((m) => m.raceId).filter(Boolean));
   const dueHorseIds = new Set(horsesDueThisWeek(roster.horses, week).map((h) => h.id));
   for (const horseId of Object.keys(nextPlayer.mainMounts)) {
     if (!isMainMount(nextPlayer.mainMounts, horseId)) continue;
@@ -276,7 +315,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     riddenRaceIds,
     roster.trialResults ?? {},
     getJockey,
-    stableStrengthById
+    stableStrengthById,
+    weekBooking.gradedFields
   );
   const npcExcluded = new Set([...riddenThisWeek, ...gradedResult.racedHorseIds]);
   const npcResult = runNpcWeeklyRaces(
@@ -287,7 +327,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     npcExcluded,
     riddenRaceIds,
     getJockey,
-    stableStrengthById
+    stableStrengthById,
+    weekBooking.weeklyFields
   );
   const npcHorsesById = new Map(npcResult.horses.map((h) => [h.id, h]));
 
@@ -295,24 +336,34 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // それ以外はNPC週次レースの結果（クラス・戦績・計画が更新済み）を使う。
   // ⚠️`horsesById`は全頭ぶんのMapなので、`riddenThisWeek`で明示的に判定する
   // （そうしないと未更新の元の馬がヒットしてしまい、NPC側の結果が反映されない）。
+  // ⭐NPCの馬が今週勝った場合は、乗っていた騎手のidを勝った1走の記録（`recentFinishes[0]`）に
+  // 添える——週の結果の画面（`domain/weekResultSummary.js`）が重賞の勝ち騎手を、割り当てを
+  // 再計算せずに引けるようにする（割り当ては週の最初に決まり、あとからは求められない）。
   const mergedHorses = roster.horses.map((h) => {
     const horse = riddenThisWeek.has(h.id) ? horsesById.get(h.id) : npcHorsesById.get(h.id);
-    return horse ?? h;
+    if (!horse || riddenThisWeek.has(h.id)) return horse ?? h;
+    const last = horse.record?.recentFinishes?.[0];
+    if (!last || last.week !== week || last.position !== 1) return horse;
+    const jockeyId = weekBooking.booking.jockeyByHorseId.get(horse.id);
+    if (!jockeyId) return horse;
+    return {
+      ...horse,
+      record: { ...horse.record, recentFinishes: [{ ...last, jockeyId }, ...horse.record.recentFinishes.slice(1)] },
+    };
   });
 
   // ⭐NPC騎手の年間勝ち数（ARCHITECTURE.md §8「一流＝最多勝利騎手」の判定材料）：
   // 今週勝った馬（プレイヤーが乗った馬は除く＝プレイヤーの勝ちは`player.record`側で数える）を
-  // 探し、その馬に乗った騎手を`jockeyIdForHorse`（実際にレースへ渡した騎手と同じ経路）で
-  // 特定して積む。⚠️`horse.record.recentFinishes[0]`が今週・1着かどうかで「今週勝った」を
-  // 判定する（`npcWeeklyRace.js`/`npcGradedRace.js`の戻り値を直接は使わない——両ファイルは
-  // 勝者一覧を返さないため。同じ`stableJockeys`を使うので、実際にレースへ渡した騎手と食い違わない
-  // ——`domain/weekResultSummary.js`の`buildGradedResults`と同じ考え方）。
+  // 探し、その馬に乗った騎手を、週の最初の割り当て（`weekBooking`＝実際にレースへ渡した騎手と
+  // 同じもの）から引いて積む。⚠️`horse.record.recentFinishes[0]`が今週・1着かどうかで
+  // 「今週勝った」を判定する（`npcWeeklyRace.js`/`npcGradedRace.js`の戻り値を直接は使わない
+  // ——両ファイルは勝者一覧を返さないため）。
   const npcWinnerJockeyCounts = new Map();
   for (const horse of mergedHorses) {
     if (riddenThisWeek.has(horse.id)) continue; // プレイヤーが乗った馬は対象外
     const last = horse.record?.recentFinishes?.[0];
     if (!last || last.week !== week || last.position !== 1) continue;
-    const jockeyId = jockeyIdForHorse(horse, stableJockeys);
+    const jockeyId = jockeyIdOf(horse);
     if (!jockeyId) continue;
     npcWinnerJockeyCounts.set(jockeyId, (npcWinnerJockeyCounts.get(jockeyId) ?? 0) + 1);
   }
@@ -329,7 +380,13 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const injuryAdvancedHorses = replannedHorses.map((h) => advanceInjuryByWeek(h));
 
   // 馬ごとの主戦騎手（質問23＝(ウ)）：オープン以上に上がった時点で、まだ付いていなければ付ける。
-  const advancedHorses = assignHorsePrimaryJockeys(injuryAdvancedHorses, stableJockeys, roster.npcJockeys);
+  const advancedHorses = assignHorsePrimaryJockeys(
+    injuryAdvancedHorses,
+    stableJockeys,
+    roster.npcJockeys,
+    saveSeed,
+    alpha
+  );
 
   // ⚠️`currentWeek`は折り返さない絶対値のまま進める（ARCHITECTURE.md §1「1年分を
   // 週×競馬場で固定して30年使い回す」の対象は番組表の中身であって、週カウンタそのもの

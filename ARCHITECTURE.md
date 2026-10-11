@@ -174,9 +174,8 @@ distance,winnerName,jockeyName,popularity,fieldSize}] }`。
   （通知を出すかどうかの境目・4）とは別物。⚠️どちらも根拠の無い暫定値。
 - `graded`＝その週の重賞のうち**実際に行われたもの**（`afterRoster.horses`の
   `record.recentFinishes[0]`が一致する1着馬が見つかったもの）だけ。騎手は
-  `domain/npcGradedRace.js`の`runNpcGradedRaces`が実際にレースへ渡す騎手
-  （`assignStablePrimaryJockeys`→`jockeyIdForHorse`）と同じ経路で求める——
-  プレイヤーがその馬に乗った週はプレイヤー自身。
+  勝った1走の記録`recentFinishes[0].jockeyId`（実際にレースへ渡した騎手・上記「NPC騎手と厩舎の
+  結びつき」）から求める——プレイヤーがその馬に乗った週はプレイヤー自身。
 - ⚠️`domain/weekResultSummary.js`は`view/weekOffersView.js`の`formatWeekLabel`を
   1本だけ参照する（週表記の書式を2箇所に持たないため）。`view/`側は`domain/`を
   importしない一方通行を保ったままなので、依存はサイクルにならない。
@@ -296,9 +295,27 @@ distance,winnerName,jockeyName,popularity,fieldSize}] }`。
 
 ### NPC騎手と厩舎の結びつき（2026-09-15・質問23＝(ウ)）
 
-**厩舎ごとに主戦騎手1人**。条件戦の馬にはその主戦が乗り、空いていなければ①厩舎が2番目に信頼する騎手
-②空いている騎手の勝率順。**オープン以上の馬は馬ごとの主戦騎手を持つ**（オープンに上がった時点で付く）。
-1人の騎手の1日の騎乗上限は仮に**8**（根拠なし・§10で測る）。詳細`devlog/wave07.md`。
+**NPCの馬に乗る騎手は、週の最初に日ごとに割り当てる**（`domain/jockeyBooking.js`・2026-09-28・
+`devlog/wave12.md`§15）。`domain/weekBooking.js`が、走らせる前に今週の全レース（一般競走・重賞・
+プレイヤーの鞍の相手馬。プレイヤーの馬は除く）の出走枠を決め（`planNpcGradedFields`・
+`planNpcWeeklyFields`・`raceOutcome.js`の`assemblePlayerMountField`）、`bookJockeysForWeek`を1回呼ぶ。
+`advanceWeek`と事前シミュレーション（`bootstrap.js`）が同じ手順で、出走枠は走らせる側へそのまま渡す。
+- **順序**：土曜→日曜。馬は馬idごとに1回にまとめ（同じ馬が複数のレースに出ることがある）、
+  最初に出る日に`horse.record.earnings`の多い順（同額は馬id順）で1頭ずつ決める＝良い馬から先に
+  良い騎手が付く。決まった馬は翌日も同じ騎手で、決める時点で載っている全レースに予約する。
+- **候補と重み**：現役NPC騎手のうち、その日の騎乗が`DAILY_RIDE_CAP`(8・根拠なし)未満で、その馬の
+  レースにまだ乗っていない者。重み＝exp(α×腕)×（所属厩舎の騎手／その馬の主戦なら
+  `STABLE_JOCKEY_WEIGHT_MULTIPLIER`(3・根拠なし)、でなければ1）。腕＝その鞍の距離帯と馬場の適性の
+  平均（`gradeToNumber`／15・`domain/jockeyArm.js`の`jockeyArmForMount`）。乱数は
+  `RNG_STREAMS.JOCKEY_BOOKING`（週・日・レース・馬id）。候補0人なら厩舎の主戦。
+- **α**＝`data/jockeyConcentration.js`の`concentrationAlphaForYear(year)`（年別の表は今は空＝既定4・仮）。
+  `options.jockeyConcentration`（`advanceWeek`・`bootstrapRosterAsync`）で上書きできる。
+- **主戦**：厩舎の主戦（`assignStablePrimaryJockeys`・所属騎手のいない厩舎はランク最上位1人）は
+  「3倍の重み」の材料と戻り先に過ぎない。オープン以上の馬の`primaryJockeyId`は、`jockeyOverallArm`
+  （適性10個の平均）を使った同じ重み付き抽選（`assignHorsePrimaryJockeys`）。
+- 勝った馬の`recentFinishes[0].jockeyId`に乗っていた騎手を添える（週の結果の画面用）。
+- ⚠️出馬表（`screens/EntryListScreen.jsx`）はまだ厩舎の主戦（`jockeyIdForHorse`）を出しており、
+  実際に乗る騎手とは食い違う（割り当ては週を進めるときに決まる）。
 
 ### 適性の成長（2026-09-27・`domain/aptitudeGrowth.js`・`devlog/wave12.md`§9で実装）
 
@@ -432,12 +449,9 @@ distance,winnerName,jockeyName,popularity,fieldSize}] }`。
   `data/eightGreatRaces.js`に持つ（年による表記の変化なし・1972〜1983年で確認済み）。
 - **最多勝利騎手**＝年末（52週の折返し）に、その年のプレイヤーの勝ち数がNPC騎手全員の
   その年の勝ち数以上（`domain/npcJockeyWins.js`の`maxNpcWinsInYear`）。NPC騎手の年間勝ち数は
-  週末に、その週勝った馬（プレイヤーが乗った馬を除く）へ`jockeyIdForHorse`
-  （`domain/jockeyAssignment.js`。実際にレースへ渡した騎手と同じ経路）で騎手を特定して積む
-  （`jockey.winsByYear`）。⚠️**厩舎に専属騎手がいない場合の代役（ランク最上位1名。
-  `assignStablePrimaryJockeys`）が非常に多くの厩舎を兼務するため、NPC最多勝は代役騎手1名に
-  極端に偏る**（実測：2年で年354〜490勝）。「最多勝利騎手」到達の難度はこの偏りの影響を
-  そのまま受ける。
+  週末に、その週勝った馬（プレイヤーが乗った馬を除く）に実際に乗っていた騎手（週の最初の
+  割り当て・`domain/weekBooking.js`）へ積む（`jockey.winsByYear`）。最多勝の大きさは
+  `data/jockeyConcentration.js`のα次第（腕の良い騎手に騎乗が集まる強さ）。
 - **凱旋門賞勝利**＝海外の仕組みが未実装のため常に不成立（`false`固定）。
 
 ### 騎手の収入（第1弾-Eで確定・実際の仕組みどおり）

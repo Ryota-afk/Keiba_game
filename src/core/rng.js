@@ -55,6 +55,9 @@ export const RNG_STREAMS = Object.freeze({
   // 決める（`raceId`で固定。走る瞬間に引き直さない・`domain/npcWeeklyRace.js`）。
   FIELD_SIZE: "fieldSize", // レースの定員（週の番組表を組む時点・raceIdで固定）
   ROTATION_PLAN: "rotationPlan", // 出走計画のまとめ配り（週×同順位の同値割り・`domain/rotation.js`）
+  // ⭐NPC騎手の騎乗の割り当て（`domain/jockeyBooking.js`。週×日×レース×馬idで固定）。
+  // オープン以上の馬の主戦（`domain/jockeyAssignment.js`）も、馬idをキーにこの用途を使う。
+  JOCKEY_BOOKING: "jockeyBooking",
 });
 
 /**
@@ -89,6 +92,26 @@ export function weightedPickFromValue(weights, x01) {
     if (x <= 0) return key;
   }
   return entries[entries.length - 1][0];
+}
+
+/**
+ * 重みの配列から、重み付きで添字を1つ選ぶ（`weightedPickFromValue`の配列版。キーを持つ
+ * オブジェクトを毎回作らずに済むので、候補が数百ある選択を何千回も繰り返す場面に向く）。
+ * ⚠️配列が空なら-1を返す。重みの合計が0以下の場合は最後の添字。
+ * @param {() => number} rand01
+ * @param {ArrayLike<number>} weights
+ * @param {number} [length] - 先頭からこの個数だけを候補にする（既定は全部）
+ */
+export function weightedPickIndex(rand01, weights, length = weights.length) {
+  if (length === 0) return -1;
+  let total = 0;
+  for (let i = 0; i < length; i += 1) total += weights[i];
+  let x = rand01() * total;
+  for (let i = 0; i < length; i += 1) {
+    x -= weights[i];
+    if (x <= 0) return i;
+  }
+  return length - 1;
 }
 
 /** rand01から重み付きで1つ選ぶ。weights は {キー: 重み} の形。 */

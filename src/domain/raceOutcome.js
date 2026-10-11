@@ -67,6 +67,33 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
 }
 
 /**
+ * プレイヤーの鞍1つぶんの出走枠（プレイヤーの馬を含む）を組む。自己完結の純関数。
+ * ⭐`runPlaceholderRace`が使う枠と**同じ関数**——週の最初に相手馬の騎手を割り当てる
+ * （`domain/jockeyBooking.js`・`domain/weekLoop.js`）ために、走らせる前に同じ枠を求められる
+ * ようここへ切り出した。同じ引数なら必ず同じ枠になる。
+ * @param {number|string} saveSeed
+ * @param {number} week
+ * @param {{ horseId: string, surface?: string, condition?: string|null }} mount
+ * @param {object} horse - プレイヤーの鞍の馬
+ * @param {object[]} allHorses - ロースター全馬
+ * @param {number|null} [year] - `mount.condition`の年齢を数える暦年
+ * @returns {object[]} 出走馬（収得賞金の多い順）
+ */
+export function assemblePlayerMountField(saveSeed, week, mount, horse, allHorses, year = null) {
+  const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
+  const fieldSizeTarget = drawFieldSize(rand01);
+  return assembleRealField(
+    rand01,
+    horse,
+    mount.surface,
+    allHorses,
+    fieldSizeTarget,
+    mount.condition ?? null,
+    year
+  );
+}
+
+/**
  * プレイヤーの鞍1つぶんのレースを走らせ、着順を決める。自己完結の純関数。
  * @param {number|string} saveSeed
  * @param {number} week
@@ -91,17 +118,7 @@ export function assembleRealField(rand01, anchorHorse, surface, allHorses, field
  *             popularity: number }}
  */
 export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, options = {}) {
-  const rand01 = streamRandom(saveSeed, RNG_STREAMS.SIM, week, mount.horseId);
-  const fieldSizeTarget = drawFieldSize(rand01);
-  const field = assembleRealField(
-    rand01,
-    horse,
-    mount.surface,
-    allHorses,
-    fieldSizeTarget,
-    mount.condition ?? null,
-    options.year ?? null
-  );
+  const field = assemblePlayerMountField(saveSeed, week, mount, horse, allHorses, options.year ?? null);
   const fieldSize = field.length;
   const getJockeyForHorse = (h) => (h.id === horse.id ? options.playerJockey : options.getJockey?.(h));
   // ⚠️`field`の並び（収得賞金の多い順＝馬番の元）はそのまま使い、人気は別の並びとして
