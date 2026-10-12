@@ -44,6 +44,7 @@ import { applyRideToRecord } from "./playerRecord.js";
 import { checkRankPromotions } from "./jockeyRank.js";
 import { recordJockeyWins, maxNpcWinsInYear, countWinnerJockeys } from "./npcJockeyWins.js";
 import { buildBanzuke } from "../view/banzukeView.js";
+import { processYearBoundary } from "./yearBoundary.js";
 import { distanceBandOf } from "../data/aptitudeCategories.js";
 
 // 主戦の座を持つが今週乗らなかった馬に、他騎手が勝つ確率（暫定。仮simの平均勝率
@@ -112,7 +113,13 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   乗った鞍の結果（`weekResults.js`の`ride`を並べたもの。土日で複数あり得るため配列。
  *   落馬した鞍は`fell: true`で`position`等が`null`）。`growth`は⚠️2026-09-27追加
  *   （ARCHITECTURE.md §4「適性の成長」・§8「騎手ランク」・`devlog/wave12.md`§9）——
- *   画面ではまだ使わない
+ *   画面ではまだ使わない。
+ *   ⭐2026-10-12追加（`TODO.md` #122）：`retiredMainMounts`＝この週で年が替わるとき、年の区切りの
+ *   処理（`domain/yearBoundary.js`）で引退した、プレイヤーの主戦の馬（`[{horseId, horseName}]`。
+ *   それ以外の週は`[]`。データだけで、画面はまだ使わない）。`weekEndHorses`＝年の区切りで馬が
+ *   名簿から抜ける**前**の、その週の終わりの馬（年が替わらない週は`roster.horses`と同じ配列）。
+ *   週の結果画面が最終週の重賞の勝ち馬を引くために使う（引退で名簿から消えても見せられるように）。
+ *   `yearBoundary`＝年の区切りの`stats`（それ以外の週は`null`。計測用）
  */
 export function advanceWeek(saveSeed, roster, player, options = {}) {
   const week = player.currentWeek;
@@ -419,6 +426,35 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       })
     : roster.lastYearBanzuke;
 
+  // ⭐年の区切りの処理（`arch/race-program.md`§9の①引退→②繁殖入り→③捨てる→④新2歳。
+  // 2026-10-12・`TODO.md` #122）。⚠️**順序は番付の保存のあと**——馬が名簿から抜ける前の顔ぶれで
+  // 終わった年の番付を作るため（上の`lastYearBanzuke`）。事前シミュレーション
+  // （`domain/bootstrap.js`）と同じく、名簿の`horses`と`breedingPool`だけを差し替える。
+  // ⚠️⑤調教師・⑥騎手の世代交代と⑦主戦の付け直し（新しい2歳への`primaryJockeyId`は
+  // 翌週の`assignHorsePrimaryJockeys`が付ける）は`yearBoundary.js`が未実装。⑧の年次処理
+  // （騎手ランクの昇格）は上の`checkRankPromotions`が既に毎週走っている。
+  let boundary = null;
+  let nextHorses = advancedHorses;
+  let breedingPool = roster.breedingPool;
+  const retiredMainMounts = [];
+  if (wrapsToNextYear) {
+    boundary = processYearBoundary(
+      saveSeed,
+      nextPlayer.currentYear + 1,
+      { ...roster, horses: advancedHorses, breedingPool: roster.breedingPool },
+      nextPlayer,
+      { orphanFoals: true } // 繁殖プールが空でも2歳の供給を止めない（本編のみ）
+    );
+    nextHorses = boundary.roster.horses;
+    breedingPool = boundary.roster.breedingPool;
+    const retiredIds = new Set(boundary.retiredHorseIds);
+    const weekEndHorseById = new Map(advancedHorses.map((h) => [h.id, h]));
+    for (const horseId of Object.keys(nextPlayer.mainMounts)) {
+      if (!isMainMount(nextPlayer.mainMounts, horseId) || !retiredIds.has(horseId)) continue;
+      retiredMainMounts.push({ horseId, horseName: weekEndHorseById.get(horseId)?.name ?? horseId });
+    }
+  }
+
   nextPlayer = {
     ...nextPlayer,
     currentWeek: week + 1,
@@ -428,7 +464,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   return {
     roster: {
       ...roster,
-      horses: advancedHorses,
+      horses: nextHorses,
+      ...(breedingPool ? { breedingPool } : {}),
       npcJockeys: npcJockeysWithWins,
       trialResults: gradedResult.trialResults,
       ...(lastYearBanzuke ? { lastYearBanzuke } : {}),
@@ -439,5 +476,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     rides,
     // ⭐この週に動いた適性・ランク（画面ではまだ使わない。ARCHITECTURE.md §4・§8）。
     growth: { aptitudeChanges, rankChange },
+    retiredMainMounts,
+    weekEndHorses: advancedHorses,
+    yearBoundary: boundary?.stats ?? null,
   };
 }

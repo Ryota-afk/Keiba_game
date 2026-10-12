@@ -40,8 +40,9 @@
 - **取り出し**：`lastYearBanzuke(roster)`（無ければnull＝古いセーブ）。本編1年目の1月は事前シミュレーション2年目（開始年−1）の番付。
 - 保存の形はプレーンな数値・文字列・真偽・nullだけ（JSON往復で壊れない）。セーブ（`state/saveGame.js`）は`roster`ごと保存するので変更なし
   （`SAVE_SCHEMA_VERSION`も据え置き。古いセーブは`lastYearBanzuke`が無いだけで動く）。
-- ⚠️`processYearBoundary`は今のところ事前シミュレーションでしか呼ばれていない（本編の馬の引退・補充は未実装）。本編に入れるときも、
-  番付の保存はその前（`advanceWeek`の中）で済んでいるので順序は変えなくてよい。
+- ⭐`processYearBoundary`は事前シミュレーションに加えて**本編の`advanceWeek`でも年の最終週に走る**（2026-10-12・`TODO.md` #122）。
+  番付の保存はどちらも`processYearBoundary`の前（馬が抜ける前の顔ぶれで作る）。本編の最終週の結果画面は`advanceWeek`の戻り値の
+  `weekEndHorses`（区切り前の馬）を使う。保存した番付は名前・賞金を自分で持つので、引退・繁殖入りで名簿から消えた馬も見られる。
 
 ## 触ると壊れるところ
 - `appendRaceResultWithEarnings`の戻り値に`yearStats`が増えた：`record`の形を決め打ちで比較している箇所があれば注意。

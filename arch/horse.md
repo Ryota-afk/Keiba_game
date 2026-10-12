@@ -282,6 +282,9 @@
 
 **保存の規則**：全頭が父母IDを持つが、**引退して繁殖に上がらなかった馬は世代が変わったら
 捨てる**。⚠️**プレイヤーが乗った馬は別に残す。**
+⭐実装（`domain/yearBoundary.js`）：「プレイヤーが乗った馬」＝`player.mainMounts`のキー（乗った馬は必ず入る）。残した馬は`isRetired: true`のまま
+`roster.horses`にいて`retiredYear`が付く。⚠️**繁殖に上がった馬は`roster.horses`から`roster.breedingPool`へ移る**ので、プレイヤーが乗った馬でも
+`mainMounts`のキーが名簿に居ないことがある——馬をidで引く側は必ず「居ない」を許すこと（`horsesById.get(id)?.name`の形）。
 
 ### 馬の名前
 

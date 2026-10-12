@@ -61,6 +61,14 @@
 | 乗る馬を決めるのは | ⭐**プレイヤー**（2026-09-17・`advanceWeek`の`options.chooseMounts`。`devlog/wave09.md`§12・`devlog/wave10.md`§9）。渡さなければ`defaultChooseMounts`（質の高い順の自動選択）——ヘッドレスの計測はこちら。同じレースは1頭・上限件数の2つは画面で押せなくするのが先で、`confirmMounts`側は安全網（先勝ちで1頭・超過は切り捨て） |
 | 月曜の画面 | ⭐**`src/screens/WeekScreen.jsx`＋`WeekScreen.css`＋`src/view/weekOffersView.js`**（2026-09-17・Fable・`devlog/wave10.md`§10）。見本は`design/mocks/week-offers-v3.html`案2（レースが主役・1レース＝1つの表）＋`week-offers-v4.html`案B（行を押すとその行の下に「乗る」と「出馬表」／「この週を進める」は一覧の末尾）。画面の決まり：あと◯件＝`RIDABLE_SLOTS_PER_WEEK`−決めた数／決めた表の残りは薄い／その日に別の場で決めると他の場のタブは薄く・押すと理由（`lockedCourseMessage`）／薄い行は押しても開かない／開く行は1つ／週を進めたら先頭へ戻す。⚠️**見本に無いのに置いたもの**：先週の出来事（怪我・主戦の喪失・信頼の大きな動き）を見出しの下に補足の段で出す（要否はユーザー確認待ち・§10） |
 
+⭐**年の最終週（`week % 52 === 0`）の末尾に年の区切りの処理が走る**（2026-10-12・`TODO.md` #122）。`advanceWeek`は結果処理・
+騎手ランクの昇格のあと、①前の年の番付を`roster.lastYearBanzuke`へ保存 →②`processYearBoundary`（①引退→②繁殖入り→③捨てる〈プレイヤーが
+乗った馬は残す〉→④新2歳。`arch/race-program.md`§9）で`roster.horses`と`roster.breedingPool`を差し替え →③`currentYear`を繰り上げ、の順。
+⚠️**番付の保存が先**（馬が名簿から抜ける前の顔ぶれで作るため）。戻り値に`retiredMainMounts`（この区切りで引退したプレイヤーの主戦馬
+`[{horseId, horseName}]`・年が替わらない週は`[]`・データだけで画面は未使用）・`weekEndHorses`（区切りで馬が抜ける前のその週の馬。
+`WeekScreen`が週の結果画面〈最終週の重賞の勝ち馬〉に渡す）・`yearBoundary`（区切りの`stats`、無ければ`null`）が増えた。
+⚠️⑤調教師・⑥騎手の世代交代と⑦主戦の付け直し（`primaryJockeyId`は新2歳にも翌週の`assignHorsePrimaryJockeys`が付けるだけ）は未実装。
+
 ⚠️**弱い厩舎で信頼を積んでも良い馬には乗れない。** ⭐どの厩舎に出入りするかが長期の賭けになり、
 調教師の「見抜く力」（§8）が生きる。
 

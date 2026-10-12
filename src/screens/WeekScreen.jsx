@@ -193,7 +193,9 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     const summary = buildWeekResultSummary({
       beforePlayer: player,
       afterPlayer: res.player,
-      afterRoster: res.roster,
+      // 最終週は年の区切りで引退した馬が名簿から抜けているので、抜ける前の馬を渡す
+      // （その週の重賞の勝ち馬が引退馬でも結果を出せるように）。
+      afterRoster: { ...res.roster, horses: res.weekEndHorses },
       rides: res.rides,
       week: player.currentWeek,
       year: player.currentYear,
