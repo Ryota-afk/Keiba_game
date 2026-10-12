@@ -11,6 +11,9 @@
 !DEVLOG.md
 !TODO.md
 !ARCHITECTURE.md
+# --- TODOの棚上げ（TODO.mdが上限に迫ったため2026-10-12に切り出した）---
+!todo/
+!todo/**
 # --- アーキテクチャ（ARCHITECTURE.mdが大きくなりすぎたため2026-09-04に§3/§5を切り出した）---
 !arch/
 !arch/**
