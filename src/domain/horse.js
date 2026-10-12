@@ -86,7 +86,11 @@ function createInitialAdaptability(bloodlineFamily) {
  * @param {string|number} key - 一意なキー（例: `${生成年}-${連番}`）
  * @param {{ ownerPrefix?: string, sireId?: string|null, damId?: string|null,
  *           bloodlineFamily?: string, bornYear?: number,
- *           stableId?: string|null, ownerId?: string|null }} [opts]
+ *           stableId?: string|null, ownerId?: string|null,
+ *           usedNames?: Set<string> }} [opts]
+ *   `usedNames`を渡すと、その中にある名前を避け、⚠️**引いた名前をその集合へ破壊的に追加する**
+ *   （`domain/humanNaming.js`の`pickHumanName`と同じ形。`domain/horseNames.js`の
+ *   `createUsedHorseNames`で作り、同じ回に生成する馬どうしで使い回す）。
  */
 export function generateHorse(saveSeed, key, opts = {}) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "horse", key);
@@ -130,9 +134,13 @@ export function generateHorse(saveSeed, key, opts = {}) {
     power: pickGradeBellCurve(rand01), // パワー
     mentalStrength: pickGradeBellCurve(rand01), // 精神力
   };
-  const name = opts.ownerPrefix
-    ? generateHorseName(rand01, { ownerPrefix: opts.ownerPrefix })
-    : generateHorseName(rand01);
+  // ⭐名前は専用の乱数列で引く。重複を避ける引き直しで消費数が変わっても、この後に続く
+  // 能力（芝ダ適性・道悪適性）が`usedNames`の中身によってズレないようにするため。
+  const name = generateHorseName(streamRandom(saveSeed, RNG_STREAMS.GENERATION, "horse-name", key), {
+    ownerPrefix: opts.ownerPrefix,
+    usedNames: opts.usedNames,
+  });
+  opts.usedNames?.add(name);
 
   return {
     id: `horse-${key}`,

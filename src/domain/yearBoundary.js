@@ -13,6 +13,7 @@
 
 import { shouldRetire, selectBreedingHorses } from "./retirement.js";
 import { generateHorse } from "./horse.js";
+import { createUsedHorseNames } from "./horseNames.js";
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 
 /**
@@ -75,6 +76,9 @@ export function processYearBoundary(saveSeed, newYear, roster, player) {
   // 仕組みが無いため未実装。
   const foalRand = streamRandom(saveSeed, RNG_STREAMS.GENERATION, "foal", newYear);
   const newFoals = [];
+  // 馬名の重複回避：名簿に残る馬（現役＋プレイヤーが乗って残した引退馬）と史実馬の名前を避ける。
+  // 同じ年の新馬どうしも避けるよう、集合を使い回す（`generateHorse`が足す）。
+  const usedHorseNames = createUsedHorseNames([...staying, ...keptRetired]);
   if (breedingPool.sires.length > 0 && breedingPool.broodmares.length > 0) {
     for (let i = 0; i < departedCount; i += 1) {
       const sire = pick(foalRand, breedingPool.sires);
@@ -87,6 +91,7 @@ export function processYearBoundary(saveSeed, newYear, roster, player) {
           bornYear: newYear,
           stableId: dam.stableId ?? sire.stableId ?? null,
           ownerId: dam.ownerId ?? sire.ownerId ?? null,
+          usedNames: usedHorseNames,
         })
       );
     }

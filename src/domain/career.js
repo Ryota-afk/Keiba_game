@@ -7,6 +7,7 @@ import { generateStable } from "./stable.js";
 import { generateOwner, isMajorOwner } from "./owner.js";
 import { generateHorse } from "./horse.js";
 import { generateJockey } from "./jockey.js";
+import { createUsedHorseNames } from "./horseNames.js";
 
 // JRAの実数（ARCHITECTURE.md §3「馬の供給」・§6「調教師」「NPC騎手」）。
 // ⚠️⚠️**2026-09-17にユーザーが決定**：190厩舎×40頭は現代のJRAの規模で、1976年の
@@ -82,6 +83,8 @@ export function createInitialRoster(saveSeed) {
   // 一斉に出走候補になるのを防いでいた。今は`horse.plan`が`null`のまま生成され、
   // `domain/rotation.js`の`replanStaleHorses`が毎週`canDebutThisWeek`を見ながら
   // 順番に計画を立てる（2歳解禁前の馬は自然に後回しになる）ので、この散らしは不要。
+  // 馬名の重複回避：史実馬の名前から始めて、生成した馬の名前を足していく（`generateHorse`が足す）。
+  const usedHorseNames = createUsedHorseNames();
   const horses = Array.from({ length: HORSE_COUNT }, (_, i) => {
     const stable = stables[stableIdxByHorse[i]];
     const owner = owners[ownerIdxByHorse[i]];
@@ -89,6 +92,7 @@ export function createInitialRoster(saveSeed) {
       stableId: stable.id,
       ownerId: owner.id,
       ownerPrefix: owner.ownerPrefix ?? undefined,
+      usedNames: usedHorseNames,
     });
   });
 
