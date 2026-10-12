@@ -303,6 +303,15 @@
   `domain/career.js`の`createInitialRoster`（史実馬の名前から始めて5,250頭ぶん使い回す）と
   `domain/yearBoundary.js`の`processYearBoundary`（名簿に残る馬＋史実馬の名前から始めて、その年の新馬どうしも避ける）。
   史実馬の名前は`DERBY_WINNERS`と`DERBY_HORSE_ABILITIES`のキー。史実馬が名簿に入るようになれば名簿側で拾える。
+- ⭐**実在の競走馬と同じ名前は出さない**（2026-10-12・ユーザー決定）。`createUsedHorseNames`は最初から
+  ①`DERBY_WINNERS`／`DERBY_HORSE_ABILITIES`の名前 ②`data/generated/realHorseNames.json`（優駿達の蹄跡の重賞結果表に載る全馬名・
+  ソート済みの文字列配列・1972〜1987年で5,117件）③`data/blockedHorseNames.js`の`BLOCKED_HORSE_NAMES`（結果表に載らないが実在と確認した6頭。
+  結果表に載る馬は②が拾うので足さない）を入れた集合を返す（基の集合はモジュールの読み込み時に1回だけ作り、呼ぶたびに複製。約0.7ms）。
+  ⚠️**出典は優駿達の蹄跡だけ**（`design/rights-check.md`§8。netkeibaなど他サイトは使わない）。
+  ⭐**②の作り直し**：`data-src/ahonoora/YYYY.json.gz`の年が増えたら（1988〜2024年を追加予定）`node tools/build-real-horse-names.mjs`を再実行する
+  （全`*.json.gz`の`entries[].name`から、空白・`(外)`等の括弧書きを除き、長音の別字形（―）を「ー」にそろえて重複なしで書き出す。整える前の綴りも残す）。
+  語幹（`NAME_STEMS`）や冠名を足したら、実在馬と衝突する組み合わせが無いかを測り直すこと（衝突する名前は`generateHorseName`が自動で避けるが、
+  衝突が多い語幹は名前の候補を減らす）。1987年までの実測では、作れる全29,767通りのうち衝突は9通り（ハーバーライト・ハーバークローバー・シルバーネロ＋③の6頭）。
 - **冠名つき**は「冠名＋語幹」だけ。冠名に付けると9文字を超える語幹は除く。入る語幹が1つも無い、
   または全て使用済みなら「語幹＋語幹」に落とす。「語幹＋語幹」は同じ語幹どうしを組まない。
 - 引き方：乱数で最大50回引き直し → それでも無ければ**乱数で決めた位置から全組み合わせを順に調べて最初の空き**
