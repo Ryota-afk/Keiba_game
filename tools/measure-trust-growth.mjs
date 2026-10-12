@@ -5,6 +5,11 @@
 // 使い方： node tools/measure-trust-growth.mjs [週数] [シード数]
 //   既定は52週・5シード。3年で測るなら `node tools/measure-trust-growth.mjs 156 10`。
 //
+// ⚠️⚠️**2026-10-12に直した（全行NaN・信頼0の原因）**：本編は事前シミュレーション104週の続き
+// （`MAIN_TIMELINE_START_WEEK`＝105）から始まる（`createPlayer`）のに、以前は
+// `while (player.currentWeek <= WEEKS)`と絶対週で比べていたため、52週と比べて1周も回らなかった。
+// 今は「開始週から数えてWEEKS週」回す。表の週（初の重賞・閾値到達週）は本編1週目を1とした相対週。
+//
 // ⚠️**週番号は`player.currentWeek`から読む。** ループ変数を週として渡すと、`advanceWeek`が
 // 内部で進める週とずれる（2026-09-17に実際にこれで誤った結論を出した）。
 //
@@ -23,6 +28,7 @@ import { advanceWeek } from "../src/domain/weekLoop.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../src/domain/weeklyRequests.js";
 import { courseIdsAvailable, confirmMounts, defaultChooseMounts } from "../src/domain/fridayConfirmation.js";
 import { DAY } from "../src/data/weekDays.js";
+import { canRideGradedRace, GRADED_RIDE_TRAINER_TRUST_THRESHOLD, GRADED_RIDE_OWNER_TRUST_THRESHOLD } from "../src/domain/rideEligibility.js";
 import { isMainMount } from "../src/domain/mainMount.js";
 import { isSidelined } from "../src/domain/fall.js";
 
@@ -65,15 +71,18 @@ function runOneSeed(saveSeed) {
   let firstGradedOfferWeek = null;
   let declineOfMainMountCount = 0;
   let weeksCounted = 0;
+  let firstEligibleWeek = null; // 重賞に乗れる信頼（調教師・馬主の両方）が初めて揃った相対週
 
-  while (player.currentWeek <= WEEKS) {
+  const startWeek = player.currentWeek; // 本編の開始週（絶対週・105）
+  while (player.currentWeek < startWeek + WEEKS) {
     const week = player.currentWeek; // ⚠️ループ変数ではなくここから読む
+    const relWeek = week - startWeek + 1; // 本編1週目＝1
     const requests = generateWeeklyRequests(saveSeed, week, roster, player);
 
     ceilingSum += bestFillableMounts(requests);
     if (requests.some((r) => r.grade != null)) {
       weeksWithGradedOffer += 1;
-      if (firstGradedOfferWeek === null) firstGradedOfferWeek = week;
+      if (firstGradedOfferWeek === null) firstGradedOfferWeek = relWeek;
     }
 
     // ⭐`defaultChooseMounts`を薄いラッパーで渡し、選び方は変えずに誰が選ばれたかを観測する。
@@ -104,6 +113,10 @@ function runOneSeed(saveSeed) {
     roster = res.roster;
     player = res.player;
     weeksCounted += 1;
+    // 信頼の閾値（`rideEligibility.js`）に届いた馬が1頭でもいるか（この週の終わりの時点）
+    if (firstEligibleWeek === null && roster.horses.some((h) => canRideGradedRace(player, h))) {
+      firstEligibleWeek = relWeek;
+    }
   }
 
   const trainerTrusts = Object.values(player.trainerTrust);
@@ -114,6 +127,7 @@ function runOneSeed(saveSeed) {
     ceilingAvg: ceilingSum / weeksCounted,
     weeksWithGradedOffer,
     firstGradedOfferWeek,
+    firstEligibleWeek,
     declineOfMainMountCount,
     trainer: summarize(trainerTrusts),
     owner: summarize(ownerTrusts),
@@ -125,7 +139,7 @@ function runOneSeed(saveSeed) {
 }
 
 console.log(`${WEEKS}週 × ${SEEDS}通りの初期値（${START_YEAR}年開始・乗れる上限${RIDABLE_SLOTS_PER_WEEK}鞍）\n`);
-console.log("初期値  埋まる上限  重賞依頼の週  初の重賞  厩舎信頼(最大/平均/相手数)  馬主信頼(最大/平均/相手数)  負の相手");
+console.log("初期値  埋まる上限  重賞依頼の週  初の重賞  厩舎信頼(最大/平均/相手数)  馬主信頼(最大/平均/相手数)  負の相手  閾値到達週");
 
 const rows = [];
 for (let i = 0; i < SEEDS; i += 1) {
@@ -138,7 +152,8 @@ for (let i = 0; i < SEEDS; i += 1) {
       `${String(row.firstGradedOfferWeek ?? "無し").padStart(8)}  ` +
       `${row.trainer.max.toFixed(0).padStart(6)}/${row.trainer.avg.toFixed(1).padStart(6)}/${String(row.trainerCount).padStart(4)}  ` +
       `${row.owner.max.toFixed(0).padStart(8)}/${row.owner.avg.toFixed(1).padStart(6)}/${String(row.ownerCount).padStart(4)}  ` +
-      `${String(row.trainerNegative + row.ownerNegative).padStart(6)}`
+      `${String(row.trainerNegative + row.ownerNegative).padStart(6)}  ` +
+      `${String(row.firstEligibleWeek ?? "無し").padStart(8)}`
   );
 }
 
@@ -150,6 +165,13 @@ console.log(`馬主への信頼：最大の平均${avg((r) => r.owner.max).toFix
 console.log(`信頼が負に落ちた相手：合計${rows.reduce((a, r) => a + r.trainerNegative + r.ownerNegative, 0)}件`);
 console.log(`主戦の馬の依頼を断った回数：合計${rows.reduce((a, r) => a + r.declineOfMainMountCount, 0)}件`);
 const reached = rows.filter((r) => r.firstGradedOfferWeek !== null);
+const eligible = rows.filter((r) => r.firstEligibleWeek !== null);
+console.log(
+  `信頼が閾値（厩舎${GRADED_RIDE_TRAINER_TRUST_THRESHOLD}・馬主${GRADED_RIDE_OWNER_TRUST_THRESHOLD}）に届いた初期値：${eligible.length}/${rows.length}通り` +
+    (eligible.length > 0
+      ? `（届いた分の平均${(eligible.reduce((a, r) => a + r.firstEligibleWeek, 0) / eligible.length).toFixed(0)}週）`
+      : "")
+);
 console.log(
   `重賞の依頼に届いた初期値：${reached.length}/${rows.length}通り` +
     (reached.length > 0
