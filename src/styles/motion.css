@@ -52,6 +52,15 @@
   --m6-hold-dur: 150ms;
   --m6-cover-out-dur: 600ms;
   --m6-cover-out-ease: cubic-bezier(0, 0, 0.2, 1);
+
+  /* 一覧の行が上から順に現れる（番付の10頭・`screens/Banzuke.css`の`.bz-r`）。
+     参考：モーションリファレンス t-stagger-seq（要素iの開始＝i×間隔／各400ms・easeOutCubic。
+     リストは40〜80ms間隔・総尺800ms以内）。10行×40ms＋400ms＝760ms。
+     `--m-list-shift`は行が下から上がってくる距離（動きを減らす場合は0＝フェードだけ）。 */
+  --m-list-dur: 400ms;
+  --m-list-gap: 40ms;
+  --m-list-ease: cubic-bezier(0.33, 1, 0.68, 1);
+  --m-list-shift: 6px;
 }
 
 /* ⚠️動きに弱い人への配慮（CLAUDE.md指示）。durationだけを0msへ落とし、
@@ -72,6 +81,10 @@
     --m6-cover-in-dur: 0ms;
     --m6-hold-dur: 0ms;
     --m6-cover-out-dur: 0ms;
+    /* 一覧の行：移動を省き、最終状態をフェードで出す（t-stagger-seqの「動きを減らす場合」）。
+       時間差も無くし、全部の行が一度にフェードする */
+    --m-list-gap: 0ms;
+    --m-list-shift: 0px;
   }
 }
 

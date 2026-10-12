@@ -7,6 +7,7 @@
 
 import {
   BANZUKE_BOARDS,
+  BANZUKE_JOCKEY_LABEL,
   BANZUKE_ROWS,
   BANZUKE_MILE_MAX_AVG_DISTANCE,
   BANZUKE_THREE_YEAR_OLD_AGE,
@@ -114,4 +115,107 @@ export function buildBanzuke({ roster, player, year }) {
  */
 export function lastYearBanzuke(roster) {
   return roster?.lastYearBanzuke ?? null;
+}
+
+// ───────── 画面（`screens/Banzuke.jsx`）のための表示用の小さな純関数 ─────────
+// 見本：`design/mocks/banzuke-v1.html`「案C 顔ぶれ」。JSXに計算を書かないためにここへ置く。
+
+/** 騎手の板のid（馬の番付7つは`BANZUKE_BOARDS`のid）。 */
+export const BANZUKE_JOCKEY_BOARD_ID = "jockeys";
+
+/** 最初に開いたとき選んでおく板（見本の1枚目と同じ古馬王道）。 */
+export const BANZUKE_DEFAULT_BOARD_ID = "older-classic";
+
+/** 賞金を万円に切り捨てて「8,350万円」の形にする。 */
+export function formatManYen(earnings) {
+  const man = Math.floor((earnings ?? 0) / 10000);
+  return `${String(man).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}万円`;
+}
+
+/** 行の戦績「4戦2勝」。 */
+export function banzukeRecordLabel(row) {
+  return `${row.starts}戦${row.wins}勝`;
+}
+
+/** 馬名の右に添える印。主戦なら「主戦」だけ、乗った馬なら「乗った馬」、どちらでもなければnull。 */
+export function banzukeMarkLabel(row) {
+  if (row.isMainMount) return "主戦";
+  if (row.riddenByPlayer) return "乗った馬";
+  return null;
+}
+
+/** 番付がまだ空か（馬の番付が全部0頭で、騎手も誰も勝っていない＝今年まだ1レースも無い）。 */
+export function isBanzukeEmpty(banzuke) {
+  if (!banzuke) return true;
+  const noHorses = banzuke.boards.every((b) => b.rows.length === 0);
+  const noWins = banzuke.jockeys.rows.every((r) => r.wins === 0);
+  return noHorses && noWins;
+}
+
+/**
+ * 板8枚の中身（1位だけ）。`top`が無い板は名前だけ出して中は「—」。
+ * @returns {{ id: string, label: string, top: { name: string, value: string }|null }[]}
+ */
+export function banzukeBoardTops(banzuke) {
+  const horses = banzuke.boards.map((b) => ({
+    id: b.id,
+    label: b.label,
+    top: b.rows[0] ? { name: b.rows[0].name, value: formatManYen(b.rows[0].earnings) } : null,
+  }));
+  const j = banzuke.jockeys.rows[0];
+  horses.push({
+    id: BANZUKE_JOCKEY_BOARD_ID,
+    label: BANZUKE_JOCKEY_LABEL,
+    top: j && j.wins > 0 ? { name: j.name, value: `${j.wins}勝` } : null,
+  });
+  return horses;
+}
+
+/**
+ * 押した板の一覧（見本の`.c-list`）。馬の番付は10頭（足りなければある分だけ）、騎手は10人＋
+ * 10位より下でも自分の行（`self`）。`playerName`は自分の行の名前（保存した番付は名前を持たない）。
+ * @returns {{ label: string, orderLabel: string,
+ *   rows: { key: string, rank: number, name: string, record: string|null, value: string,
+ *     mark: string|null, bigWin: string|null, isPlayer: boolean }[],
+ *   self: { rank: number, name: string, value: string }|null }|null}
+ */
+export function banzukeListFor(banzuke, boardId, playerName) {
+  if (boardId === BANZUKE_JOCKEY_BOARD_ID) {
+    const { rows, self } = banzuke.jockeys;
+    return {
+      label: BANZUKE_JOCKEY_LABEL,
+      orderLabel: "勝ち数の多い順",
+      rows: rows.map((r) => ({
+        key: `${r.rank}-${r.name}`,
+        rank: r.rank,
+        name: r.name,
+        record: null,
+        value: `${r.wins}勝`,
+        mark: null,
+        bigWin: null,
+        isPlayer: r.isPlayer === true,
+      })),
+      self:
+        self && self.rank > BANZUKE_ROWS
+          ? { rank: self.rank, name: playerName ?? "", value: `${self.wins}勝` }
+          : null,
+    };
+  }
+  const board = banzuke.boards.find((b) => b.id === boardId);
+  if (!board) return null;
+  return {
+    label: board.label,
+    orderLabel: "賞金の多い順",
+    rows: board.rows.map((r) => ({
+      key: r.horseId,
+      rank: r.rank,
+      name: r.name,
+      record: banzukeRecordLabel(r),
+      value: formatManYen(r.earnings),
+      mark: banzukeMarkLabel(r),
+      bigWin: r.lastBigWinName ?? null,
+      isPlayer: false,
+    })),
+    self: null,
+  };
 }

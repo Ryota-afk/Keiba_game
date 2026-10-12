@@ -36,12 +36,17 @@ import {
 import { EntryListScreen } from "./EntryListScreen.jsx";
 import { WeekResultScreen } from "./WeekResultScreen.jsx";
 import { JockeyProfile } from "./JockeyProfile.jsx";
+import { Banzuke } from "./Banzuke.jsx";
 import "./WeekScreen.css";
 
 const DAY_LABEL = Object.freeze({ [DAY.SAT]: "土曜", [DAY.SUN]: "日曜" });
 // 土曜・日曜の隣の3つ目のタブ。押すと依頼一覧の代わりに自分の能力（`JockeyProfile`）が開く
 // （案C 梯子・2026-09-27のユーザー決定）。下の「この週を進める」はそのまま。
 const PROFILE_TAB_LABEL = "自分";
+// 4つ目のタブ。押すと競馬界全体の今年の顔ぶれ（`Banzuke`・案C 顔ぶれ・2026-10-11のユーザー決定）が開く。
+// 開き方は「自分」と同じ（土曜・日曜を押せば依頼一覧に戻り、週を進めたら閉じる）。
+const BANZUKE_TAB_LABEL = "番付";
+const SIDE_TAB = Object.freeze({ PROFILE: "profile", BANZUKE: "banzuke" });
 
 /** 芝・ダートの相性4段。同じ20px枠・同じ2pxの線で描く（フォントの字形だと○が△より小さく見える）。 */
 function SurfaceMarkDefs() {
@@ -107,7 +112,8 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const [openHorseId, setOpenHorseId] = useState(null);
   const [entryListRequest, setEntryListRequest] = useState(null);
   const [weekResult, setWeekResult] = useState(null);
-  const [profileOpen, setProfileOpen] = useState(false); // 「自分」タブが開いているか
+  const [sideTab, setSideTab] = useState(null); // 「自分」「番付」のどちらが開いているか（null＝依頼一覧）
+  const sideOpen = sideTab != null; // 依頼一覧の代わりに別のタブが開いているか
   const rootRef = useRef(null);
 
   const horsesById = useMemo(() => new Map(roster.horses.map((h) => [h.id, h])), [roster]);
@@ -202,7 +208,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     setPickedHorseIds(new Set());
     setOpenHorseId(null);
     setSelectedDay(null);
-    setProfileOpen(false);
+    setSideTab(null);
     setViewCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
     setWeekResult(summary);
     // 「この週を進める」は一覧の一番下にあるので、結果画面は先頭から見せる。
@@ -271,12 +277,12 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
           <button
             key={d}
             type="button"
-            className={[!profileOpen && d === day ? "is-on" : "", byDay[d].length === 0 ? "is-zero" : ""]
+            className={[!sideOpen && d === day ? "is-on" : "", byDay[d].length === 0 ? "is-zero" : ""]
               .join(" ")
               .trim()}
             onClick={() => {
               setSelectedDay(d);
-              setProfileOpen(false);
+              setSideTab(null);
               setOpenHorseId(null);
             }}
           >
@@ -285,25 +291,36 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         ))}
         <button
           type="button"
-          className={profileOpen ? "is-on" : ""}
+          className={sideTab === SIDE_TAB.PROFILE ? "is-on" : ""}
           onClick={() => {
-            setProfileOpen(true);
+            setSideTab(SIDE_TAB.PROFILE);
             setOpenHorseId(null);
           }}
         >
           {PROFILE_TAB_LABEL}
         </button>
+        <button
+          type="button"
+          className={sideTab === SIDE_TAB.BANZUKE ? "is-on" : ""}
+          onClick={() => {
+            setSideTab(SIDE_TAB.BANZUKE);
+            setOpenHorseId(null);
+          }}
+        >
+          {BANZUKE_TAB_LABEL}
+        </button>
       </div>
 
-      {profileOpen && <JockeyProfile player={player} stables={roster.stables} />}
+      {sideTab === SIDE_TAB.PROFILE && <JockeyProfile player={player} stables={roster.stables} />}
+      {sideTab === SIDE_TAB.BANZUKE && <Banzuke roster={roster} player={player} />}
 
-      {!profileOpen && !weekHasRequests && <div className="wk-empty">{EMPTY_WEEK_MESSAGE}</div>}
+      {!sideOpen && !weekHasRequests && <div className="wk-empty">{EMPTY_WEEK_MESSAGE}</div>}
 
-      {!profileOpen && weekHasRequests && coursesToday.length === 0 && (
+      {!sideOpen && weekHasRequests && coursesToday.length === 0 && (
         <div className="wk-empty">{emptyDayMessage(day)}</div>
       )}
 
-      {!profileOpen && coursesToday.length > 0 && (
+      {!sideOpen && coursesToday.length > 0 && (
         <div className="wk-courses">
           {coursesToday.map((c) => {
             const locked = goingToday != null && c.courseId !== goingToday;
@@ -325,11 +342,11 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         </div>
       )}
 
-      {!profileOpen && viewIsLocked && (
+      {!sideOpen && viewIsLocked && (
         <div className="wk-empty is-lock">{lockedCourseMessage(day, goingToday, viewCourseId)}</div>
       )}
 
-      {!profileOpen &&
+      {!sideOpen &&
         viewCourse &&
         viewCourse.races.map((race) => {
           const head = raceHeadline(race);
@@ -432,7 +449,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         })}
 
       <div
-        className={["wk-adv", !profileOpen && (!weekHasRequests || coursesToday.length === 0) ? "is-tight" : ""]
+        className={["wk-adv", !sideOpen && (!weekHasRequests || coursesToday.length === 0) ? "is-tight" : ""]
           .join(" ")
           .trim()}
       >
