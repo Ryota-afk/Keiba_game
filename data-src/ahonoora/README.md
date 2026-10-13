@@ -12,3 +12,12 @@
   条件欄が無く、`condition`も`prize1`も`None`になり、`isArab`が`False`のまま残る。
   実例：**タマツバキ記念（春・秋）はアラブのレースだが`False`**（同年のアラブ大賞典・アラブ王冠と
   出走馬が重なることで判明。2026-09-12）。⭐アラブかどうかは出走馬の重なりで確かめること。
+
+## 解析と重賞データへの流れ（2026-10-13）
+1. `fetch.py`（生のHTMLを`raw/YYYY/`へ）→ 2. `python3 -I parse.py 1988 1989 …`（**年を必ず指定**。引数なしは`raw/`の全年を作り直す）
+→ `parsed/YYYY.json` → 3. `YYYY.json.gz`へgzip（`gzip.compress(parsed, 9, mtime=0)`）→ 4. `node tools/build-graded-races.mjs 1972 2008`
+→ `node tools/verify-graded-races.mjs` → `node tools/build-real-horse-names.mjs`。規則は`arch/race-program.md`§1。
+- `prize1`（円）：「1着1億300万円」の億・万、「1億3,200円」（万の脱字）、旧書式の「本賞金（万円） 1着3,000」を読む。読めなければ`null`。
+- `surface`：芝／ダ→`turf`／`dirt`。見出しに「m（障害」があれば`jump`（1995年以降の新書式。名前に「障害」の無いジャンプ系の重賞も分かる）。
+- `course`：日付の直後の「東京11R」か「○○競馬場」から読む（見出し先頭の一致だと「中山記念」「京都金杯」で名前の中の場名を拾っていた）。
+- 現在`YYYY.json.gz`は1972〜2008年。2009〜2024年は`raw/`に取得中。

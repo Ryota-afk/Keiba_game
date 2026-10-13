@@ -135,8 +135,8 @@
   "historicalCourse": "中山"
  },
  {
-  "id": "1975-ＣＢＣ賞",
-  "name": "ＣＢＣ賞",
+  "id": "1975-CBC賞",
+  "name": "CBC賞",
   "grade": null,
   "week": 49,
   "courseId": "chukyo",
@@ -382,7 +382,8 @@
   "courseId": "tokyo",
   "surface": "turf",
   "distance": 1600,
-  "prize1": null,
+  "prize1": 16000000,
+  "prize1Estimated": true,
   "trialFor": null,
   "fillyOnly": false,
   "condition": null,
@@ -465,8 +466,8 @@
   "historicalCourse": "中京"
  },
  {
-  "id": "1975-ＮＨＫ賞きさらぎ賞",
-  "name": "ＮＨＫ賞 きさらぎ賞",
+  "id": "1975-NHK賞きさらぎ賞",
+  "name": "NHK賞 きさらぎ賞",
   "grade": null,
   "week": 6,
   "courseId": "kyoto",
@@ -555,8 +556,8 @@
   "historicalCourse": "小倉"
  },
  {
-  "id": "1975-ＴＢＳ杯クモハタ記念",
-  "name": "ＴＢＳ杯 クモハタ記念",
+  "id": "1975-TBS杯クモハタ記念",
+  "name": "TBS杯 クモハタ記念",
   "grade": null,
   "week": 48,
   "courseId": "tokyo",
@@ -795,8 +796,8 @@
   "historicalCourse": "東京"
  },
  {
-  "id": "1975-ＮＨＫ杯",
-  "name": "ＮＨＫ杯",
+  "id": "1975-NHK杯",
+  "name": "NHK杯",
   "grade": null,
   "week": 18,
   "courseId": "tokyo",
@@ -893,7 +894,7 @@
   "surface": "turf",
   "distance": 1800,
   "prize1": 19000000,
-  "trialFor": "オークス",
+  "trialFor": "優駿牝馬",
   "fillyOnly": true,
   "condition": "3歳牝 定量",
   "historicalDate": "1975-04-27",
@@ -903,7 +904,7 @@
   "id": "1975-サンケイ大阪杯",
   "name": "サンケイ大阪杯",
   "grade": null,
-  "week": 14,
+  "week": 10,
   "courseId": "hanshin",
   "surface": "turf",
   "distance": 2000,
@@ -1143,8 +1144,8 @@
   "id": "1975-高松宮杯",
   "name": "高松宮杯",
   "grade": null,
-  "week": 13,
-  "courseId": "chukyo",
+  "week": 25,
+  "courseId": "hanshin",
   "surface": "turf",
   "distance": 2000,
   "prize1": 25000000,

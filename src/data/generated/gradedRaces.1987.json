@@ -135,8 +135,8 @@
   "historicalCourse": "中山"
  },
  {
-  "id": "1987-ＣＢＣ賞",
-  "name": "ＣＢＣ賞",
+  "id": "1987-CBC賞",
+  "name": "CBC賞",
   "grade": "g3",
   "week": 51,
   "courseId": "chukyo",
@@ -585,8 +585,8 @@
   "historicalCourse": "中京"
  },
  {
-  "id": "1987-ＮＨＫ賞きさらぎ賞",
-  "name": "ＮＨＫ賞 きさらぎ賞",
+  "id": "1987-NHK賞きさらぎ賞",
+  "name": "NHK賞 きさらぎ賞",
   "grade": "g3",
   "week": 7,
   "courseId": "kyoto",
@@ -930,8 +930,8 @@
   "historicalCourse": "東京"
  },
  {
-  "id": "1987-ＮＨＫ杯",
-  "name": "ＮＨＫ杯",
+  "id": "1987-NHK杯",
+  "name": "NHK杯",
   "grade": "g2",
   "week": 19,
   "courseId": "tokyo",
@@ -1073,7 +1073,7 @@
   "surface": "turf",
   "distance": 2000,
   "prize1": 33000000,
-  "trialFor": "オークス",
+  "trialFor": "優駿牝馬",
   "fillyOnly": true,
   "condition": "3歳牝 定量",
   "historicalDate": "1987-05-03",
@@ -1308,7 +1308,7 @@
   "id": "1987-スプリンターズステークス",
   "name": "スプリンターズステークス",
   "grade": "g2",
-  "week": 39,
+  "week": 12,
   "courseId": "nakayama",
   "surface": "turf",
   "distance": 1200,
@@ -1368,8 +1368,8 @@
   "id": "1987-高松宮杯",
   "name": "高松宮杯",
   "grade": "g2",
-  "week": 13,
-  "courseId": "chukyo",
+  "week": 28,
+  "courseId": "kokura",
   "surface": "turf",
   "distance": 2000,
   "prize1": 48000000,

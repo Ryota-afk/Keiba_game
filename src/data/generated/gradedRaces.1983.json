@@ -135,8 +135,8 @@
   "historicalCourse": "中山"
  },
  {
-  "id": "1983-ＣＢＣ賞",
-  "name": "ＣＢＣ賞",
+  "id": "1983-CBC賞",
+  "name": "CBC賞",
   "grade": null,
   "week": 51,
   "courseId": "chukyo",
@@ -480,8 +480,8 @@
   "historicalCourse": "中京"
  },
  {
-  "id": "1983-ＮＨＫ賞きさらぎ賞",
-  "name": "ＮＨＫ賞 きさらぎ賞",
+  "id": "1983-NHK賞きさらぎ賞",
+  "name": "NHK賞 きさらぎ賞",
   "grade": null,
   "week": 7,
   "courseId": "kyoto",
@@ -825,8 +825,8 @@
   "historicalCourse": "東京"
  },
  {
-  "id": "1983-第50回日本ダービー記念ＮＨＫ杯",
-  "name": "第50回日本ダービー記念 ＮＨＫ杯",
+  "id": "1983-第50回日本ダービー記念NHK杯",
+  "name": "第50回日本ダービー記念 NHK杯",
   "grade": null,
   "week": 18,
   "courseId": "tokyo",
@@ -968,7 +968,7 @@
   "surface": "turf",
   "distance": 1800,
   "prize1": 31000000,
-  "trialFor": "オークス",
+  "trialFor": "優駿牝馬",
   "fillyOnly": true,
   "condition": "3歳牝 定量",
   "historicalDate": "1983-05-01",
@@ -1188,7 +1188,7 @@
   "id": "1983-スプリンターズステークス",
   "name": "スプリンターズステークス",
   "grade": null,
-  "week": 39,
+  "week": 9,
   "courseId": "nakayama",
   "surface": "turf",
   "distance": 1200,
@@ -1248,8 +1248,8 @@
   "id": "1983-高松宮杯",
   "name": "高松宮杯",
   "grade": null,
-  "week": 13,
-  "courseId": "chukyo",
+  "week": 26,
+  "courseId": "hanshin",
   "surface": "turf",
   "distance": 2000,
   "prize1": 40000000,
