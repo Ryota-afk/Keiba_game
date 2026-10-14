@@ -31,7 +31,8 @@ for (const file of files.sort()) {
   }
 
   if (year >= 1984) {
-    const noGrade = races.filter((r) => r.grade == null);
+    // 「（重賞）」とだけある年（格付け前のレパードS等・2009〜2021）は`ungradedStakes: true`でgrade=nullを許す。
+    const noGrade = races.filter((r) => r.grade == null && r.ungradedStakes !== true);
     if (noGrade.length) {
       console.log(`✗ ${year}: グレードが無い（1984年以降は全部あるはず）`, noGrade.map((r) => r.name));
       problems += 1;
@@ -42,6 +43,13 @@ for (const file of files.sort()) {
       console.log(`✗ ${year}: グレードが付いている（1984年より前は付かないはず）`, hasGrade.map((r) => r.name));
       problems += 1;
     }
+  }
+
+  // 地方主催のダートグレード競走（南部杯・JBC）と、名前に残った「（重賞）」が混ざっていないか。
+  const nar = races.filter((r) => /南部杯|^[ＪJ]ＢＣ|^JBC|（重賞）/.test(r.name));
+  if (nar.length) {
+    console.log(`✗ ${year}: 地方主催か「（重賞）」の残りが混ざっている`, nar.map((r) => r.name));
+    problems += 1;
   }
 
   // 障害（ゲームに出さない）が混ざっていないか。1999年から障害の重賞は名前に「障害」を含まない（「小倉サマージャンプ」）。

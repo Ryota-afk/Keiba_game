@@ -38,6 +38,22 @@ import gradedRaces2005 from "./generated/gradedRaces.2005.json" with { type: "js
 import gradedRaces2006 from "./generated/gradedRaces.2006.json" with { type: "json" };
 import gradedRaces2007 from "./generated/gradedRaces.2007.json" with { type: "json" };
 import gradedRaces2008 from "./generated/gradedRaces.2008.json" with { type: "json" };
+import gradedRaces2009 from "./generated/gradedRaces.2009.json" with { type: "json" };
+import gradedRaces2010 from "./generated/gradedRaces.2010.json" with { type: "json" };
+import gradedRaces2011 from "./generated/gradedRaces.2011.json" with { type: "json" };
+import gradedRaces2012 from "./generated/gradedRaces.2012.json" with { type: "json" };
+import gradedRaces2013 from "./generated/gradedRaces.2013.json" with { type: "json" };
+import gradedRaces2014 from "./generated/gradedRaces.2014.json" with { type: "json" };
+import gradedRaces2015 from "./generated/gradedRaces.2015.json" with { type: "json" };
+import gradedRaces2016 from "./generated/gradedRaces.2016.json" with { type: "json" };
+import gradedRaces2017 from "./generated/gradedRaces.2017.json" with { type: "json" };
+import gradedRaces2018 from "./generated/gradedRaces.2018.json" with { type: "json" };
+import gradedRaces2019 from "./generated/gradedRaces.2019.json" with { type: "json" };
+import gradedRaces2020 from "./generated/gradedRaces.2020.json" with { type: "json" };
+import gradedRaces2021 from "./generated/gradedRaces.2021.json" with { type: "json" };
+import gradedRaces2022 from "./generated/gradedRaces.2022.json" with { type: "json" };
+import gradedRaces2023 from "./generated/gradedRaces.2023.json" with { type: "json" };
+import gradedRaces2024 from "./generated/gradedRaces.2024.json" with { type: "json" };
 
 export const GRADED_RACES_BY_YEAR = Object.freeze({
   1972: gradedRaces1972,
@@ -77,6 +93,22 @@ export const GRADED_RACES_BY_YEAR = Object.freeze({
   2006: gradedRaces2006,
   2007: gradedRaces2007,
   2008: gradedRaces2008,
+  2009: gradedRaces2009,
+  2010: gradedRaces2010,
+  2011: gradedRaces2011,
+  2012: gradedRaces2012,
+  2013: gradedRaces2013,
+  2014: gradedRaces2014,
+  2015: gradedRaces2015,
+  2016: gradedRaces2016,
+  2017: gradedRaces2017,
+  2018: gradedRaces2018,
+  2019: gradedRaces2019,
+  2020: gradedRaces2020,
+  2021: gradedRaces2021,
+  2022: gradedRaces2022,
+  2023: gradedRaces2023,
+  2024: gradedRaces2024,
 });
 
 /** その年の重賞データ。無ければ空配列。 */

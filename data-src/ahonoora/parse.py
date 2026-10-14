@@ -4,9 +4,11 @@ ROOT=os.path.dirname(os.path.abspath(__file__))
 def txt(s): return re.sub(r"\s+"," ",re.sub(r"<[^>]+>"," ",s)).strip()
 def parse_prize1(h):
     """見出しの「本賞金 1着…」→円。「1着1億300万円」「1着1億3,200円」（万の脱字）「1着5,200万円」
-    「本賞金（万円） 1着3,000」（旧書式）を読む。読めなければNone。"""
+    「本賞金（万円） 1着3,000」（旧書式）「本賞金（円） 1着4,100万/」を読む。読めなければNone。"""
     m=re.search(r"本賞金（万円）\s*1着([\d,]+)",h)
     if m: return int(m.group(1).replace(",",""))*10000
+    m=re.search(r"本賞金（円）\s*1着\s*(?:(\d+)億)?\s*([\d,]+)万",h)   # 新書式の別形：「本賞金（円） 1着4,100万/2着…」（中日新聞杯2018〜20）
+    if m: return int(m.group(1) or 0)*100000000+int(m.group(2).replace(",",""))*10000
     m=re.search(r"本賞金\s*1着\s*(?:(\d+)億)?\s*([\d,]*)\s*(万)?\s*円",h)
     if not m: return None
     oku,rest,man=m.group(1),m.group(2).replace(",",""),m.group(3)

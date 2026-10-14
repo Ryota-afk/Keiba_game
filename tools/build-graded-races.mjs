@@ -2,7 +2,7 @@
 // ⚠️正本の決め方は`arch/race-program.md`§1・`devlog/wave07.md`「質問20・21」。
 //
 // 手順（1年ぶんにつき）：
-//   1. 障害・アラブ・解析に失敗した行を除く（`isJumpRace`：surface=jump／名前に「障害」「ジャンプ」／
+//   1. 障害・アラブ・地方主催のダートグレード（南部杯2011・JBC2018）・解析に失敗した行を除く（`isJumpRace`：surface=jump／名前に「障害」「ジャンプ」／
 //      （Ｊ・G…）／見出しの「m（障害」。除外した本数は年ごとにログに出す）
 //   2. 名前の (GI)/(GII)/(GIII)・(JpnI〜III)（2007〜）を切り離してgradeにする（名前の途中にあってもよい）。
 //      ⚠️グレードは1984年から画面に出す（G表記そのものは今回も1984年以降にしか付いていない）
@@ -79,6 +79,9 @@ const HISTORICAL_NAME_ALIASES = {
   "朝日杯3歳ステークス": "朝日杯フューチュリティステークス",
   "産経大阪杯": "大阪杯",
   "サンケイ大阪杯": "大阪杯",
+  // ⭐ユーザー決定（`devlog/wave12.md`§34）：ジャパンカップダート（2000〜2013・G1／2008年からJpnI）はチャンピオンズカップ
+  // （2014〜）の前の名前。G1だった年はチャンピオンズカップの固定週（第49週）・中京に置く。
+  "ジャパンカップダート": "チャンピオンズカップ",
 };
 
 // 賞金団体名・記念冠など、本体の名前の前に付く「外してよい接頭辞」（空白で区切られていないもの）。
@@ -121,9 +124,17 @@ function matchKey(s) {
 const GRADE_RE = /[（(]\s*(?:[ＪJ]・)?(GI{1,3}|JpnI{1,3})\s*[）)]/;
 const GRADE_MAP = { GI: "g1", GII: "g2", GIII: "g3", JpnI: "g1", JpnII: "g2", JpnIII: "g3" };
 
+// グレード表記が無く「（重賞）」とだけある年（2009〜2021：レパードS・アルテミスS・いちょうS・サウジアラビアロイヤルC・ターコイズS・
+// 葵S。G3に格付けされる前の年）。名前から外し、grade=null・`ungradedStakes: true`（ゲームではオープン特別の扱い）にする。
+const UNGRADED_STAKES_RE = /[（(]\s*重賞\s*[）)]/;
+
 function stripGrade(rawName) {
   const m = rawName.match(GRADE_RE);
-  if (!m) return { name: rawName.replace(/\s+/g, " ").trim(), grade: null };
+  if (!m) {
+    const u = rawName.match(UNGRADED_STAKES_RE);
+    const base = u ? rawName.slice(0, u.index) + " " + rawName.slice(u.index + u[0].length) : rawName;
+    return { name: base.replace(/\s+/g, " ").trim(), grade: null, ungradedStakes: Boolean(u) };
+  }
   const name = (rawName.slice(0, m.index) + " " + rawName.slice(m.index + m[0].length)).replace(/\s+/g, " ").trim();
   return { name, grade: GRADE_MAP[m[1]] };
 }
@@ -254,9 +265,19 @@ function isBrokenRow(r) {
   return !r.name || !r.date || !r.course || !r.distance || r.parse_error != null;
 }
 
-/** 平地のサラブレッドの重賞か（アラブ・障害・解析失敗を除いたもの）。 */
+/**
+ * 地方競馬（NAR）が主催するダートグレード競走が、その年だけJRAの競馬場で行われたもの（ゲームに出さない・2026-10-14）。
+ * 実例：マイルチャンピオンシップ南部杯（2011年・東京）、JBCクラシック／レディスクラシック／スプリント（2018年・京都）。
+ * JRAの重賞ではない（JRAのG1は2018年も24本）。名前はNFKCで正規化して比べる（ＪＢＣ→JBC）。
+ */
+function isNarHostedRace(r) {
+  const n = (r.name ?? "").normalize("NFKC");
+  return n.includes("南部杯") || n.startsWith("JBC");
+}
+
+/** 平地のサラブレッドの重賞か（アラブ・障害・解析失敗・地方主催を除いたもの）。 */
 function isFlatThoroughbred(r) {
-  if (isBrokenRow(r) || r.isArab || isJumpRace(r)) return false;
+  if (isBrokenRow(r) || r.isArab || isJumpRace(r) || isNarHostedRace(r)) return false;
   // タマツバキ記念はisArabフラグが付かない旧書式のアラブのレース（README参照）。
   return !r.name.includes("タマツバキ");
 }
@@ -324,7 +345,7 @@ const GRADE_OVERRIDES = {
 };
 
 /** 直近の`buildYear`が除外した本数（ログ用）。 */
-const lastExcluded = { jump: 0, arab: 0, broken: 0 };
+const lastExcluded = { jump: 0, arab: 0, broken: 0, nar: 0 };
 
 function buildYear(year) {
   const raw = loadRaw(year);
@@ -337,6 +358,7 @@ function buildYear(year) {
   lastExcluded.jump = 0;
   lastExcluded.arab = 0;
   lastExcluded.broken = 0;
+  lastExcluded.nar = 0;
 
   // ①1回目の通し：名前・グレード・トライアル対応だけを解決する（週はまだ決めない）。
   // ⚠️トライアルの週（②）が本番の史実の日付を必要とするため、本番側を先に全部
@@ -356,16 +378,21 @@ function buildYear(year) {
       lastExcluded.arab += 1;
       continue;
     }
+    if (isNarHostedRace(r)) {
+      lastExcluded.nar += 1;
+      continue;
+    }
 
     const stripped = stripGrade(r.name);
     const nameNoGrade = stripped.name;
+    const ungradedStakes = stripped.ungradedStakes === true;
     const parsedGrade = stripped.grade ?? GRADE_OVERRIDES[`${year}:${matchKey(nameNoGrade)}`] ?? null;
     const trialFor = extractTrialTarget(nameNoGrade);
     const candidateFixedName = resolveFixedName(nameNoGrade, trialFor);
     // ⭐G1だった年だけ今の週・競馬場を使う。そうでない年はfixedNameをnullにして普通の重賞として置く。
     const fixedName =
       candidateFixedName && isG1ThisYear(year, candidateFixedName, parsedGrade) ? candidateFixedName : null;
-    parsed.push({ r, nameNoGrade, parsedGrade, trialFor, fixedName });
+    parsed.push({ r, nameNoGrade, parsedGrade, ungradedStakes, trialFor, fixedName });
   }
 
   // ②本番（`fixedName`が解決したレース）の、この年の史実の日付を集める。
@@ -380,7 +407,7 @@ function buildYear(year) {
     fixedDateByName.set(p.fixedName, p.r.date);
   }
 
-  for (const { r, nameNoGrade, parsedGrade, trialFor, fixedName } of parsed) {
+  for (const { r, nameNoGrade, parsedGrade, ungradedStakes, trialFor, fixedName } of parsed) {
     const [y, m, d] = r.date.split("-").map(Number);
     let week;
     let courseId;
@@ -414,6 +441,7 @@ function buildYear(year) {
       id: `${year}-${name.replace(/[\s（）]/g, "")}`,
       name,
       grade: year >= 1984 ? parsedGrade : null, // グレードは1984年から出す
+      ...(ungradedStakes ? { ungradedStakes: true } : {}), // 「（重賞）」とだけある年（格付け前）。gradeはnull
       week,
       courseId,
       surface: r.surface, // "turf" | "dirt"
@@ -478,7 +506,7 @@ function main() {
     index[year] = races.length;
     const g1 = races.filter((r) => r.grade === "g1").length;
     console.log(
-      `${year}: ${races.length}本（G1 ${g1}）／除外 障害${lastExcluded.jump}・アラブ${lastExcluded.arab}・解析失敗${lastExcluded.broken} → ${path.relative(ROOT, outPath)}`
+      `${year}: ${races.length}本（G1 ${g1}）／除外 障害${lastExcluded.jump}・アラブ${lastExcluded.arab}・解析失敗${lastExcluded.broken}・地方主催${lastExcluded.nar} → ${path.relative(ROOT, outPath)}`
     );
   }
 
