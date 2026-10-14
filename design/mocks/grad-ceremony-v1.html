@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卒業式の場所 候補</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fs-caption: 11px; --fs-body: 14px; --fs-lead: 19px; --fs-title: 26px; --fs-display: 44px; --fs-input: 16px;
+    --s1: 8px; --s2: 16px; --s3: 24px; --s4: 32px; --s5: 40px; --s6: 48px;
+    --panel: #1a2a18; --panel2: #223a20; --muted: #9fb896; --fg: #f2ede0; --accent: #ffd83d; --action: #2f7fe6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #0f0c0a; font-family: "M PLUS 1p", sans-serif; color: var(--fg); }
+  .page { width: min(430px, 100vw); margin: 0 auto; padding: var(--s3) 0 var(--s6); }
+  .page-title { font-size: var(--fs-lead); font-weight: 700; margin: 0 var(--s2) var(--s1); }
+  .page-note { font-size: var(--fs-caption); color: var(--muted); margin: 0 var(--s2) var(--s3); line-height: 1.7; }
+  .option { margin: 0 0 var(--s5); }
+  .option-head { padding: 0 var(--s2) var(--s1); }
+  .option-name { font-size: var(--fs-body); font-weight: 700; color: var(--accent); letter-spacing: 0.08em; }
+  .option-aim { font-size: var(--fs-caption); color: var(--muted); line-height: 1.7; margin-top: 4px; }
+  /* 本体の枠（DreamDerbyScreen / GraduationScreen と同じ寸法。720は本体の既定値） */
+  .frame { width: 100%; height: min(720px, 100dvh); background: var(--panel); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 0 1px #000; }
+  .top { height: min(300px, calc(100dvh - 330px)); flex-shrink: 0; position: relative; overflow: hidden; background: #000; }
+  .top svg { display: block; width: 100%; height: 100%; }
+  .bottom { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: var(--s2) var(--s2) var(--s2); }
+  .lines { flex: 1; min-height: 0; overflow: hidden; }
+  .line { font-size: var(--fs-body); line-height: 1.8; padding: var(--s1) 0; border-bottom: 1px solid rgba(255,255,255,0.08); margin: 0; }
+  .line:last-child { border-bottom: none; }
+  .btn { width: 100%; text-align: center; font-weight: 700; font-size: var(--fs-body); letter-spacing: 0.1em; color: #fff; background: var(--action); padding: var(--s2); }
+  .btn--narrow { width: 70%; }
+  .btn--off { background: #362f22; color: #6d6656; }
+  .toast { background: var(--fg); color: #1c1712; padding: var(--s2); box-shadow: 0 2px 10px rgba(0,0,0,0.4); font-size: var(--fs-caption); line-height: 1.7; }
+  .form { display: flex; gap: var(--s2); margin: var(--s2) 0 var(--s3); }
+  .field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: var(--fs-caption); color: var(--muted); letter-spacing: 0.08em; }
+  .field .input { height: 36px; border-bottom: 1px solid rgba(255,255,255,0.3); font-size: var(--fs-input); }
+  .spacer { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1 class="page-title">卒業式の場所</h1><p class="page-note">上半分だけを描き直す。文章は確定済みのまま。</p>
+<section class="option" id="ceremonyA">
+  <div class="option-head"><div class="option-name">案A　講堂の壇上（紅白幕）</div><div class="option-aim">紅白幕・日の丸と校旗・演台の教官・壇の前に立つ本人・後ろに座る同期。<br>⚠紅白幕は縦縞。「縦線は使わない」の決まりと相談が要る。</div></div>
+  <div class="frame">
+    <div class="top" data-scene="ceremonyA"></div>
+    <div class="bottom"><div class="lines"><p class="line">「卒業証書授与、武豊」</p><p class="line">「はい」</p><p class="line">「今日から、君は騎手だ」</p></div><div class="btn">次へ</div></div>
+  </div>
+</section>
+<section class="option" id="ceremonyB">
+  <div class="option-head"><div class="option-name">案B　授与の瞬間に寄る</div><div class="option-aim">向かい合う教官と本人を大きく、証書を両手で受け取る所を見せる。幕は一色、旗と花だけ。<br>後ろに同期が前を向いて並ぶ。場所より「何が起きているか」を優先する。</div></div>
+  <div class="frame">
+    <div class="top" data-scene="ceremonyB"></div>
+    <div class="bottom"><div class="lines"><p class="line">「卒業証書授与、武豊」</p><p class="line">「はい」</p><p class="line">「今日から、君は騎手だ」</p></div><div class="btn">次へ</div></div>
+  </div>
+</section>
+<section class="option" id="ceremonyC">
+  <div class="option-head"><div class="option-name">案C　屋外・校舎の前で</div><div class="option-aim">名前入力で見せた校舎と桜の前に同期が並び、学校の馬も列に加わる。<br>講堂を描かず、同じ建物を2度見せて「あの学校の卒業式」にする。</div></div>
+  <div class="frame">
+    <div class="top" data-scene="ceremonyC"></div>
+    <div class="bottom"><div class="lines"><p class="line">「卒業証書授与、武豊」</p><p class="line">「はい」</p><p class="line">「今日から、君は騎手だ」</p></div><div class="btn">次へ</div></div>
+  </div>
+</section>
+</div>
+<script src="wake-grad-scenes.js"></script>
+<script>
+  document.querySelectorAll("[data-scene]").forEach((el) => { el.innerHTML = window.WAKE_GRAD_SCENES[el.dataset.scene](); });
+</script>
+</body>
+</html>

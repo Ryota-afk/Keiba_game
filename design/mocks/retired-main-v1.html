@@ -1,0 +1,210 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>主戦の引退 v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&family=M+PLUS+1+Code:wght@700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 主戦の馬が年末に引退したことを、年の最終週の結果画面で知らせる——候補3案。
+ * 2026-10-13・Opus 5.5が作成（Fableの残量切れ。CLAUDE.md §2・arch/ui-fable.md §2）。
+ * 土台は実装済みの「案C 掲示板」（src/screens/WeekResultScreen.jsx・.css）をそのまま写したもの。
+ * 実データ：ヘッドレスで本物のadvanceWeekを回した通し（下の DATA の注記）。
+ * ⚠️モックの都合の値（.frame の 390px 幅・min-height）は実装へ持ち込まない。
+ * 級数・余白はトークンだけ。縦線なし。絵文字なし。accent＝読むもの（黄）、action＝押すもの（青）。
+ * 動きは入れない（3案とも静止）。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --panel:#1a2a18; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff;
+  --turf:#8fd07e; --dirt:#d8b27a;
+  --rule:rgba(255,255,255,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6)}
+.wrap{max-width:1260px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.cand>h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s5);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+.cand>h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7;max-width:60em}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:60em;margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:500}
+.cand{padding:0 var(--s1) var(--s3)}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;min-height:720px;box-shadow:0 0 0 1px #000;display:flex}
+
+/* ── ここから下は src/screens/WeekResultScreen.css の写し ── */
+.week-result{width:100%;min-height:720px;display:flex;flex-direction:column;background:var(--panel);color:var(--fg);padding-bottom:var(--s2)}
+.wr-hd{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s2) var(--s2) var(--s1)}
+.wr-hd__week{font-size:var(--fs-body)}
+.wr-hd__money{text-align:right;font-size:var(--fs-caption);color:var(--muted);line-height:1.5;font-variant-numeric:tabular-nums}
+.wr-hd__money b{display:block;font-size:var(--fs-lead);font-weight:700;color:var(--accent)}
+.wr-boards{display:grid;grid-template-columns:1fr 1fr;gap:var(--s1);padding:0 var(--s2)}
+.wr-board{min-width:0;background:var(--board);padding:var(--s1) var(--s1) var(--s2)}
+.wr-board__top{display:flex;justify-content:space-between;gap:var(--s1);font-size:var(--fs-caption);color:var(--muted)}
+.wr-board__pos{margin-top:2px;font-size:var(--fs-display);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.wr-board__pos small{margin-left:2px;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.wr-board.is-win .wr-board__pos{color:var(--accent)}
+.wr-board__pos.is-fell{font-size:var(--fs-lead);line-height:calc(var(--fs-display) * 1.1);color:var(--muted)}
+.wr-board__name{font-size:var(--fs-body);font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.wr-board__race{font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.wr-sf.is-turf{color:var(--turf)} .wr-sf.is-dirt{color:var(--dirt)}
+.wr-sec{padding:var(--s2) var(--s2) 0}
+.wr-sec h3{padding-bottom:var(--s1);font-size:var(--fs-caption);font-weight:500;letter-spacing:.08em;color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+.wr-line{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;font-size:var(--fs-body);line-height:1.5;box-shadow:inset 0 -1px 0 var(--rule)}
+.wr-line:last-child,.wr-graded:last-child{box-shadow:none}
+.wr-line__v{font-size:var(--fs-caption);color:var(--muted);text-align:right}
+.wr-line__v.is-hot{color:var(--accent)}
+.wr-line__l small{display:block;font-size:var(--fs-caption);color:var(--muted)}
+.wr-line__gch{font-family:"M PLUS 1 Code",monospace;font-size:var(--fs-body);font-weight:700;white-space:nowrap}
+.wr-line__gch.is-up{color:var(--accent)} .wr-line__gch.is-down{color:var(--muted)}
+.wr-graded{display:grid;grid-template-columns:1fr auto;gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.wr-graded__race{font-size:var(--fs-caption);color:var(--muted)}
+.wr-graded__winner{font-size:var(--fs-body);font-weight:700}
+.wr-graded__jockey{align-self:end;text-align:right;font-size:var(--fs-caption);color:var(--muted)}
+.wr-foot{margin-top:auto;padding:var(--s4) var(--s2) 0}
+.wr-btn{display:block;width:100%;min-height:var(--s6);line-height:var(--s6);text-align:center;background:var(--action);color:var(--on-action);font-size:var(--fs-body);font-weight:700}
+
+/* ── 今回足すもの ── */
+/* 案A：主戦の段の先頭に引退の行。右の「引退しました」は本文の大きさ・明るい文字（進み具合の行より1段強い） */
+.wr-line__retired{font-size:var(--fs-body);color:var(--fg);white-space:nowrap}
+/* 案B：結果の板より上に置く段。主戦の数は能力の段と同じ「前 → 後」の書き方 */
+.wr-sec.is-top{padding-top:var(--s1)}
+.wr-line__count{font-family:"M PLUS 1 Code",monospace;font-size:var(--fs-body);font-weight:700;white-space:nowrap}
+/* 案C：掲示板に並ぶ引退の板。着順の場所に「引退」（落馬の板と同じ大きさ・明るい文字） */
+.wr-board__pos.is-retired{font-size:var(--fs-lead);line-height:calc(var(--fs-display) * 1.1);color:var(--fg)}
+</style></head><body><div class="wrap">
+<h1>主戦の引退 v1（候補3案）</h1>
+<p class="intro">主戦の馬が年末に引退したとき、その年の最終週（12月5週）の結果画面で知らせる見せ方の候補です。
+土台は今の結果画面（案C 掲示板）で、足すところだけが案ごとに違います。動きは入れていません。<br>
+各案3枚：<b>1頭が引退</b>（1974年・1年目。主戦がこの1頭だけだった年）／<b>2頭が同じ年に引退</b>（1977年）／<b>引退なし</b>（同じ記録の1976年。今の画面と同じで、何も足しません）。<br>
+値はすべて実際のゲームの値です（ゲームを画面なしで回した記録。1日1鞍・前に乗った馬を優先して受けた場合）。
+ただし「※」を付けた値は、今の<code>retiredMainMounts</code>には入っていない値で、出すにはデータを足す必要があります（案ごとの説明に書きました）。</p>
+<div id="root"></div>
+</div>
+<script>
+/*
+ * DATA：/tmp/.../scratchpad/rm1/run.mjs（本物の advanceWeek・buildWeekResultSummary を呼ぶ）の出力。
+ *  one  = 保存の種 c-2 の 1974年12月5週。retiredMainMounts=[ムラクモソナタ]
+ *  two  = 保存の種 d-3 の 1977年12月5週。retiredMainMounts=[コーラルイーグル, ユウナギジェイド]
+ *  none = 保存の種 d-3 の 1976年12月5週。retiredMainMounts=[]
+ *  retired[].rides   = afterPlayer.mainMounts[horseId].rides（今あるデータ）
+ *  retired[].age/sex = 年 − weekEndHorses の bornYear ／ GENDER_LABEL[gender]（今あるデータ）
+ *  retired[].starts  = weekEndHorses の record.starts（今あるデータ・他の騎手の分も含む生涯の出走数）
+ *  retired[].dest    = 区切り後の roster.breedingPool に入ったか（⚠️retiredMainMounts には無い）
+ *  mainsBefore/After = afterPlayer.mainMounts の isMain の数／そこから引退した馬を除いた数（⚠️画面へ渡す値が無い）
+ */
+const DATA = {
+  one: {
+    label: "1974年 12月5週", gained: 55000, after: 3982500,
+    rides: [
+      { horse:"アテナヴァラー", course:"中京", surface:"dirt", distance:1800, cls:"2勝クラス", pos:8, field:16, pop:4 },
+      { horse:"ハツシモオニキス", course:"阪神", surface:"dirt", distance:1800, cls:"1勝クラス", pos:3, field:5, pop:4 },
+    ],
+    main: [ ["アテナヴァラー", "あと3回乗って、1勝すれば主戦"], ["ハツシモオニキス", "1勝すれば主戦"] ],
+    trust: [ ["神谷敏夫", "少し上がりました"] ],
+    growth: [],
+    graded: [ { race:"有馬記念（グランプリ）", course:"中山", winner:"フェスタバラード", jockey:"永井章", pop:1 } ],
+    retired: [ { name:"ムラクモソナタ", rides:5, age:3, sex:"牝", starts:15, dest:"繁殖牝馬になります" } ],
+    mainsBefore: 1, mainsAfter: 0,
+  },
+  two: {
+    label: "1977年 12月5週", gained: 55000, after: 18857500,
+    rides: [
+      { horse:"オペラパレード", course:"中山", surface:"dirt", distance:1800, cls:"1勝クラス", pos:4, field:14, pop:5 },
+      { horse:"ルーナレインボー", course:"阪神", surface:"turf", distance:3000, cls:"阪神大賞典", pos:11, field:11, pop:11 },
+    ],
+    main: [ ["オペラパレード", "1勝すれば主戦"] ],
+    trust: [],
+    growth: [ { label:"2400m〜", from:"G", to:"G+", up:true }, { label:"〜1400m", from:"D+", to:"D", up:false, reason:"これ以上は増やせないため" } ],
+    graded: [
+      { race:"有馬記念（グランプリ）", course:"中山", winner:"ソレイユリリー", jockey:"片岡正和", pop:3 },
+      { race:"ステイヤーズステークス", course:"中山", winner:"ビートアレグロ", jockey:"白石信也", pop:10 },
+    ],
+    retired: [
+      { name:"コーラルイーグル", rides:39, age:8, sex:"牝", starts:77, dest:"繁殖牝馬になります" },
+      { name:"ユウナギジェイド", rides:8, age:8, sex:"牡", starts:36, dest:null },
+    ],
+    mainsBefore: 13, mainsAfter: 11,
+  },
+  none: {
+    label: "1976年 12月5週", gained: 205000, after: 14352500,
+    rides: [
+      { horse:"コーラルイーグル", course:"中京", surface:"turf", distance:1200, cls:"未勝利", pos:1, field:16, pop:2 },
+      { horse:"オペラパレード", course:"阪神", surface:"dirt", distance:1800, cls:"1勝クラス", pos:6, field:10, pop:9 },
+    ],
+    main: [ ["コーラルイーグル", "主戦になりました", true], ["オペラパレード", "1勝すれば主戦"] ],
+    trust: [ ["黒田貴之", "少し上がりました"] ],
+    growth: [],
+    graded: [
+      { race:"有馬記念（グランプリ）", course:"中山", winner:"ノクターンホーク", jockey:"瀬川雅人", pop:7 },
+      { race:"阪神大賞典", course:"阪神", winner:"アメジストスパーク", jockey:"平尾敏夫", pop:16 },
+    ],
+    retired: [], mainsBefore: 9, mainsAfter: 9,
+  },
+};
+
+const yen = (n) => n.toLocaleString("ja-JP") + "円";
+const sf = (s) => `<span class="wr-sf is-${s}">${s === "turf" ? "芝" : "ダート"}</span>`;
+
+// ── 今の画面の部品（WeekResultScreen.jsx の写し） ──
+const header = (w) => `<div class="wr-hd"><div class="wr-hd__week">${w.label}</div>
+  <div class="wr-hd__money">今週<b>+${yen(w.gained)}</b>所持金 ${yen(w.after)}</div></div>`;
+const rideBoard = (r) => `<div class="wr-board ${r.pos === 1 ? "is-win" : ""}">
+  <div class="wr-board__top"><span>${r.course}</span><span>${r.pop}番人気</span></div>
+  <div class="wr-board__pos">${r.pos}<small>着／${r.field}頭立て</small></div>
+  <div class="wr-board__name">${r.horse}</div>
+  <div class="wr-board__race">${sf(r.surface)} ${r.distance}m ${r.cls}</div></div>`;
+const mainRows = (w) => w.main.map(([h, t, hot]) => `<div class="wr-line"><span>${h}</span><span class="wr-line__v ${hot ? "is-hot" : ""}">${t}</span></div>`).join("");
+const secMain = (w, extraTop = "") => (extraTop || w.main.length) ? `<section class="wr-sec"><h3>主戦</h3>${extraTop}${mainRows(w)}</section>` : "";
+const secTrust = (w) => w.trust.length ? `<section class="wr-sec"><h3>調教師からの信頼</h3>${w.trust.map(([n, t]) => `<div class="wr-line"><span>${n}調教師</span><span class="wr-line__v">${t}</span></div>`).join("")}</section>` : "";
+const secGrowth = (w) => w.growth.length ? `<section class="wr-sec"><h3>能力</h3>${w.growth.map((g) => `<div class="wr-line"><span class="wr-line__l">${g.label}${g.reason ? `<small>${g.reason}</small>` : ""}</span><span class="wr-line__gch ${g.up ? "is-up" : "is-down"}">${g.from} → ${g.to}</span></div>`).join("")}</section>` : "";
+const secGraded = (w) => w.graded.length ? `<section class="wr-sec"><h3>今週の重賞</h3>${w.graded.map((g) => `<div class="wr-graded"><div><div class="wr-graded__race">${g.race}・${g.course}</div><div class="wr-graded__winner">${g.winner}</div></div><div class="wr-graded__jockey">${g.jockey}<br>${g.pop}番人気</div></div>`).join("")}</section>` : "";
+const foot = `<div class="wr-foot"><div class="wr-btn">次の週へ</div></div>`;
+const screen = (inner) => `<main class="week-result">${inner}${foot}</main>`;
+
+// ── 案A：主戦の段の先頭に1行ずつ ──
+function candA(w) {
+  const retiredRows = w.retired.map((r) => `<div class="wr-line">
+    <span class="wr-line__l">${r.name}<small>${r.rides}回乗りました</small></span>
+    <span class="wr-line__retired">引退しました</span></div>`).join("");
+  return screen(`${header(w)}<div class="wr-boards">${w.rides.map(rideBoard).join("")}</div>
+    ${secMain(w, retiredRows)}${secTrust(w)}${secGrowth(w)}${secGraded(w)}`);
+}
+
+// ── 案B：板より上に「主戦の引退」の段。最後の行に主戦の数 ──
+function candB(w) {
+  const top = w.retired.length ? `<section class="wr-sec is-top"><h3>主戦の引退</h3>
+    ${w.retired.map((r) => `<div class="wr-line"><span>${r.name}</span><span class="wr-line__v">${r.rides}回乗りました</span></div>`).join("")}
+    <div class="wr-line"><span>主戦の馬</span><span class="wr-line__count">${w.mainsBefore}頭 → ${w.mainsAfter}頭</span></div>
+  </section>` : "";
+  return screen(`${header(w)}${top}<div class="wr-boards" style="${top ? "margin-top:var(--s2)" : ""}">${w.rides.map(rideBoard).join("")}</div>
+    ${secMain(w)}${secTrust(w)}${secGrowth(w)}${secGraded(w)}`);
+}
+
+// ── 案C：掲示板に引退の板を並べる ──
+function candC(w) {
+  const retiredBoards = w.retired.map((r) => `<div class="wr-board">
+    <div class="wr-board__top"><span>${r.age}歳・${r.sex}</span><span>全${r.starts}戦</span></div>
+    <div class="wr-board__pos is-retired">引退</div>
+    <div class="wr-board__name">${r.name}</div>
+    <div class="wr-board__race">${r.rides}回乗りました${r.dest ? `<br>${r.dest}` : ""}</div></div>`).join("");
+  return screen(`${header(w)}<div class="wr-boards">${w.rides.map(rideBoard).join("")}${retiredBoards}</div>
+    ${secMain(w)}${secTrust(w)}${secGrowth(w)}${secGraded(w)}`);
+}
+
+const CANDS = [
+  ["A", "案A：主戦の段に1行", "今ある「主戦」の段の一番上に、引退した馬を1行ずつ足します。左に馬名と乗った回数、右に「引退しました」。主戦になる途中の馬の行より1段明るく大きい文字にします。新しい段も新しい色も足しません。", candA],
+  ["B", "案B：結果の板より上に1段", "今週の結果の板より上に「主戦の引退」の段を置き、年の最後の画面で最初に目に入る位置にします。最後の行に主戦の馬の数を「13頭 → 11頭」の形で出します（能力の段の「D+ → D」と同じ書き方）。※主戦の数は今は画面へ渡す値が無く、足す必要があります（主戦の印が付いていて、まだ名簿にいる馬を数える）。", candB],
+  ["C", "案C：掲示板に引退の板", "今週乗った鞍の板と同じ並びに、引退した馬の板を足します。着順の場所に「引退」（落馬の板と同じ大きさ）、上の段に年齢・性別と生涯の出走数、下に乗った回数と、繁殖に上がる馬はその行き先。※行き先は今の値には入っておらず、足す必要があります（年の区切りの後の繁殖の名簿に入ったかどうか）。", candC],
+];
+const STATES = [["one", "1頭が引退（1974年・1年目）"], ["two", "2頭が同じ年に引退（1977年）"], ["none", "引退なし（1976年）"]];
+document.getElementById("root").innerHTML = CANDS.map(([id, t, d, fn]) => `<section class="cand" id="cand-${id}">
+  <h2>${t}<small>${d}</small></h2>
+  <div class="gallery">${STATES.map(([k, cap]) => `<div class="shot"><p class="cap"><b>${cap}</b></p><div class="frame">${fn(DATA[k])}</div></div>`).join("")}</div></section>`).join("");
+</script></body></html>

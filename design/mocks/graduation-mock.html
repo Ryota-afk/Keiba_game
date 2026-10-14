@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卒業式モック確認用</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --turf: #57a24b;
+    --turf2: #4c9142;
+    --panel: #1a2a18;
+    --panel2: #223a20;
+    --muted: #9fb896;
+    --fg: #f2ede0;
+    --accent: #ffd83d;
+    --action: #2f7fe6;
+    --action-hover: #1f6bcf;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    background: #0f0c0a;
+    font-family: "M PLUS 1p", sans-serif;
+  }
+
+  /* ===== 外枠（DreamDerbyScreenの枠組みを踏襲） ===== */
+  .grad-frame {
+    width: min(430px, 100vw);
+    height: 720px;
+    margin: 24px auto 40px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px #000;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* ===== 上半分 ===== */
+  .grad-top {
+    height: 300px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+  }
+  .grad-top > .scene { position: absolute; inset: 0; display: none; }
+  .grad-top > .scene.active { display: block; }
+  .grad-top svg { display: block; width: 100%; height: 100%; }
+
+  /* ===== 成績表（上半分に出す） ===== */
+  .scoreboard {
+    position: absolute;
+    inset: 0;
+    background: var(--panel2);
+    padding: 18px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 16px;
+  }
+  .score-label {
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+  }
+  .stat-groups { display: flex; flex-direction: column; gap: 22px; }
+  .stat-group { display: flex; flex-direction: column; gap: 10px; }
+  .stat-row { display: flex; flex-direction: column; gap: 4px; }
+  .stat-name { font-size: 11.5px; color: var(--muted); letter-spacing: 0.02em; }
+  .stat-bar-wrap { position: relative; height: 13px; }
+  .stat-track {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .stat-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    background: var(--accent);
+  }
+  .stat-grade {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    margin-left: 7px;
+    font-family: "M PLUS 1 Code", monospace;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ===== 下半分 ===== */
+  .grad-bottom {
+    flex: 1;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .panel {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 14px 16px 18px;
+  }
+  .panel.active { display: flex; }
+  .lines { flex: 1; overflow-y: auto; min-height: 0; }
+
+  .msg-line {
+    color: var(--fg);
+    font-size: 13px;
+    line-height: 1.8;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    opacity: 0;
+    animation: line-in 400ms ease forwards;
+  }
+  .msg-line:last-child { border-bottom: none; }
+  @keyframes line-in { to { opacity: 1; } }
+
+  /* ---- 段1：名前入力フォーム ---- */
+  .name-form {
+    display: flex;
+    gap: 18px;
+    margin: 16px 0 20px;
+  }
+  .name-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .name-field label {
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+  .name-field input {
+    all: unset;
+    box-sizing: border-box;
+    width: 100%;
+    color: var(--fg);
+    font-family: "M PLUS 1p", sans-serif;
+    font-size: 16px;
+    padding: 8px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .name-field input:focus { border-bottom-color: var(--accent); }
+
+  /* ---- 共通：次へボタン ---- */
+  .next-wrap { display: flex; justify-content: center; padding-top: 4px; }
+  .next-btn {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+    font-weight: 700;
+    font-size: 13.5px;
+    letter-spacing: 0.1em;
+    color: #fff;
+    background: var(--action);
+    padding: 13px;
+  }
+  .next-btn:hover { background: var(--action-hover); }
+  .next-btn[disabled] {
+    background: #362f22;
+    color: #6d6656;
+    cursor: default;
+  }
+  .next-btn[hidden] { display: none; }
+
+  /* ---- 選択肢（DreamDerbyScreenのcard-choiceを踏襲） ---- */
+  .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .choices[hidden] { display: none; }
+  .card-choice {
+    all: unset;
+    cursor: pointer;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: var(--muted);
+    font-family: "M PLUS 1p", sans-serif;
+    font-size: 13.5px;
+    padding: 11px 12px;
+  }
+  .card-choice:hover { color: #fff; border-color: #fff; }
+  .card-choice.is-picked { background: var(--action); border-color: var(--action); color: var(--accent); }
+  .card-choice-hint {
+    display: block;
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-top: 3px;
+    line-height: 1.5;
+  }
+  .card-choice.is-picked .card-choice-hint { color: rgba(255, 255, 255, 0.75); }
+  .card-choice.is-disabled { pointer-events: none; opacity: 0.55; }
+
+  .section-heading {
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    margin: 14px 0 8px;
+  }
+  .section-heading:first-child { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<div class="grad-frame">
+
+  <!-- ===== 上半分 ===== -->
+  <div class="grad-top">
+
+    <!-- 段1：競馬学校の外観 -->
+    <div class="scene active" id="sceneSchool">
+      <svg viewBox="0 0 240 180" preserveAspectRatio="xMidYMid slice">
+        <rect x="0" y="0" width="240" height="112" fill="#8fc6e0"/>
+        <rect x="0" y="112" width="240" height="68" fill="#4c9142"/>
+        <rect x="104" y="112" width="32" height="68" fill="#cbb27a"/>
+        <rect x="94" y="106" width="6" height="10" fill="#3a3a3a"/>
+        <rect x="140" y="106" width="6" height="10" fill="#3a3a3a"/>
+        <rect x="40" y="34" width="160" height="18" fill="#7a2f2f"/>
+        <rect x="34" y="30" width="172" height="6" fill="#5a2222"/>
+        <rect x="48" y="48" width="144" height="64" fill="#e7ddc4"/>
+        <rect x="104" y="82" width="32" height="30" fill="#4a3323"/>
+        <rect x="59" y="60" width="18" height="16" fill="#cfd8df"/>
+        <rect x="62" y="63" width="12" height="10" fill="#2b3d55"/>
+        <rect x="87" y="60" width="18" height="16" fill="#cfd8df"/>
+        <rect x="90" y="63" width="12" height="10" fill="#2b3d55"/>
+        <rect x="135" y="60" width="18" height="16" fill="#cfd8df"/>
+        <rect x="138" y="63" width="12" height="10" fill="#2b3d55"/>
+        <rect x="163" y="60" width="18" height="16" fill="#cfd8df"/>
+        <rect x="166" y="63" width="12" height="10" fill="#2b3d55"/>
+        <rect x="118" y="10" width="2" height="24" fill="#9c9488"/>
+        <rect x="120" y="10" width="15" height="9" fill="#ffd83d"/>
+      </svg>
+    </div>
+
+    <!-- 段2：卒業式 -->
+    <div class="scene" id="sceneCeremony">
+      <svg viewBox="0 0 240 180" preserveAspectRatio="xMidYMid slice">
+        <rect x="0" y="0" width="240" height="118" fill="#4a1c26"/>
+        <rect x="0" y="118" width="240" height="62" fill="#7a5a35"/>
+        <rect x="94" y="82" width="52" height="8" fill="#5c4128"/>
+        <rect x="98" y="90" width="44" height="34" fill="#4a3323"/>
+        <rect x="114" y="70" width="12" height="20" fill="#1c1712"/>
+        <rect x="112" y="62" width="16" height="10" fill="#1c1712"/>
+        <rect x="26" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="27" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="45" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="46" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="64" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="65" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="83" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="84" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="150" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="151" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="169" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="170" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="188" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="189" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="207" y="146" width="9" height="12" fill="#241a12"/>
+        <rect x="208" y="139" width="7" height="7" fill="#241a12"/>
+        <rect x="35" y="164" width="9" height="12" fill="#241a12"/>
+        <rect x="36" y="157" width="7" height="7" fill="#241a12"/>
+        <rect x="54" y="164" width="9" height="12" fill="#241a12"/>
+        <rect x="55" y="157" width="7" height="7" fill="#241a12"/>
+        <rect x="73" y="164" width="9" height="12" fill="#241a12"/>
+        <rect x="74" y="157" width="7" height="7" fill="#241a12"/>
+        <rect x="159" y="164" width="9" height="12" fill="#241a12"/>
+        <rect x="160" y="157" width="7" height="7" fill="#241a12"/>
+        <rect x="178" y="164" width="9" height="12" fill="#241a12"/>
+        <rect x="179" y="157" width="7" height="7" fill="#241a12"/>
+        <rect x="197" y="164" width="9" height="12" fill="#241a12"/>
+        <rect x="198" y="157" width="7" height="7" fill="#241a12"/>
+      </svg>
+    </div>
+
+    <!-- 段3・段4：成績表 -->
+    <div class="scene" id="sceneScoreboard">
+      <div class="scoreboard">
+        <div class="score-label">成績表</div>
+        <div class="stat-groups">
+          <div class="stat-group">
+            <div class="stat-row">
+              <div class="stat-name">〜1400m</div>
+              <div class="stat-bar-wrap">
+                <div class="stat-track"></div>
+                <div class="stat-fill" style="width:37.5%"><span class="stat-grade">E</span></div>
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-name">1400〜1800m</div>
+              <div class="stat-bar-wrap">
+                <div class="stat-track"></div>
+                <div class="stat-fill" style="width:50%"><span class="stat-grade">D</span></div>
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-name">1800〜2400m</div>
+              <div class="stat-bar-wrap">
+                <div class="stat-track"></div>
+                <div class="stat-fill" style="width:12.5%"><span class="stat-grade">G</span></div>
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-name">2400m〜</div>
+              <div class="stat-bar-wrap">
+                <div class="stat-track"></div>
+                <div class="stat-fill" style="width:25%"><span class="stat-grade">F</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="stat-group">
+            <div class="stat-row">
+              <div class="stat-name">芝</div>
+              <div class="stat-bar-wrap">
+                <div class="stat-track"></div>
+                <div class="stat-fill" style="width:50%"><span class="stat-grade">D</span></div>
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-name">ダート</div>
+              <div class="stat-bar-wrap">
+                <div class="stat-track"></div>
+                <div class="stat-fill" style="width:37.5%"><span class="stat-grade">E</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== 下半分 ===== -->
+  <div class="grad-bottom">
+
+    <!-- 段1：名前入力 -->
+    <div class="panel active" id="panelName">
+      <div class="lines">
+        <div class="msg-line" style="animation-delay:0ms">名前を教えてください。</div>
+      </div>
+      <div class="name-form">
+        <div class="name-field">
+          <label for="inputSei">姓</label>
+          <input type="text" id="inputSei" maxlength="10" autocomplete="off">
+        </div>
+        <div class="name-field">
+          <label for="inputMei">名</label>
+          <input type="text" id="inputMei" maxlength="10" autocomplete="off">
+        </div>
+      </div>
+      <div class="next-wrap">
+        <button class="next-btn" id="btnNameNext" disabled>次へ</button>
+      </div>
+    </div>
+
+    <!-- 段2：式典 -->
+    <div class="panel" id="panelCeremony">
+      <div class="lines" id="ceremonyLines"></div>
+      <div class="next-wrap">
+        <button class="next-btn" id="btnCeremonyNext" hidden>次へ</button>
+      </div>
+    </div>
+
+    <!-- 段3：成績表と2択 -->
+    <div class="panel" id="panelReport">
+      <div class="lines" id="reportLines"></div>
+      <div class="choices" id="reportChoices" hidden>
+        <button class="card-choice" data-report-choice="believe">
+          あの乗り方を信じる
+          <span class="card-choice-hint">先行が武器になる。代わりに、ほかの三つに穴ができる</span>
+        </button>
+        <button class="card-choice" data-report-choice="reset">
+          一から覚え直す
+          <span class="card-choice-hint">四つとも同じ、平凡な適性になる。穴は無いが、武器も無い</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 段4：厩舎選択 -->
+    <div class="panel" id="panelStable">
+      <div class="lines">
+        <div class="section-heading">声をかけてきた厩舎</div>
+        <div class="choices" style="margin-top:0;" id="stableChoices">
+          <button class="card-choice" data-stable-choice="fujino">
+            藤野和之
+            <span class="card-choice-hint">ダートの1400〜1800mが専門</span>
+          </button>
+          <button class="card-choice" data-stable-choice="kiriyama">
+            桐山隆司
+            <span class="card-choice-hint">芝の1800〜2400mが専門</span>
+          </button>
+          <button class="card-choice" data-stable-choice="hayasaka">
+            早坂健吾
+            <span class="card-choice-hint">ダートの2400m以上が専門</span>
+          </button>
+        </div>
+        <div id="stableConfirm"></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var state = { fullName: "" };
+
+  function $(id) { return document.getElementById(id); }
+
+  function showScene(id) {
+    document.querySelectorAll('.grad-top > .scene').forEach(function (el) {
+      el.classList.toggle('active', el.id === id);
+    });
+  }
+  function showPanel(id) {
+    document.querySelectorAll('.grad-bottom > .panel').forEach(function (el) {
+      el.classList.toggle('active', el.id === id);
+    });
+  }
+
+  // 1行ずつ700ms間隔で足していく
+  function revealLines(container, lines, interval, onDone) {
+    var i = 0;
+    function step() {
+      if (i >= lines.length) { if (onDone) onDone(); return; }
+      var div = document.createElement('div');
+      div.className = 'msg-line';
+      div.textContent = lines[i];
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      i++;
+      setTimeout(step, interval);
+    }
+    step();
+  }
+
+  // ---- 段1：名前入力 ----
+  var inputSei = $('inputSei');
+  var inputMei = $('inputMei');
+  var btnNameNext = $('btnNameNext');
+
+  function checkNameFilled() {
+    var filled = inputSei.value.trim().length > 0 && inputMei.value.trim().length > 0;
+    btnNameNext.disabled = !filled;
+  }
+  inputSei.addEventListener('input', checkNameFilled);
+  inputMei.addEventListener('input', checkNameFilled);
+
+  btnNameNext.addEventListener('click', function () {
+    if (btnNameNext.disabled) return;
+    state.fullName = inputSei.value.trim() + inputMei.value.trim();
+    goCeremony();
+  });
+
+  // ---- 段2：式典 ----
+  function goCeremony() {
+    showScene('sceneCeremony');
+    showPanel('panelCeremony');
+    var lines = [
+      "「卒業証書授与、" + state.fullName + "」",
+      "返事をして、壇上に上がる。",
+      "両手で受け取る。夢で握っていた手綱と違って、証書は軽い。",
+      "「おめでとう。今日から、君は騎手だ」"
+    ];
+    revealLines($('ceremonyLines'), lines, 700, function () {
+      $('btnCeremonyNext').hidden = false;
+    });
+  }
+
+  $('btnCeremonyNext').addEventListener('click', function () {
+    goReport();
+  });
+
+  // ---- 段3：成績表と2択 ----
+  function goReport() {
+    showScene('sceneScoreboard');
+    showPanel('panelReport');
+    var lines = [
+      "「距離は1400〜1800mがD。ほかは、それより下だ」",
+      "「馬場は芝がD。もう片方は、Dにも届いていない」",
+      "「B、A、Sは一つもない。今の君に、得意と呼べるものは、まだない」",
+      "「ただし、この二つのDは君が三年かけて出した数字だ。この表を持って、厩舎へ行け」"
+    ];
+    revealLines($('reportLines'), lines, 700, function () {
+      $('reportChoices').hidden = false;
+    });
+  }
+
+  $('reportChoices').querySelectorAll('.card-choice').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      $('reportChoices').querySelectorAll('.card-choice').forEach(function (b) {
+        b.classList.remove('is-picked');
+        b.classList.add('is-disabled');
+      });
+      btn.classList.add('is-picked');
+      setTimeout(goStable, 500);
+    });
+  });
+
+  // ---- 段4：厩舎選択（成績表は表示したまま） ----
+  function goStable() {
+    showPanel('panelStable');
+  }
+
+  var stableNames = {
+    fujino: "藤野",
+    kiriyama: "桐山",
+    hayasaka: "早坂"
+  };
+
+  $('stableChoices').querySelectorAll('.card-choice').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      $('stableChoices').querySelectorAll('.card-choice').forEach(function (b) {
+        b.classList.remove('is-picked');
+        b.classList.add('is-disabled');
+      });
+      btn.classList.add('is-picked');
+      var key = btn.getAttribute('data-stable-choice');
+      var confirmDiv = document.createElement('div');
+      confirmDiv.className = 'msg-line';
+      confirmDiv.style.marginTop = '10px';
+      confirmDiv.textContent = stableNames[key] + "厩舎に所属が決まった。";
+      $('stableConfirm').appendChild(confirmDiv);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,364 @@
+/*
+ * 今週の騎乗依頼（月曜）の画面。
+ * 見本：design/mocks/week-offers-v3.html（案2・レースが主役・2026-09-17に合意）と
+ *       design/mocks/week-offers-v4.html（案B・行を押すと「乗る」と「出馬表」が開き、
+ *       「この週を進める」は一覧の末尾）。見本のCSSをそのまま踏襲する——変える場合は
+ *       見本を作り直すところからやり直すこと。
+ * ⚠️見本の`.frame{width:390px}`・`min-height:720px`は単体カードとして並べるための値で、
+ *   実装では画面いっぱいに広げる（CLAUDE.md §8「モックの実行環境の都合で入れた値を
+ *   実装へそのまま持ち込まない」）。
+ * 級数は styles/type.css、余白は styles/space.css のトークンだけを使う（生のpxを書かない）。
+ * 縦線を引かない（区切りは横罫線・面の明暗）。絵文字を使わない。
+ * 色：押すものの青は title-screen.css / EntryListScreen.css と同じ #1a5fb4
+ *   （白文字とのコントラスト比6.29:1・WCAG AA）。見本の#2f7fe6は3.6:1で足りない。
+ */
+
+.week-screen {
+  --panel: #1a2a18;
+  --panel2: #223a20;
+  --panel3: #2b482a;
+  --fg: #f2ede0;
+  --muted: #9fb896;
+  --dim: #5f7659;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --on-action: #ffffff;
+  --on-action-sub: #dbe8ff;
+  --turf: #8fd07e;
+  --rule: rgba(255, 255, 255, 0.1);
+  --tap: 44px;
+  /* 表の列。馬名の列は残り全部（390px幅で158px、360px幅で128px＝9文字×14pxが入る） */
+  --col-sex: 28px;
+  --col-run: 36px;
+  --col-sym: 32px;
+  --col-tr: 80px;
+  --col-gap: 6px;
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  background: var(--panel);
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  padding-bottom: max(var(--s3), env(safe-area-inset-bottom, 0px));
+}
+.week-screen *,
+.week-screen *::before,
+.week-screen *::after {
+  box-sizing: border-box;
+}
+
+/* ── 上部 ── */
+.wk-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: max(var(--s2), env(safe-area-inset-top, 0px)) var(--s2) var(--s1);
+}
+.wk-hd__week {
+  font-size: var(--fs-body);
+}
+.wk-hd__left {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wk-hd__left b {
+  font-size: var(--fs-lead);
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 2px;
+}
+
+/* 見出しの下の補足の段。文の段は見本の`.fc`（補足の1行）と同じ。
+   `.is-bad`＝先週の悪い知らせ（怪我・主戦の座を失った・疲れの警告・信頼が下がった。
+   2026-09-20のユーザー決定で悪い知らせだけの段になった）。行の「断ると信頼が下がります」
+   （`.wk-r__warn`）と同じaccent色で、読むものの色をそろえる */
+.wk-notes {
+  padding: 0 var(--s2) var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.6;
+}
+.wk-notes p {
+  margin: 0;
+}
+.wk-notes.is-bad {
+  color: var(--accent);
+}
+
+.wk-days {
+  display: flex;
+  padding: 0 var(--s2);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.wk-days button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+.wk-days button.is-on {
+  color: var(--action);
+  border-bottom-color: var(--action);
+}
+.wk-days button.is-zero {
+  color: var(--dim);
+}
+.wk-days button.is-zero.is-on {
+  color: var(--action);
+}
+.wk-days button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.wk-courses {
+  display: flex;
+  gap: var(--s1);
+  padding: var(--s1) var(--s2) 0;
+  flex-wrap: wrap;
+}
+.wk-courses button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: var(--tap);
+  padding: 0 var(--s2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-body);
+  color: var(--muted);
+  background: var(--panel2);
+}
+.wk-courses button.is-on {
+  background: var(--action);
+  color: var(--on-action);
+}
+.wk-courses button .wk-courses__n {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.wk-courses button.is-lock {
+  opacity: 0.4;
+}
+.wk-courses button.is-lock.is-on {
+  opacity: 1;
+}
+.wk-courses button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.wk-empty {
+  padding: var(--s4) var(--s2);
+  font-size: var(--fs-body);
+  color: var(--muted);
+  line-height: 1.8;
+}
+.wk-empty.is-lock {
+  padding-bottom: var(--s2);
+}
+
+/* ── レースの見出し（主役・1画面で一番大きい） ── */
+.wk-race {
+  padding: var(--s2) var(--s2) 0;
+}
+.wk-race__big {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.1;
+}
+.wk-race__sf {
+  color: var(--turf);
+}
+.wk-race__cls {
+  font-size: var(--fs-body);
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: var(--s1);
+}
+
+/* ── 表（1レース＝1つ）。見出し行と各行が同じ列の型を使うので縦に揃う ── */
+.wk-t {
+  padding: var(--s1) var(--s2) 0;
+}
+.wk-th,
+.wk-r {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--col-sex) var(--col-run) var(--col-sym) var(--col-tr);
+  gap: var(--col-gap);
+  align-items: center;
+}
+.wk-th {
+  font-size: var(--fs-caption);
+  color: var(--dim);
+  padding: var(--s1) 0 4px;
+}
+.wk-th .wk-c {
+  text-align: center;
+}
+.wk-th .wk-tr {
+  text-align: right;
+}
+/* 行は <div role="button">。<button> だと Chromium が display:grid を効かせず列が崩れる */
+.wk-r {
+  cursor: pointer;
+  min-height: 52px;
+  padding: 6px 0;
+  box-shadow: inset 0 1px 0 var(--rule);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wk-r:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.wk-r__name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wk-r__name small {
+  display: block;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--muted);
+}
+.wk-r__name small .wk-r__main {
+  color: var(--accent);
+  font-weight: 700;
+  margin-right: 6px;
+}
+.wk-r__sym {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 0 auto;
+  color: var(--fg);
+}
+.wk-r__tr {
+  text-align: right;
+  line-height: 1.4;
+}
+.wk-r__tr small {
+  display: block;
+}
+.wk-r__warn {
+  grid-column: 1 / -1;
+  font-size: var(--fs-caption);
+  color: var(--accent);
+  padding-top: 2px;
+}
+.wk-r__warn.is-muted {
+  color: var(--muted);
+}
+.wk-r.is-on {
+  background: var(--action);
+  color: var(--on-action-sub);
+  margin: 0 calc(var(--s2) * -1);
+  padding: 6px var(--s2);
+}
+.wk-r.is-on .wk-r__name,
+.wk-r.is-on .wk-r__sym {
+  color: var(--on-action);
+}
+.wk-r.is-on .wk-r__name small {
+  color: var(--on-action-sub);
+}
+.wk-r.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 案B：行を押すと、その行の下に操作の段が開く。開いている行は面（panel2）で示す */
+.wk-r.is-open {
+  background: var(--panel2);
+  margin: 0 calc(var(--s2) * -1);
+  padding: 6px var(--s2) var(--s1);
+}
+.wk-r__acts {
+  grid-column: 1 / -1;
+  display: none;
+  gap: var(--s1);
+  align-items: center;
+  padding-top: var(--s1);
+}
+.wk-r.is-open .wk-r__acts {
+  display: flex;
+}
+.wk-r.is-on.is-open {
+  background: var(--action);
+}
+
+/* 押すもの2種（action色）。塗りの主ボタンと、文字だけの副ボタン。どちらも高さ44px以上 */
+.wk-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  text-align: center;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.wk-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.wk-lnk {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  padding: 0 var(--s2);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--action);
+  white-space: nowrap;
+}
+.wk-lnk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.wk-r__acts .wk-btn {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  line-height: var(--tap);
+}
+.wk-r__acts .wk-lnk {
+  flex: 0 0 auto;
+}
+/* 決めた行（青）を開いたとき：塗りが白黒反転する */
+.wk-r.is-on.is-open .wk-r__acts .wk-btn {
+  background: var(--on-action);
+  color: var(--action);
+}
+.wk-r.is-on.is-open .wk-r__acts .wk-lnk {
+  color: var(--on-action);
+}
+
+/* 案B：一覧の末尾に置く「この週を進める」 */
+.wk-adv {
+  padding: var(--s4) var(--s2) var(--s2);
+}
+.wk-adv.is-tight {
+  padding-top: 0;
+}
