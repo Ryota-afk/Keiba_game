@@ -3,7 +3,7 @@
 // 純ロジック（JSX無し。`data/`・`core/`だけに依存）。
 
 import { streamRandom, RNG_STREAMS, pick, weightedPickFromValue } from "../core/rng.js";
-import { CLASS_LADDER, classIndex, classDisplayName } from "../data/classes.js";
+import { CLASS_LADDER, classDisplayName } from "../data/classes.js";
 import { generateHorseName } from "../data/names.js";
 import { pickGradeBellCurve } from "../data/grades.js";
 import { generateSurfaceAptitude } from "../data/surfaceAptitude.js";
@@ -163,13 +163,15 @@ export function generateHorse(saveSeed, key, opts = {}) {
     // 道悪適性（重い馬場の得手不得手・`data/mudAptitude.js`）。⚠️芝ダ適性と違い、×でも
     // 出走は止めない——雨は選べないので、苦手な馬が重馬場に当たる事故そのものがゲームになる。
     mudAptitude: generateMudAptitude(rand01),
-    // 通算成績（収得賞金の順位付け・引退判定に使う。`arch/horse.md`「引退」「出走馬の決定」）。
-    // ⚠️`earnings`は収得賞金（円）。実際の獲得賞金（プレイヤーの手取り）とは別の数値。
+    // 通算成績（番付・人気・引退判定に使う。`arch/horse.md`「引退」「出走馬の決定」）。
+    // ⚠️`earnings`は獲得賞金（円・全着順で積む）。クラスを決める収得賞金は`shutokuPrize`（別の数値）。
     // `recentFinishes`は新しい順の直近戦績（着順・レース名・日付等の詳細つき。引退判定②
     // 「直近6走で1度も5着以内が無ければ引退」と、出馬表の馬柱の両方に使う）。
     // `gradedWins`は重賞の勝ち鞍数（引退規則④「重賞を1つでも勝った牡馬は種牡馬」の判定に使う。
     // `domain/npcGradedRace.js`が重賞を勝つたびに積む）。
-    record: { starts: 0, wins: 0, seconds: 0, thirds: 0, earnings: 0, gradedWins: 0, recentFinishes: [] },
+    // ⭐`shutokuPrize`＝クラスと重賞の出走資格・出走順を決める賞金（円・1着だけ積む。
+    // `data/shutokuPrize.js`）。⚠️`earnings`（獲得賞金・番付や人気に使う）とは別の数値。
+    record: { starts: 0, wins: 0, seconds: 0, thirds: 0, earnings: 0, shutokuPrize: 0, gradedWins: 0, recentFinishes: [] },
     // 馬ごとの主戦騎手（質問23＝(ウ)）。オープン以上に上がった時点で付く（`domain/
     // jockeyAssignment.js`）。条件戦の馬はnullのまま——厩舎の主戦をそのつど使う。
     primaryJockeyId: null,
@@ -208,42 +210,8 @@ export function growAdaptability(adaptability, raceTrendKey, amount) {
   return { ...adaptability, [raceTrendKey]: adaptability[raceTrendKey] + amount };
 }
 
-// オープン以上（リステッド・G3・G2・G1）は勝利数だけで上がらない
-//（⚠️出走条件は未定・ARCHITECTURE.md §15「オープン以上の出走条件」）。
-// ⚠️2026-09-04にクラスを10段へ広げた際に確認：`open`の直後に`listed`を挿し込んだので
-// `open`の序列上の位置（インデックス）は変わらず、この定数を変更する必要はない。
-// `listed`は`g3`/`g2`/`g1`と同じく「勝利数の自動昇級では到達しない」側に留まる
-// ——これは新しい制約ではなく、g3以上が既に持っていた制約に`listed`が合流しただけ。
-// 到達の条件（任される線・§6）は第4弾（`TODO.md` #24）で設計する。
-const WIN_PROMOTION_CAP = "open";
-
-/**
- * 勝利数で1段上がる。降級なし（J）。オープンで頭打ちにする。
- * ⚠️新馬（shinba）を勝つと未勝利（maiden）を飛ばして1勝クラスへ進む（史実どおり——
- * 新馬戦の勝ち馬は未勝利戦を経由しない）。2026-09-04にクラス昇降を`weekResults.js`へ
- * 繋ぐ際に見つけて直した：`CLASS_LADDER`の並び上、機械的な+1段では新馬の勝ちが
- * 未勝利へ進んでしまっていた。
- */
-export function classAfterWin(currentClassId) {
-  const capIdx = classIndex(WIN_PROMOTION_CAP);
-  if (currentClassId === "shinba") {
-    const win1Idx = classIndex("win1");
-    return win1Idx <= capIdx ? "win1" : currentClassId;
-  }
-  const idx = classIndex(currentClassId);
-  if (idx < 0 || idx >= capIdx) return currentClassId;
-  return CLASS_LADDER[idx + 1];
-}
-
-/** 新馬戦を勝てずに終えると未勝利へ移る（勝てば`classAfterWin`で1勝クラスへ）。 */
-export function classAfterDebutLoss(currentClassId) {
-  return currentClassId === "shinba" ? "maiden" : currentClassId;
-}
-
-/** レース結果からクラスの昇降先を1つで決める。純関数。 */
-export function nextClassAfterRace(currentClassId, won) {
-  return won ? classAfterWin(currentClassId) : classAfterDebutLoss(currentClassId);
-}
+// ⭐クラスは勝ち数の昇級ではなく、収得賞金・馬齢・時期で決める（第13弾・`domain/horseClass.js`・
+// `data/shutokuPrize.js`）。旧`classAfterWin`・`classAfterDebutLoss`・`nextClassAfterRace`は撤去した。
 
 // 着順ごとの賞金配分（1着を1とした比率）。⚠️仮（JRAの本賞金配分の目安を簡略化した値。
 // `PROVISIONAL_FIRST_PRIZE_1974`自体も収得賞金の順番付けにしか使わない仮の額——
@@ -284,13 +252,15 @@ export function earningsForResult(classId, position) {
  * @param {string|null} [bigRaceName] - 今年の成績（`record.yearStats.lastBigWinName`・番付に出す）に
  *   残す重賞の名前。省略すると、`isGraded`なら`historyEntry.raceName`、そうでなければ無し。
  *   プレイヤーが乗った重賞の鞍は`isGraded`を立てない（`gradedWins`・賞金は従来どおり）が、名前だけ渡す
+ * @param {number} [shutokuGain] - このレースで積む収得賞金（円・`data/shutokuPrize.js`）。省略は0
  */
 export function appendRaceResultWithEarnings(
   record,
   historyEntry,
   earningsGain,
   isGraded = false,
-  bigRaceName = isGraded ? (historyEntry.raceName ?? null) : null
+  bigRaceName = isGraded ? (historyEntry.raceName ?? null) : null,
+  shutokuGain = 0
 ) {
   const { position } = historyEntry;
   const won = position === 1;
@@ -300,6 +270,7 @@ export function appendRaceResultWithEarnings(
     seconds: record.seconds + (position === 2 ? 1 : 0),
     thirds: record.thirds + (position === 3 ? 1 : 0),
     earnings: record.earnings + earningsGain,
+    shutokuPrize: (record.shutokuPrize ?? 0) + shutokuGain,
     gradedWins: (record.gradedWins ?? 0) + (won && isGraded ? 1 : 0),
     recentFinishes: [historyEntry, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
     // ⭐今年の成績（番付の材料）。年が変わったら0から数え直す。古いセーブ（欄が無い馬）でも落ちない
@@ -314,9 +285,16 @@ export function appendRaceResultWithEarnings(
  * @param {string|null} [bigRaceName] - プレイヤーが乗った重賞の鞍で、そのレース名を今年の成績に残すとき
  *   （`appendRaceResultWithEarnings`の第5引数）。一般競走は省略
  */
-export function appendRaceResult(record, classId, historyEntry, bigRaceName = null) {
+export function appendRaceResult(record, classId, historyEntry, bigRaceName = null, shutokuGain = 0) {
   const entry = { raceName: classDisplayName(classId), ...historyEntry };
-  return appendRaceResultWithEarnings(record, entry, earningsForResult(classId, entry.position), false, bigRaceName);
+  return appendRaceResultWithEarnings(
+    record,
+    entry,
+    earningsForResult(classId, entry.position),
+    false,
+    bigRaceName,
+    shutokuGain
+  );
 }
 
 // ⚠️**ローテーションの間隔を機械的に引く旧方式（`pickRotationIntervalWeeks`・

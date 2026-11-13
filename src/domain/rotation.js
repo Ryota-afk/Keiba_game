@@ -12,7 +12,8 @@
 import { classIndex } from "../data/classes.js";
 import { canRaceOnSurface, isSuitedToSurface } from "../data/surfaceAptitude.js";
 import { aptitudeParamsOf, distanceAptitudeFrom } from "../sim/stamina.js";
-import { eligibleBucketsForHorseClass } from "./weeklyCard.js";
+import { eligibleBucketsForHorseClass, OPEN_AND_ABOVE_BUCKET, RACE_SOURCE } from "./weeklyCard.js";
+import { shutokuOf } from "./horseClass.js";
 import { canDebutThisWeek, isAgeSexEligible, weeksSinceLastRace } from "./horse.js";
 import { isSidelined } from "./fall.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
@@ -46,7 +47,13 @@ function candidateSurfaces(horse) {
  * ⭐第11弾・案B-1（`devlog/wave11.md`§7）：新馬クラスの馬は`eligibleBucketsForHorseClass`が
  * 返す複数のバケツ（新馬戦＋未勝利戦）を見る。 */
 function collectCandidates(horse, yearIndex, week) {
+  // ⭐第13弾：収得賞金が0円でない馬（1勝以上）は、クラスがオープン未満でも重賞を目標にできる
+  // （重賞に出られる条件が「オープンのみ」から「収得賞金が0円でない」へ変わった・
+  // `domain/npcGradedRace.js`）。オープン特別は自分のクラスではないので見ない。
   const buckets = eligibleBucketsForHorseClass(horse.classId);
+  const gradedOnlyBelowOpen =
+    classIndex(horse.classId) < classIndex("open") && shutokuOf(horse) > 0;
+  if (gradedOnlyBelowOpen) buckets.push(OPEN_AND_ABOVE_BUCKET);
   const minWeek = week + ROTATION_MIN_LEAD_WEEKS;
   const maxWeek = week + ROTATION_SEARCH_WEEKS;
   const result = [];
@@ -55,6 +62,7 @@ function collectCandidates(horse, yearIndex, week) {
       const races = yearIndex.byBucketSurface.get(`${bucket}|${surface}`) ?? [];
       for (const race of races) {
         if (race.week < minWeek || race.week > maxWeek) continue;
+        if (gradedOnlyBelowOpen && bucket === OPEN_AND_ABOVE_BUCKET && race.source !== RACE_SOURCE.GRADED) continue;
         if (race.fillyOnly && horse.gender !== "filly") continue;
         // ⭐第11弾（`devlog/wave11.md`§12）：重賞の年齢・性別条件（`race.condition`）。
         // ⚠️予定を立てる側でもここを見ないと、条件に合わない馬（例：4歳馬が日本ダービー）が

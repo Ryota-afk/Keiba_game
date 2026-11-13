@@ -8,7 +8,9 @@
 // 自体は流用できるはず。
 
 import { runPlaceholderRace } from "./raceOutcome.js";
-import { nextClassAfterRace, appendRaceResult } from "./horse.js";
+import { appendRaceResult } from "./horse.js";
+import { withReclassedClass } from "./horseClass.js";
+import { shutokuForGeneralRace, shutokuForGradedRace, gradedRaceById } from "../data/shutokuPrize.js";
 import { checkFall, applyInjuryToHorse } from "./fall.js";
 import { rollActualCondition } from "./weather.js";
 import { fatiguePenaltyFactor } from "./fatigue.js";
@@ -135,12 +137,20 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
   // `domain/rotation.js`の`replanStaleHorses`に次の計画を立て直させる）。
   // 前哨戦を走っただけなら、計画（目標）はそのまま持ち越す（`devlog/wave10.md`）。
   const wasTarget = horse.plan?.targetRaceId === mount.raceId;
+  // ⭐収得賞金（`data/shutokuPrize.js`）：1着だけ積む（重賞は2着まで）。プレイヤーが乗った重賞・
+  // オープン特別でも積む（第13弾まで0円だった不具合の修正）。重賞かどうかは`mount.raceName`の有無で
+  // 判定する（`domain/playerRecord.js`と同じ）。⚠️獲得賞金（`earnings`）の積み方は従来のまま。
+  const rideAge = horse.bornYear != null ? player.currentYear - horse.bornYear : 4;
+  let shutokuGain;
+  if (mount.raceName) {
+    const gradedRace = gradedRaceById(player.currentYear, mount.raceId);
+    shutokuGain = gradedRace ? shutokuForGradedRace(gradedRace, player.currentYear, result.position, rideAge) : 0;
+  } else {
+    shutokuGain = shutokuForGeneralRace(mount.classId ?? horse.classId, rideAge, result.position);
+  }
   nextHorse = {
     ...nextHorse,
     plan: wasTarget ? null : horse.plan,
-    // クラスの昇降（J）：勝てば1段（新馬の勝ちは1勝クラスへ）、新馬を負ければ未勝利へ。
-    // ⚠️2026-09-04まで呼び出し元が無く、全馬が新馬のまま固定されていた。
-    classId: nextClassAfterRace(horse.classId, result.won),
     // 通算成績：`domain/npcWeeklyRace.js`のNPC馬と同じ形で積む（2026-09-15までは
     // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
     // NPC馬とズレる不整合があった）。⭐距離は`mount.distance`（週の番組表・実データが
@@ -161,9 +171,12 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
         distance: mount.distance ?? null,
         condition,
       },
-      mount.raceName ?? null
+      mount.raceName ?? null,
+      shutokuGain
     ),
   };
+  // クラスは収得賞金・馬齢・時期から決め直す（`domain/horseClass.js`）。
+  nextHorse = withReclassedClass(nextHorse, week, player.currentYear);
 
   const ride = {
     ...rideBase,

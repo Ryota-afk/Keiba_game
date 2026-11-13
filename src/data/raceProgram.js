@@ -28,6 +28,23 @@ export const NON_OPEN_CLASS_SHARE = Object.freeze({
 });
 
 /**
+ * ⭐第13弾：10月〜12月（暦週`LATE_SEASON_FROM_WEEK`以降）の一般競走のクラス配分。
+ * 実際は3歳の9月7日で未勝利戦が3歳以上に無くなり、秋は2歳の未勝利戦だけが残る
+ * （`design/jra-entry-rules.md`）。ゲームでは未勝利のまま3歳の9月7日を迎えた馬が
+ * 中央を去る（`domain/horseClass.js`）ので、未勝利戦の割合を秋に減らす。
+ * 値は計測で決めた（`devlog/wave13.md`§8）。減らした分は他のクラスへ元の比のまま配る。
+ */
+export const NON_OPEN_CLASS_SHARE_LATE = Object.freeze({
+  shinba: 10.2,
+  maiden: 20.0,
+  win1: 29.7,
+  win2: 15.0,
+  win3: 7.1,
+});
+/** 10月の最初の週（暦週1〜52。`data/calendar.js`の週割りで10月は第40週から）。 */
+export const LATE_SEASON_FROM_WEEK = 40;
+
+/**
  * オープン以上の本数をオープン特別と重賞にどう割るかの比（質問9のユーザーの制約：
  * 「オープン・リステッド・重賞は2026年の型で増やさない」＝その年の重賞の実数を先に
  * 固定し、オープン特別はその比率で決める）。
@@ -197,7 +214,11 @@ export function drawFieldSize(rand01) {
   return lo + Math.floor(rand01() * (hi - lo + 1));
 }
 
-/** 一般競走のクラスを重みどおりに1つ引く。 */
-export function drawGeneralRaceClass(rand01) {
-  return weightedPick(rand01, NON_OPEN_CLASS_SHARE);
+/**
+ * 一般競走のクラスを重みどおりに1つ引く。
+ * @param {() => number} rand01
+ * @param {number} calendarWeek - 暦の週（1〜52）。秋（`LATE_SEASON_FROM_WEEK`以降）は未勝利戦が少ない配分
+ */
+export function drawGeneralRaceClass(rand01, calendarWeek) {
+  return weightedPick(rand01, calendarWeek >= LATE_SEASON_FROM_WEEK ? NON_OPEN_CLASS_SHARE_LATE : NON_OPEN_CLASS_SHARE);
 }

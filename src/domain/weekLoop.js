@@ -29,6 +29,7 @@ import {
   jockeyIdForHorse,
 } from "./jockeyAssignment.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
+import { reclassAndRetireMaidens } from "./horseClass.js";
 import { trustFor, adjustTrust, withPlayerDefaults } from "./player.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { DAY } from "../data/weekDays.js";
@@ -119,14 +120,24 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   それ以外の週は`[]`。データだけで、画面はまだ使わない）。`weekEndHorses`＝年の区切りで馬が
  *   名簿から抜ける**前**の、その週の終わりの馬（年が替わらない週は`roster.horses`と同じ配列）。
  *   週の結果画面が最終週の重賞の勝ち馬を引くために使う（引退で名簿から消えても見せられるように）。
- *   `yearBoundary`＝年の区切りの`stats`（それ以外の週は`null`。計測用）
+ *   `yearBoundary`＝年の区切りの`stats`（それ以外の週は`null`。計測用）。
+ *   ⭐第13弾：`leftForLocal`＝この週の初めに、未勝利のまま3歳の9月7日を迎えて中央を去った
+ *   （地方へ移った扱い）プレイヤーの主戦の馬（`[{horseId, horseName}]`。居なければ`[]`。
+ *   データだけで、画面はまだ使わない）
  */
 export function advanceWeek(saveSeed, roster, player, options = {}) {
   const week = player.currentWeek;
   // ⚠️古いセーブ対策（`record`・騎手の`aptitudeXp`等を持たないまま読み込まれても動くように、
   // 毎週の入口で既定値を補う。CLAUDE.md §4「古いセーブでも動くこと」・`devlog/wave12.md`§9）。
   player = withPlayerDefaults(player);
-  roster = { ...roster, npcJockeys: roster.npcJockeys.map(withJockeyDefaults) };
+  // ⭐第13弾：週の初めにクラスを収得賞金・馬齢・時期で決め直し、未勝利のまま3歳の9月7日を
+  // 迎えた馬を中央から外す（`domain/horseClass.js`）。依頼の一覧より前に行う——外れた馬には
+  // 依頼が来ない。プレイヤーの主戦だった馬は`leftForLocal`として返す（データだけ・画面はまだ使わない）。
+  const reclassed = reclassAndRetireMaidens(roster.horses, week, player.currentYear);
+  roster = { ...roster, horses: reclassed.horses, npcJockeys: roster.npcJockeys.map(withJockeyDefaults) };
+  const leftForLocal = reclassed.leftForLocal
+    .filter((h) => isMainMount(player.mainMounts ?? {}, h.id))
+    .map((h) => ({ horseId: h.id, horseName: h.name }));
   const notifications = [];
   const horsesById = new Map(roster.horses.map((h) => [h.id, h]));
   // ⭐本物のsimは騎手の適性も見る（`devlog/wave08.md`§2）。相手馬にも必ず騎手を乗せる
@@ -451,6 +462,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     const weekEndHorseById = new Map(advancedHorses.map((h) => [h.id, h]));
     for (const horseId of Object.keys(nextPlayer.mainMounts)) {
       if (!isMainMount(nextPlayer.mainMounts, horseId) || !retiredIds.has(horseId)) continue;
+      if (weekEndHorseById.get(horseId)?.leftForLocal) continue; // 地方へ移った馬は週の初めに知らせ済み
       retiredMainMounts.push({ horseId, horseName: weekEndHorseById.get(horseId)?.name ?? horseId });
     }
   }
@@ -477,6 +489,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     // ⭐この週に動いた適性・ランク（画面ではまだ使わない。ARCHITECTURE.md §4・§8）。
     growth: { aptitudeChanges, rankChange },
     retiredMainMounts,
+    leftForLocal,
     weekEndHorses: advancedHorses,
     yearBoundary: boundary?.stats ?? null,
   };

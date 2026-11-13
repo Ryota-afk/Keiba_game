@@ -13,7 +13,7 @@
 import { weekOfYear } from "../data/calendar.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
-import { classIndex } from "../data/classes.js";
+import { shutokuForGradedRace } from "../data/shutokuPrize.js";
 import { GRADED_MAX_FIELD_SIZE } from "../data/raceProgram.js";
 import {
   appendRaceResultWithEarnings,
@@ -21,16 +21,15 @@ import {
   isAgeSexEligible,
   placePrizeShare,
 } from "./horse.js";
+import { shutokuOf, withReclassedClass } from "./horseClass.js";
 import { runRaceSim, buildPlan } from "../sim/index.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
-import { determineEntries, PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
+import { PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
 import { rollActualCondition } from "./weather.js";
 import { computePopularity } from "./popularity.js";
 
-// オープン以上（重賞に出られる最低クラス）。`arch/horse.md`「クラス（10段）」。
-const MIN_ENTRY_CLASS_INDEX = classIndex("open");
 // 出走頭数の上限（JRAの実際の上限。史実の1レースごとの実頭数はまだ取れていないため、
 // 「優先出走権→収得賞金の多い順で上限まで埋める」という仮の形にする）。
 // ⭐第11弾（`devlog/wave11.md`§12）：`domain/weeklyCard.js`が計画段階の定員に使う値と
@@ -102,7 +101,7 @@ export function planNpcGradedFields(
   const racedHorseIds = new Set();
   const planned = [];
 
-  // 出走候補プール（オープン以上・引退していない・今週まだ走っていない・出走間隔が来ている）。
+  // 出走候補プール（収得賞金が0円でない＝1勝以上・引退していない・今週まだ走っていない・怪我をしていない）。
   // ⚠️レースごとに候補を毎回作り直す——同じ週の複数の重賞に同じ馬が2回出ないよう、
   // 選ばれた馬は`racedHorseIds`へ積んで次のレースの候補から除く。
   for (const race of racesToday) {
@@ -113,7 +112,7 @@ export function planNpcGradedFields(
       if (horse.isRetired) continue;
       if (excludeHorseIds.has(horse.id) || racedHorseIds.has(horse.id)) continue;
       if (isSidelined(horse)) continue;
-      if (classIndex(horse.classId) < MIN_ENTRY_CLASS_INDEX) continue;
+      if (!(shutokuOf(horse) > 0)) continue; // 重賞は収得賞金が0円でない馬なら出られる（未出走・未勝利は除く）
       if (!canRaceOnSurface(horse.surfaceAptitude, race.surface)) continue;
       if (race.fillyOnly && horse.gender !== "filly") continue;
       if (!canDebutThisWeek(horse, week, year)) continue;
@@ -121,27 +120,24 @@ export function planNpcGradedFields(
       // 優先出走権を持つ馬もここは免除しない——トライアルを勝った馬でも年齢が
       // 合わなければ本番には出られない（実データの`condition`自体がそう決めている）。
       if (!isAgeSexEligible(horse, race.condition, year)) continue;
-      // ⭐計画（`horse.plan`）がこの重賞を目標か前哨戦にしているか。トライアルの
-      // 優先出走権を持つ馬は、計画がこの重賞でなくても入れる（従来どおり）。
-      const isPlanned =
-        horse.plan && (horse.plan.targetRaceId === race.id || horse.plan.prepRaceId === race.id);
-      if (!isPlanned && !priorityIds.has(horse.id)) continue;
+      // ⭐計画（`horse.plan`）は問わない：出られる馬すべてが候補で、定員を超えたら
+      // 優先出走権→収得賞金の多い順で決める（第13弾・`design/jra-entry-rules.md`§2）。
       candidates.push(horse);
     }
     if (candidates.length < MIN_FIELD_SIZE) continue; // 出走できる馬が少なすぎる週はレースが成立しない
 
     const fieldSize = Math.min(MAX_FIELD_SIZE, candidates.length);
-    // ⭐その馬場に向いた馬（◎か○）を先に。足りなければ△で埋める
-    // （`data/surfaceAptitude.js`の`preferSuitedRunners`）。
-    // ⚠️優先出走権を持つ馬はここで落とさない——`determineEntries`が先に入れる。
-    const suited = preferSuitedRunners(candidates, race.surface, fieldSize);
-    const withPriority = [
-      ...suited,
-      ...candidates.filter((h) => priorityIds.has(h.id) && !suited.includes(h)),
-    ];
-    const { entries } = determineEntries(withPriority, fieldSize, priorityIds);
+    // ⭐優先出走権の馬を先に（収得賞金の多い順）、残りを収得賞金の多い順に並べ、その馬場に向いた馬
+    // （◎か○）を先に（足りなければ△で埋める・`data/surfaceAptitude.js`の`preferSuitedRunners`）。
+    // ⚠️収得賞金は同額の馬が多い（400万・500万…）ので、同額なら獲得賞金の多い順で割る。
+    const byShutokuDesc = (a, b) => shutokuOf(b) - shutokuOf(a) || b.record.earnings - a.record.earnings;
+    const entries = candidates.filter((h) => priorityIds.has(h.id)).sort(byShutokuDesc);
+    const rest = candidates.filter((h) => !priorityIds.has(h.id)).sort(byShutokuDesc);
+    const need = fieldSize - entries.length;
+    if (need > 0) entries.push(...preferSuitedRunners(rest, race.surface, need).slice(0, need));
+    entries.length = Math.min(entries.length, fieldSize);
     for (const h of entries) racedHorseIds.add(h.id);
-    planned.push({ race, entries, fieldSize });
+    planned.push({ race, entries, fieldSize: entries.length });
   }
   return planned;
 }
@@ -228,6 +224,7 @@ export function runNpcGradedRaces(
       const position = idx + 1;
       topFinishers.push(h.id);
       const earningsGain = (race.prize1 ?? 0) * placePrizeShare(position);
+      const age = h.bornYear != null ? year - h.bornYear : 4;
       const wasTarget = h.plan?.targetRaceId === race.id;
 
       let updated = {
@@ -247,12 +244,16 @@ export function runNpcGradedRaces(
             condition,
           },
           earningsGain,
-          true
+          true,
+          undefined,
+          shutokuForGradedRace(race, year, position, age)
         ),
         // 目標だったなら計画は完了（`null`にして次の計画待ちに）。優先出走権で
         // 出た馬（自分の計画外の重賞）や前哨戦を走っただけの馬は計画をそのまま持ち越す。
         plan: wasTarget ? null : h.plan,
       };
+
+      updated = withReclassedClass(updated, week, year);
 
       const fall = checkFall(saveSeed, week, h.id, h.abilities.health, 0);
       if (fall.fell) {

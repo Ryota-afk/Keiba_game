@@ -59,7 +59,7 @@ export function processYearBoundary(saveSeed, newYear, roster, player, options =
 
   // ②繁殖入り（史実馬は対象外——史実馬の繁殖入りは史実の血統表に従うべきで、
   // ゲーム内の収得賞金順の抽選では決めない）。
-  const fictionalRetiring = retiring.filter((h) => !h.isHistorical);
+  const fictionalRetiring = retiring.filter((h) => !h.isHistorical && !h.leftForLocal); // 地方へ移った馬は繁殖入りしない
   const { sireIds, broodmareIds } = selectBreedingHorses(fictionalRetiring);
   const sireIdSet = new Set(sireIds);
   const broodmareIdSet = new Set(broodmareIds);

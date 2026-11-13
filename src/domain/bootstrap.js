@@ -24,6 +24,7 @@ import { WEEKS_PER_YEAR, BOOTSTRAP_YEARS, BOOTSTRAP_WEEKS } from "../data/calend
 import { hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { concentrationAlphaForYear } from "../data/jockeyConcentration.js";
 import { buildYearIndex } from "./weeklyCard.js";
+import { reclassAndRetireMaidens } from "./horseClass.js";
 import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
 
 // Y−2時点の馬齢分布。104週（2年）ぶん歳を取った後の開始年Yの分布が、1974年の実測
@@ -67,7 +68,10 @@ function assignInitialBornYears(saveSeed, horses, bootstrapStartYear) {
  *   （渡さなければ`data/jockeyConcentration.js`のその年の値。`advanceWeek`と同じ）
  * @returns {{ roster: object }}
  */
-export function runBootstrapWeek(saveSeed, week, year, roster, options = {}) {
+export function runBootstrapWeek(saveSeed, week, year, rosterIn, options = {}) {
+  // ⭐第13弾：週の初めにクラスを決め直し、未勝利のまま3歳の9月7日を迎えた馬を外す
+  // （本編の`advanceWeek`と同じ。`domain/horseClass.js`）。
+  const roster = { ...rosterIn, horses: reclassAndRetireMaidens(rosterIn.horses, week, year).horses };
   // 本物のsimは騎手の適性も見るので、事前シミュレーションでも騎手を乗せる。
   const jockeyById = new Map(roster.npcJockeys.map((j) => [j.id, j]));
   const primaryJockeyByStable = assignStablePrimaryJockeys(roster.stables, roster.npcJockeys);

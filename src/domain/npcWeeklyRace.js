@@ -18,7 +18,9 @@
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { drawFieldSize } from "../data/raceProgram.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
-import { classAfterWin, classAfterDebutLoss, appendRaceResult, weeksSinceLastRace } from "./horse.js";
+import { appendRaceResult, weeksSinceLastRace } from "./horse.js";
+import { withReclassedClass } from "./horseClass.js";
+import { shutokuForGeneralRace } from "../data/shutokuPrize.js";
 import { runRaceSim, buildPlan } from "../sim/index.js";
 import { deriveFavoredStrategy } from "./strategy.js";
 import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
@@ -176,29 +178,37 @@ export function runNpcWeeklyRaces(
 
     sim.order.map((entryIndex) => ({ h: simEntries[entryIndex].horse })).forEach(({ h }, idx) => {
       const position = idx + 1;
-      const won = position === 1;
-      const nextClassId = won ? classAfterWin(h.classId) : classAfterDebutLoss(h.classId);
+      // ⭐収得賞金は1着だけ積む（`data/shutokuPrize.js`）。クラスはレース後に収得賞金・馬齢・
+      // 時期から決め直す（`domain/horseClass.js`）。⚠️オープン特別は`race.classId`が`open`。
+      const age = h.bornYear != null ? year - h.bornYear : 4;
       const wasTarget = h.plan?.targetRaceId === race.raceId;
 
       let updated = {
         ...h,
-        classId: nextClassId,
-        record: appendRaceResult(h.record, h.classId, {
-          position,
-          fieldSize,
-          popularity: popularityByHorseId.get(h.id) ?? null,
-          week,
-          year,
-          courseId: race.courseId,
-          surface: race.surface,
-          distance: race.distance,
-          condition,
-        }),
+        record: appendRaceResult(
+          h.record,
+          h.classId,
+          {
+            position,
+            fieldSize,
+            popularity: popularityByHorseId.get(h.id) ?? null,
+            week,
+            year,
+            courseId: race.courseId,
+            surface: race.surface,
+            distance: race.distance,
+            condition,
+          },
+          null,
+          shutokuForGeneralRace(race.classId, age, position)
+        ),
         // 目標レースを走り終えたら計画は完了——`null`にして次の計画待ちにする
         // （`domain/rotation.js`の`replanStaleHorses`が週の締めくくりで立て直す）。
         // 前哨戦を走っただけなら、計画（目標）はそのまま持ち越す。
         plan: wasTarget ? null : h.plan,
       };
+
+      updated = withReclassedClass(updated, week, year);
 
       // 落馬・怪我（⚠️簡略化：この週の着順そのものには反映せず、次週以降の離脱と
       // 引退判定③の材料だけに使う。`arch/horse.md`「⭐ 落馬・怪我」は本来プレイヤーの

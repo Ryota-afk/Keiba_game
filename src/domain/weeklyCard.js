@@ -191,7 +191,7 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
   const totalSlotsThisWeek = openCourses.length * 2 * racesPerDay(year);
   const generalSlots = Math.max(0, totalSlotsThisWeek - gradedToday.length - openStakesToday);
   for (let i = 0; i < generalSlots; i += 1) {
-    const classId = drawGeneralRaceClass(rand01);
+    const classId = drawGeneralRaceClass(rand01, thisWeek);
     const courseId = pick(rand01, openCourses);
     const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
     const raceId = `${year}-w${thisWeek}-gen-${i}`;
@@ -217,7 +217,7 @@ export const OPEN_AND_ABOVE_BUCKET = "open+";
 /**
  * 馬のクラスidから、`buildYearIndex`が使う索引の鍵を出す。オープン以上
  * （`open`・`listed`・`g3`・`g2`・`g1`）は`OPEN_AND_ABOVE_BUCKET`にまとめる——
- * 馬の`classId`は`open`止まりだが（`domain/horse.js`の`WIN_PROMOTION_CAP`）、
+ * 馬の`classId`は`open`止まりだが（`domain/horseClass.js`・クラスは収得賞金で決まる）、
  * `isEligibleForRaceClass`と同じ規則で「オープン以上ならどの格でも出走資格がある」。
  * @param {string} classId
  */
