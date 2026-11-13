@@ -1,0 +1,181 @@
+/*
+ * 出馬表の画面（案E・CLAUDE.md §8の手順で確定）。
+ * 見本：design/mocks/entry-list-v2.html「案E」。色・級数・横スクロールの構造はそのまま
+ * 踏襲する——変える場合は見本を作り直すところからやり直すこと。
+ * ⚠️見本の`.frame{width:min(390px,100%)}`は単体カードとして並べて見せるための値で、
+ * 実装では画面いっぱいに広げる（CLAUDE.md §8「モックの実行環境の都合で入れた値を
+ * 実装へそのまま持ち込まない」）。
+ */
+
+.entry-list-screen {
+  --panel: #1a2a18;
+  --panel2: #223a20;
+  --panel3: #2b482a;
+  --muted: #9fb896;
+  --fg: #f2ede0;
+  --accent: #ffd83d;
+  --action: #1a5fb4; /* title-screen.cssと同じくWCAG AA対応版 */
+  --good: #7ed77a;
+  --t-hero: 22px;
+  --t-lead: 16px;
+  --t-body: 13px;
+  --t-sub: 11px;
+  --t-micro: 10px;
+  --sp: 8px;
+
+  min-height: 100dvh;
+  background: #0f0c0a;
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.els-head {
+  padding: 0 var(--sp) calc(var(--sp) * 1.5);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.els-grade {
+  font-size: var(--t-sub);
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+.els-name {
+  font-size: var(--t-hero);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.els-where {
+  font-size: var(--t-body);
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.els-scroller {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.els-cols {
+  display: flex;
+  gap: 6px;
+  padding: 0 var(--sp) var(--sp);
+  width: max-content;
+  margin: 0 auto;
+}
+
+.els-col {
+  width: 132px;
+  flex: 0 0 auto;
+  background: var(--panel2);
+  padding: 6px;
+}
+
+.els-col.els-self {
+  background: var(--panel3);
+}
+
+.els-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.els-waku {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  font-size: var(--t-micro);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+/* 枠の色（実データが持つ色。JRA共通の8色）。 */
+.els-w1 .els-waku { background: #e9e4d8; color: #111; }
+.els-w2 .els-waku { background: #1d1d1d; color: #eee; }
+.els-w3 .els-waku { background: #c0392b; color: #fff; }
+.els-w4 .els-waku { background: #2f6fb5; color: #fff; }
+.els-w5 .els-waku { background: #e3c12a; color: #111; }
+.els-w6 .els-waku { background: #3f8f4a; color: #fff; }
+.els-w7 .els-waku { background: #d2732b; color: #fff; }
+.els-w8 .els-waku { background: #d08aa6; color: #111; }
+
+.els-num {
+  width: 18px;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.els-pop {
+  font-size: var(--t-sub);
+  color: var(--accent);
+}
+
+.els-horsename {
+  font-size: var(--t-body);
+  font-weight: 700;
+  margin-top: 4px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.els-rider {
+  font-size: var(--t-sub);
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.els-race {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #ffffff14;
+  font-size: var(--t-micro);
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.els-race.els-first {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.els-race b {
+  display: block;
+  font-size: var(--t-sub);
+  color: var(--fg);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.els-fin {
+  font-size: var(--t-body);
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.els-fin.els-win {
+  color: var(--good);
+}
+
+.els-close {
+  display: block;
+  margin: 24px auto 0;
+  padding: 10px 24px;
+  background: var(--action);
+  color: #fff;
+  border: none;
+  font-family: inherit;
+  font-size: var(--t-body);
+  font-weight: 500;
+  min-height: 44px;
+}

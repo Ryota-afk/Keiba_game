@@ -1,0 +1,425 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>年末のまとめ v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&family=M+PLUS+1+Code:wght@700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 年末のまとめ（①）と引退した馬（②）——候補を各3案。
+ * 2026-10-13・Opus 5.5が作成（Fableの残量切れ。CLAUDE.md §2・arch/ui-fable.md §2）。
+ * 設計の確定事項・取得元・計測：design/mocks/year-end-v1-spec.md
+ * 色は週の結果画面（src/screens/WeekResultScreen.css）と同じ。accent（黄）＝読むもの、action（青）＝押すもの。
+ * 注意：モックの都合の値（.frame の 390px 幅・min-height）は実装へ持ち込まない。
+ * 級数・余白はトークンだけ。縦線なし。絵文字なし。
+ * 動き：①の案Aだけ、行が上から順に現れる案（既存の --m-list-*＝モーションリファレンス t-stagger-seq）。見本は静止。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --panel:#1a2a18; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff;
+  --turf:#8fd07e; --dirt:#d8b27a;
+  --rule:rgba(255,255,255,.1);
+  --col-label:6.5em;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6)}
+.wrap{max-width:1260px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.part{font-size:var(--fs-lead);font-weight:700;margin-top:var(--s6);padding-top:var(--s3);box-shadow:inset 0 2px 0 var(--muted)}
+.cand>h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s5);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+.cand>h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7;max-width:60em}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:62em;margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:500}
+.cand{padding:0 var(--s1) var(--s3)}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;min-height:720px;box-shadow:0 0 0 1px #000;display:flex}
+
+/* ── 画面の共通部品（週の結果画面と同じ作り） ── */
+.ye{width:100%;min-height:720px;display:flex;flex-direction:column;background:var(--panel);color:var(--fg);padding-bottom:var(--s2);font-variant-numeric:tabular-nums}
+.ye-hd{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s2) var(--s2) var(--s1)}
+.ye-hd b{font-size:var(--fs-body);font-weight:700}
+.ye-hd span{font-size:var(--fs-caption);color:var(--muted)}
+.sec{padding:var(--s3) var(--s2) 0}
+.sec h3{padding-bottom:var(--s1);font-size:var(--fs-caption);font-weight:500;letter-spacing:.08em;color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+.foot{margin-top:auto;padding:var(--s4) var(--s2) 0}
+.btn{display:block;width:100%;min-height:var(--s6);line-height:var(--s6);text-align:center;background:var(--action);color:var(--on-action);font-size:var(--fs-body);font-weight:700}
+.mk{font-size:var(--fs-caption);font-weight:400;color:var(--accent);margin-left:var(--s1);white-space:nowrap}
+.me{font-weight:700;color:var(--fg)}
+.none,.aw__nm.none{color:var(--muted);font-weight:400}
+
+/* 部門の行：左に部門名（固定幅）・右に馬名、2行目に勝ったレース */
+.aw{display:grid;grid-template-columns:var(--col-label) minmax(0,1fr);gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);align-items:baseline}
+.aw:last-child{box-shadow:none}
+.aw__k{font-size:var(--fs-caption);color:var(--muted)}
+.aw__nm{font-size:var(--fs-body);font-weight:700;overflow-wrap:anywhere}
+.aw__w{grid-column:2;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+
+/* 騎手の行：部門・名前・値。2行目に自分の順位 */
+.jk{display:grid;grid-template-columns:var(--col-label) minmax(0,1fr) auto;gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);align-items:baseline}
+.jk:last-child{box-shadow:none}
+.jk__k{font-size:var(--fs-caption);color:var(--muted)}
+.jk__nm{font-size:var(--fs-body);font-weight:700}
+.jk__v{font-size:var(--fs-body);color:var(--accent);white-space:nowrap;text-align:right}
+.jk__me{grid-column:2 / 4;display:flex;justify-content:space-between;font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
+.jk__me b{color:var(--fg);font-weight:500}
+
+/* G1の行：月週とレース名（小）・勝ち馬（本文）・右に騎手 */
+.g1{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.g1:last-child{box-shadow:none}
+.g1__race{font-size:var(--fs-caption);color:var(--muted)}
+.g1__race i{font-style:normal;margin-right:var(--s1)}
+.g1__win{font-size:var(--fs-body);font-weight:700;overflow-wrap:anywhere}
+.g1__jk{align-self:end;text-align:right;font-size:var(--fs-caption);color:var(--muted);white-space:nowrap}
+.g1__jk.is-me{color:var(--fg);font-weight:700}
+.g1.is-me .g1__win{color:var(--accent)}
+.g1__tag{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--accent)}
+
+/* 自分の1年：小さな板を並べる（週の結果の掲示板と同じ面） */
+.mine{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s1);margin-top:var(--s1)}
+.mine__b{background:var(--board);padding:var(--s1)}
+.mine__k{font-size:var(--fs-caption);color:var(--muted)}
+.mine__v{font-size:var(--fs-lead);font-weight:700;line-height:1.3;margin-top:2px}
+.mine__v.is-hot{color:var(--accent)}
+.mine__p{font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+
+/* ── ①案A：年度代表馬が主役 ── */
+.hero{margin:0 var(--s2);background:var(--board);padding:var(--s2)}
+.hero__k{font-size:var(--fs-caption);color:var(--muted);letter-spacing:.08em}
+.hero__nm{font-size:var(--fs-title);font-weight:700;line-height:1.25;margin-top:var(--s1);overflow-wrap:anywhere}
+.hero__sub{font-size:var(--fs-caption);color:var(--muted);margin-top:var(--s1)}
+.hero__w{font-size:var(--fs-body);color:var(--accent);margin-top:2px;line-height:1.5}
+.hero__w.none{color:var(--muted)}
+
+/* ── ①案B：自分の1年が主役 ── */
+.self{margin:0 var(--s2);background:var(--board);padding:var(--s2)}
+.self__k{font-size:var(--fs-caption);color:var(--muted)}
+.self__row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s1)}
+.self__wins{font-size:var(--fs-display);font-weight:700;line-height:1.1;color:var(--accent)}
+.self__wins small{font-size:var(--fs-body);font-weight:400;color:var(--muted);margin-left:var(--s1)}
+.self__prev{font-size:var(--fs-caption);color:var(--muted);text-align:right;line-height:1.6}
+.self .mine{margin-top:var(--s2)}
+.self .mine__b{background:var(--panel)}
+.hoy-line{display:grid;grid-template-columns:var(--col-label) minmax(0,1fr);gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);align-items:baseline}
+.hoy-line .aw__nm{font-size:var(--fs-lead)}
+
+/* ── ①案C：G1の暦が主役 ── */
+.strip{display:flex;align-items:baseline;gap:var(--s2);margin:0 var(--s2);padding:var(--s1) 0 var(--s2);box-shadow:inset 0 -1px 0 var(--rule)}
+.strip span{font-size:var(--fs-caption);color:var(--muted);white-space:nowrap}
+.strip b{font-size:var(--fs-lead);font-weight:700;overflow-wrap:anywhere}
+.cal .g1{grid-template-columns:3.5em minmax(0,1fr) auto}
+.cal .g1__d{font-size:var(--fs-caption);color:var(--muted);padding-top:2px}
+.rest{font-size:var(--fs-caption);color:var(--muted);line-height:1.7;padding:var(--s1) 0}
+.rest b{font-size:var(--fs-body);color:var(--fg);font-weight:700}
+.line{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;font-size:var(--fs-body);box-shadow:inset 0 -1px 0 var(--rule)}
+.line:last-child{box-shadow:none}
+.line small{font-size:var(--fs-caption);color:var(--muted)}
+.line .v{font-size:var(--fs-caption);color:var(--muted);text-align:right}
+
+/* ── ②引退した馬 ── */
+.rt{padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.rt:last-child{box-shadow:none}
+.rt__l1{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1)}
+.rt__nm{font-size:var(--fs-body);font-weight:700;overflow-wrap:anywhere}
+.rt__dest{font-size:var(--fs-caption);color:var(--muted);white-space:nowrap}
+.rt__l2{font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
+.rt__g1{font-size:var(--fs-caption);color:var(--accent);line-height:1.6}
+.rt__me{font-size:var(--fs-caption);color:var(--fg);line-height:1.6}
+/* 案B：1頭1枚の札 */
+.cards{display:grid;gap:var(--s1);padding:0 var(--s2)}
+.card{background:var(--board);padding:var(--s2)}
+.card__top{display:flex;justify-content:space-between;gap:var(--s1);font-size:var(--fs-caption);color:var(--muted)}
+.card__top b{color:var(--accent);font-weight:500}
+.card__nm{font-size:var(--fs-lead);font-weight:700;line-height:1.3;margin-top:var(--s1);overflow-wrap:anywhere}
+.card__g1{font-size:var(--fs-body);color:var(--accent);line-height:1.6;margin-top:2px}
+.card__ft{font-size:var(--fs-caption);color:var(--muted);margin-top:var(--s1);line-height:1.6}
+.card__ft b{color:var(--fg);font-weight:500}
+.cards-h{font-size:var(--fs-caption);font-weight:500;letter-spacing:.08em;color:var(--muted);padding:var(--s3) var(--s2) var(--s1)}
+/* 案C：1頭ずつ送る */
+.one{flex:1;display:flex;flex-direction:column;justify-content:center;padding:var(--s4) var(--s2) 0}
+.one__k{font-size:var(--fs-caption);color:var(--accent);letter-spacing:.08em}
+.one__nm{font-size:var(--fs-title);font-weight:700;line-height:1.25;margin-top:var(--s1);overflow-wrap:anywhere}
+.one__sub{font-size:var(--fs-body);color:var(--muted);margin-top:var(--s1)}
+.one__g1{margin-top:var(--s3)}
+.one__g1 div{font-size:var(--fs-body);line-height:1.5;padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);display:flex;justify-content:space-between;gap:var(--s1)}
+.one__g1 div span{color:var(--muted);font-size:var(--fs-caption)}
+.one__ft{margin-top:var(--s3);font-size:var(--fs-body);line-height:1.8}
+.one__ft .v{color:var(--muted)}
+.pager{font-size:var(--fs-caption);color:var(--muted);text-align:center;padding-top:var(--s2)}
+.foot2{margin-top:auto;padding:var(--s3) var(--s2) 0}
+</style></head><body><div class="wrap">
+<h1>年末のまとめ・引退した馬 v1（候補 各3案）</h1>
+<p class="intro">12月の最終週の結果画面のあとに出す2枚の画面の候補です。<b>①年末のまとめ</b>（3案）と<b>②引退した馬</b>（3案）。
+決まっていないこと（Q1〜Q10）は、設計メモの推奨のほうで描いています（1983年までの見出しだけはQ2の(b)「大レース」）（<code>year-end-v1-spec.md</code>§6）。<br>
+値はすべて実際のゲームの値です（ゲームを画面なしで3年回した記録。世界b-1。<b>1976年</b>＝1974年開始の3年目で空きの多い年／<b>1996年</b>＝1994年開始の3年目でG1が多い年）。
+<b>「説明用」</b>と書いた1枚だけ、自分の馬がG1を勝った場合に書き換えた値です（実際の記録では、自分が重賞を勝った年がありませんでした）。<br>
+1976年と1996年の両方に「フウリンブロッサム」が出るのは、同じ種で開始年が違う別々の記録だからです。</p>
+<div id="root"></div>
+</div>
+<script>
+/*
+ * DATA：scratchpad の ye/measure.mjs（本物の advanceWeek を3年回し、事前シミュレーションの2年も自前で回した記録）。
+ *  y1976 = 世界 b-1・1974年開始の1976年。y1996 = 世界 b-1・1994年開始の1996年。
+ *  awards＝設計メモ§3の比べ方で選んだ結果。g1＝その年に実際に行われたG1（1983年までは1984年にG1だった名前）。
+ *  jockeys＝その年の騎乗の割り当て（weekBooking）から数えた勝ち数・騎乗数・獲得賞金。勝率は50回以上（Q5の推奨）。
+ *  self＝player.record.byYear と ride.income の合計。
+ *  y1996me＝説明用（1996年の菊花賞を自分がリリーロンドで勝った場合。印・自分の数字だけ書き換えた）。
+ */
+const Y1976 = {
+  year: 1976, body: "優駿賞", g1Label: "大レース",
+  hoy: { name: "ブランクローバー", cat: "3歳牝馬", rec: "5戦4勝", money: "8,260万円", wins: ["菊花賞", "エリザベス女王杯"] },
+  awards: [
+    ["2歳牡馬", null], ["2歳牝馬", null], ["3歳牡馬", null],
+    ["3歳牝馬", { name: "ブランクローバー", wins: "菊花賞・エリザベス女王杯" }],
+    ["4歳以上牡馬", { name: "セセラギエトワール", wins: "有馬記念（グランプリ）" }],
+    ["4歳以上牝馬", { name: "ビートネーヴェ", wins: "天皇賞（秋）" }],
+  ],
+  jockeys: [
+    ["最多勝利", "藤野修平", "122勝", "110位", "1勝"],
+    ["最高勝率", "高梨慎太郎", "16.1%", "103位", "1.0%"],
+    ["最多獲得賞金", "藤野修平", "4億4,755万円", "103位", "784万円"],
+  ],
+  of: 127,
+  me: "芦田翔太",
+  self: { starts: 104, wins: 1, graded: 0, money: "336万円", prev: { starts: 104, wins: 2, graded: 0, money: "336万円" } },
+  g1: [
+    ["5月1週", "天皇賞（春）", "ゲイルエコー", "平尾竜也"],
+    ["6月2週", "安田記念", "セセラギネーヴェ", "前川光一"],
+    ["6月3週", "宝塚記念", "キャロルプレアデス", "平尾竜也"],
+    ["10月4週", "菊花賞", "ブランクローバー", "天野太一"],
+    ["11月1週", "天皇賞（秋）", "ビートネーヴェ", "天野太一"],
+    ["11月3週", "エリザベス女王杯", "ブランクローバー", "野沢順平"],
+    ["12月5週", "有馬記念（グランプリ）", "セセラギエトワール", "桑原亮介"],
+  ],
+  next: "1977年へ",
+};
+const Y1996 = {
+  year: 1996, body: "JRA賞", g1Label: "G1",
+  hoy: { name: "アステルロマン", cat: "3歳牝馬", rec: "6戦4勝", money: "2億5,649万円", wins: ["東京優駿（日本ダービー）"] },
+  awards: [
+    ["2歳牡馬", null], ["2歳牝馬", null],
+    ["3歳牡馬", { name: "リリーロンド", wins: "菊花賞" }],
+    ["3歳牝馬", { name: "アステルロマン", wins: "東京優駿（日本ダービー）" }],
+    ["4歳以上牡馬", { name: "ハツシモイーグル", wins: "高松宮杯" }],
+    ["4歳以上牝馬", { name: "コーラルフォルテ", wins: "農林水産省賞典 安田記念" }],
+    ["短距離", { name: "ハツシモイーグル", wins: "高松宮杯" }],
+    ["ダート", { name: "シロッコベリル", wins: "フェブラリーステークス" }],
+  ],
+  jockeys: [
+    ["最多勝利", "藤野修平", "128勝", "82位", "5勝"],
+    ["最高勝率", "藤野修平", "16.4%", "86位", "4.8%"],
+    ["最多獲得賞金", "藤野修平", "10億4,579万円", "81位", "1,409万円"],
+  ],
+  of: 125,
+  me: "芦田翔太",
+  self: { starts: 104, wins: 5, graded: 0, money: "375万円", prev: { starts: 104, wins: 7, graded: 0, money: "421万円" } },
+  g1: [
+    ["3月5週", "高松宮杯", "ハツシモイーグル", "今井翔太"],
+    ["5月1週", "天皇賞（春）", "ルビーアステル", "黒田光一"],
+    ["6月1週", "東京優駿（日本ダービー）", "アステルロマン", "吉岡伸一"],
+    ["6月2週", "農林水産省賞典 安田記念", "コーラルフォルテ", "桑原亮介"],
+    ["6月3週", "震災復興支援競走 宝塚記念", "ムラクモビート", "秋元明彦"],
+    ["9月5週", "スプリンターズステークス", "ヴェルデエトワール", "藤野修平"],
+    ["10月4週", "菊花賞", "リリーロンド", "永井徹"],
+    ["11月1週", "天皇賞（秋）", "イーグルアロー", "平尾竜也"],
+    ["11月3週", "エリザベス女王杯", "テンロウフロスト", "吉岡伸一"],
+    ["11月4週", "マイルチャンピオンシップ", "ロッソクレスト", "浅野敏夫"],
+    ["12月1週", "ジャパンカップ", "テンロウルーナ", "前川誠"],
+    ["12月5週", "有馬記念（グランプリ）", "ブーケリリー", "今井誠"],
+  ],
+  next: "次へ",
+};
+// 説明用：1996年の菊花賞を自分がリリーロンドで勝った場合（印と自分の数字だけ書き換え）
+const Y1996ME = JSON.parse(JSON.stringify(Y1996));
+Y1996ME.illustrative = true;
+Y1996ME.awards[2][1].mark = "主戦";
+Y1996ME.g1[6][3] = "芦田翔太";
+Y1996ME.g1[6].push(true);
+Y1996ME.self = { starts: 104, wins: 6, graded: 1, money: "512万円", prev: Y1996.self.prev };
+Y1996ME.jockeys[0][3] = "79位"; Y1996ME.jockeys[0][4] = "6勝";
+Y1996ME.jockeys[1][3] = "80位"; Y1996ME.jockeys[1][4] = "5.8%";
+Y1996ME.jockeys[2][3] = "40位"; Y1996ME.jockeys[2][4] = "6,800万円";
+
+// 年度代表馬の勝ったレース・部門の行で、受賞馬が自分の印を持つか
+const markOf = (d, name) => (d.awards.find(([, a]) => a && a.name === name && a.mark)?.[1].mark) ?? null;
+const g1Title = (d) => `${d.g1Label}の勝ち馬`;
+
+// ── 部品 ──
+const awardRows = (d) => d.awards.map(([k, a]) => a
+  ? `<div class="aw"><span class="aw__k">${k}</span><span class="aw__nm">${a.name}${a.mark ? `<span class="mk">${a.mark}</span>` : ""}</span><span class="aw__w">${a.wins}</span></div>`
+  : `<div class="aw"><span class="aw__k">${k}</span><span class="aw__nm none">該当馬なし</span></div>`).join("");
+const jockeyRows = (d, withMe) => d.jockeys.map(([k, nm, v, rk, mv]) => `<div class="jk">
+  <span class="jk__k">${k}</span><span class="jk__nm">${nm}</span><span class="jk__v">${v}</span>
+  ${withMe ? `<span class="jk__me"><span><b>${d.me}</b>　${rk}</span><span>${mv}</span></span>` : ""}</div>`).join("");
+const g1Rows = (d) => d.g1.map(([w, race, win, jk, me]) => `<div class="g1 ${me ? "is-me" : ""}">
+  <div><div class="g1__race"><i>${w}</i>${race}</div><div class="g1__win">${win}</div></div>
+  <div class="g1__jk ${me ? "is-me" : ""}">${jk}</div></div>`).join("");
+const mineBoards = (d) => {
+  const s = d.self, p = s.prev;
+  return `<div class="mine">
+    <div class="mine__b"><div class="mine__k">戦績</div><div class="mine__v">${s.wins}勝</div><div class="mine__p">${s.starts}戦<br>前の年 ${p.wins}勝</div></div>
+    <div class="mine__b"><div class="mine__k">重賞</div><div class="mine__v ${s.graded ? "is-hot" : ""}">${s.graded}勝</div><div class="mine__p"><br>前の年 ${p.graded}勝</div></div>
+    <div class="mine__b"><div class="mine__k">稼いだお金</div><div class="mine__v">${s.money}</div><div class="mine__p"><br>前の年 ${p.money}</div></div>
+  </div>`;
+};
+const foot = (label) => `<div class="foot"><div class="btn">${label}</div></div>`;
+const frame = (inner) => `<main class="ye">${inner}</main>`;
+
+// ── ①案A：年度代表馬が主役（授賞式の順） ──
+function yA(d) {
+  const h = d.hoy;
+  return frame(`<div class="ye-hd"><b>${d.year}年 ${d.body}</b></div>
+    <div class="hero"><div class="hero__k">年度代表馬</div>
+      <div class="hero__nm">${h.name}${markOf(d, h.name) ? `<span class="mk">${markOf(d, h.name)}</span>` : ""}</div>
+      <div class="hero__sub">${h.cat}・${h.rec}・${h.money}</div>
+      <div class="hero__w">${h.wins.join("・")}</div></div>
+    <section class="sec"><h3>部門ごとの最優秀馬</h3>${awardRows(d)}</section>
+    <section class="sec"><h3>騎手</h3>${jockeyRows(d, true)}</section>
+    <section class="sec"><h3>${d.me}の1年</h3>${mineBoards(d)}</section>
+    <section class="sec"><h3>${g1Title(d)}</h3>${g1Rows(d)}</section>
+    ${foot("次へ")}`);
+}
+
+// ── ①案B：自分の1年が主役（自分→騎手→賞→G1） ──
+function yB(d) {
+  const s = d.self, p = s.prev;
+  const j = d.jockeys[0];
+  return frame(`<div class="ye-hd"><b>${d.year}年のまとめ</b></div>
+    <div class="self"><div class="self__k">${d.me}</div>
+      <div class="self__row"><div class="self__wins">${s.wins}勝<small>${s.starts}戦</small></div>
+        <div class="self__prev">前の年<br>${p.wins}勝・${p.starts}戦</div></div>
+      <div class="mine">
+        <div class="mine__b"><div class="mine__k">重賞</div><div class="mine__v ${s.graded ? "is-hot" : ""}">${s.graded}勝</div><div class="mine__p">前の年 ${p.graded}勝</div></div>
+        <div class="mine__b"><div class="mine__k">稼いだお金</div><div class="mine__v">${s.money}</div><div class="mine__p">前の年 ${p.money}</div></div>
+        <div class="mine__b"><div class="mine__k">勝ち数の順位</div><div class="mine__v">${j[3]}</div><div class="mine__p">${d.of}人中</div></div>
+      </div></div>
+    <section class="sec"><h3>騎手の部門</h3>${jockeyRows(d, false)}</section>
+    <section class="sec"><h3>${d.body}</h3>
+      <div class="hoy-line"><span class="aw__k">年度代表馬</span><span class="aw__nm">${d.hoy.name}</span></div>
+      ${awardRows(d)}</section>
+    <section class="sec"><h3>${g1Title(d)}</h3>${g1Rows(d)}</section>
+    ${foot("次へ")}`);
+}
+
+// ── ①案C：G1の暦が主役（受賞はG1の行に付ける） ──
+function yC(d) {
+  const tagsByName = {};
+  for (const [k, a] of d.awards) if (a) (tagsByName[a.name] ??= []).push(k);
+  // 受賞の印は、その馬が最初に出てくるG1の行にだけ付ける（2回目以降は付けない）。年度代表馬は上の帯で出すので印にしない
+  const tagged = new Set();
+  const tagFor = (win) => { if (!tagsByName[win] || tagged.has(win)) return null; tagged.add(win); return tagsByName[win]; };
+  const shown = new Set(d.g1.map((g) => g[2]));
+  const rest = d.awards.filter(([, a]) => a && !shown.has(a.name));
+  const empty = d.awards.filter(([, a]) => !a).map(([k]) => k);
+  const j = d.jockeys;
+  return frame(`<div class="ye-hd"><b>${d.year}年 ${d.body}</b></div>
+    <div class="strip"><span>年度代表馬</span><b>${d.hoy.name}</b></div>
+    <section class="sec cal"><h3>${g1Title(d)}</h3>${d.g1.map(([w, race, win, jk, me]) => `<div class="g1 ${me ? "is-me" : ""}">
+      <div class="g1__d">${w}</div>
+      <div><div class="g1__race">${race}</div><div class="g1__win">${win}${((tags) => tags ? `<span class="g1__tag">${tags.map((t) => `最優秀${t}${t === "短距離" ? "馬" : t === "ダート" ? "ホース" : ""}`).join("・")}</span>` : "")(tagFor(win))}</div></div>
+      <div class="g1__jk ${me ? "is-me" : ""}">${jk}</div></div>`).join("")}
+      ${rest.length ? `<div class="rest">${rest.map(([k, a]) => `最優秀${k}${k === "ダート" ? "ホース" : ""}　<b>${a.name}</b>（${a.wins}）`).join("<br>")}</div>` : ""}
+      ${empty.length ? `<div class="rest">該当馬なし：${empty.join("・")}</div>` : ""}
+    </section>
+    <section class="sec"><h3>騎手</h3>${jockeyRows(d, false)}
+      <div class="line"><span class="me">${d.me}</span><span class="v">勝ち数${j[0][3]}・勝率${j[1][3]}・賞金${j[2][3]}</span></div></section>
+    <section class="sec"><h3>${d.me}の1年</h3>
+      <div class="line"><span>${d.self.starts}戦${d.self.wins}勝・重賞${d.self.graded}勝</span><span class="v">前の年 ${d.self.prev.starts}戦${d.self.prev.wins}勝・重賞${d.self.prev.graded}勝</span></div>
+      <div class="line"><span>稼いだお金 ${d.self.money}</span><span class="v">前の年 ${d.self.prev.money}</span></div></section>
+    ${foot("次へ")}`);
+}
+
+// ── ②引退した馬のデータ（実データ） ──
+const R1976 = {
+  year: 1976, g1Label: "大レース", next: "1977年へ",
+  main: [{ name: "ホムラミーティア", sex: "牡", age: 5, rec: "28戦2勝", rides: 11, g1: [], dest: null }],
+  g1: [{ name: "フウリンブロッサム", sex: "牝", age: 8, rec: "30戦8勝", g1: ["1973年 安田記念"], dest: "繁殖牝馬になります" }],
+};
+const R1996 = {
+  year: 1996, g1Label: "G1", next: "1997年へ",
+  main: [],
+  g1: [
+    { name: "フウリンブロッサム", sex: "牝", age: 8, rec: "20戦7勝", g1: ["1992年 有馬記念（グランプリ）", "1994年 マイルチャンピオンシップ"], dest: "繁殖牝馬になります" },
+    { name: "トモシビミスティ", sex: "牝", age: 8, rec: "16戦8勝", g1: ["1992年 天皇賞（秋）"], dest: "繁殖牝馬になります" },
+    { name: "バラードジェイド", sex: "牝", age: 8, rec: "20戦7勝", g1: ["1993年 スプリンターズステークス"], dest: "繁殖牝馬になります" },
+  ],
+};
+
+// ── ②案A：一覧（主戦→G1を勝った馬） ──
+function rA(d) {
+  const row = (h, isMain) => `<div class="rt">
+    <div class="rt__l1"><span class="rt__nm">${h.name}</span><span class="rt__dest">${h.dest ?? ""}</span></div>
+    <div class="rt__l2">${h.age}歳・${h.sex}・${h.rec}</div>
+    ${h.g1.length ? `<div class="rt__g1">${h.g1.join("・")}</div>` : ""}
+    ${isMain ? `<div class="rt__me">${h.rides}回乗りました</div>` : ""}</div>`;
+  return frame(`<div class="ye-hd"><b>${d.year}年に引退した馬</b></div>
+    ${d.main.length ? `<section class="sec"><h3>主戦</h3>${d.main.map((h) => row(h, true)).join("")}</section>` : ""}
+    ${d.g1.length ? `<section class="sec"><h3>${d.g1Label}を勝った馬</h3>${d.g1.map((h) => row(h, false)).join("")}</section>` : ""}
+    ${foot(d.next)}`);
+}
+
+// ── ②案B：1頭1枚の札 ──
+function rB(d) {
+  const card = (h, isMain) => `<div class="card">
+    <div class="card__top"><span>${h.age}歳・${h.sex}・${h.rec}</span>${isMain ? `<b>主戦</b>` : ""}</div>
+    <div class="card__nm">${h.name}</div>
+    ${h.g1.map((g) => `<div class="card__g1">${g}</div>`).join("")}
+    <div class="card__ft">${isMain ? `<b>${h.rides}回乗りました</b>${h.dest ? "<br>" : ""}` : ""}${h.dest ?? ""}</div></div>`;
+  return frame(`<div class="ye-hd"><b>${d.year}年に引退した馬</b></div>
+    <div class="cards">${[...d.main.map((h) => card(h, true)), ...d.g1.map((h) => card(h, false))].join("")}</div>
+    ${foot(d.next)}`);
+}
+
+// ── ②案C：1頭ずつ送る（1枚目を描く。下に何頭目か） ──
+function rC(d, idx = 0) {
+  const all = [...d.main.map((h) => ({ ...h, isMain: true })), ...d.g1.map((h) => ({ ...h, isMain: false }))];
+  const h = all[idx];
+  const last = idx === all.length - 1;
+  return frame(`<div class="ye-hd"><b>${d.year}年に引退した馬</b></div>
+    <div class="one">
+      <div class="one__k">${h.isMain ? "主戦" : `${d.g1Label}を勝った馬`}</div>
+      <div class="one__nm">${h.name}</div>
+      <div class="one__sub">${h.age}歳・${h.sex}・${h.rec}</div>
+      ${h.g1.length ? `<div class="one__g1">${h.g1.map((g) => { const [y, ...r] = g.split(" "); return `<div>${r.join(" ")}<span>${y}</span></div>`; }).join("")}</div>` : ""}
+      <div class="one__ft">${h.isMain ? `${h.rides}回乗りました<br>` : ""}<span class="v">${h.dest ?? ""}</span></div>
+    </div>
+    <div class="pager">${idx + 1}／${all.length}</div>
+    <div class="foot2"><div class="btn">${last ? d.next : "次の馬へ"}</div></div>`);
+}
+
+const PART1 = [
+  ["A", "①案A：年度代表馬が主役（授賞式の順）", "年度代表馬を一番上の板に大きく出し、部門ごとの最優秀馬→騎手→自分の1年→G1の勝ち馬の順に下へ並べます。騎手の3部門には、それぞれの下に自分の順位を添えます。実装するときは、部門の行が上から順に現れる動きを付ける案です（番付の10頭と同じ --m-list-*。モーションリファレンス t-stagger-seq：各400ms・40ms間隔・easeOutCubic。動きを減らす設定ではフェードだけ）。捨てたもの：自分の数字は一番下の近くにあり、スクロールしないと見えません。", yA],
+  ["B", "①案B：自分の1年が主役", "画面の主役を自分の勝ち数（着順の数字と同じ大きさ）にし、前の年・重賞・稼いだお金・勝ち数の順位を同じ板に入れます。その下に騎手の部門（受賞者だけ）、賞、G1の勝ち馬。捨てたもの：年度代表馬は1行に縮みます。自分の勝ち数が少ない年（1勝）も大きく出るので、締め付けとしては一番はっきりしますが、華やかさは一番弱い案です。", yB],
+  ["C", "①案C：G1の暦が主役（受賞はG1の行に付ける）", "G1の勝ち馬を行われた順に並べ、受賞した馬の、その年で最初のG1の行に「最優秀3歳牝馬」の形で部門名を付けます。G1を勝っていない受賞馬（1996年は最優秀ダートホース）と該当馬なしは一覧の下に1行ずつ。部門の一覧とG1の一覧で同じ馬名を2回書かずに済みます。捨てたもの：部門の一覧が無いので「誰が何を取ったか」を探して読む形になり、年度代表馬の扱いも1行です。", yC],
+];
+const STATES1 = [["空きの多い年（1976年・優駿賞）", Y1976], ["G1が多い年（1996年・JRA賞）", Y1996], ["説明用：自分がリリーロンドで菊花賞を勝った場合（1996年）", Y1996ME]];
+
+const PART2 = [
+  ["A", "②案A：一覧", "「主戦」と「G1を勝った馬」の2つの段に分け、1頭2〜4行の一覧にします。勝ったG1は年つきで黄色、主戦の馬は乗った回数、繁殖に上がる馬は右上に行き先。捨てたもの：1頭ずつの重みは出ません。", rA],
+  ["B", "②案B：1頭1枚の札", "1頭を1枚の板にし、馬名を一段大きく、勝ったG1を本文の大きさで出します。主戦の馬は右上に「主戦」。年に0〜3頭（実測）なので、縦に並べても画面1枚に収まります。捨てたもの：頭数が多い年は長くなります。", rB],
+  ["C", "②案C：1頭ずつ送る", "1頭に画面1枚を使い、馬名を年度代表馬と同じ大きさで出します。「次の馬へ」で送り、最後の馬で「1997年へ」。捨てたもの：押す回数が頭数だけ増えます。一覧で見比べることはできません。", (d) => rC(d, 0)],
+];
+const STATES2 = [["主戦とG1を勝った馬（1976年）", R1976], ["G1を勝った馬3頭（1996年）", R1996]];
+
+const render = (parts, states, prefix) => parts.map(([id, t, desc, fn]) => `<section class="cand" id="${prefix}-${id}">
+  <h2>${t}<small>${desc}</small></h2>
+  <div class="gallery">${states.map(([cap, d]) => `<div class="shot"><p class="cap"><b>${cap}</b>${d.illustrative ? "　※説明用の値" : ""}</p><div class="frame">${fn(d)}</div></div>`).join("")}</div></section>`).join("");
+
+document.getElementById("root").innerHTML =
+  `<h2 class="part">① 年末のまとめ</h2>` + render(PART1, STATES1, "y") +
+  `<h2 class="part">② 引退した馬</h2>
+   <p class="intro">載せる馬がいない年（実測で18年中10年。1年目は必ず）は、この画面を出さずに①のボタンが「◯◯年へ」になる案です（Q7）。
+   案Cの3枚目は1996年の2頭目（送った後の画面）です。</p>` +
+  render(PART2.slice(0, 2), STATES2, "r") +
+  render([PART2[2]], [...STATES2, ["送った後（1996年の2頭目）", R1996]], "r");
+// 案Cの3枚目だけ2頭目を描く
+{
+  const shots = document.querySelectorAll("#r-C .frame");
+  if (shots[2]) shots[2].innerHTML = rC(R1996, 1);
+}
+</script></body></html>

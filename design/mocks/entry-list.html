@@ -1,0 +1,164 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>出馬表の候補</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --turf:#57a24b; --panel:#1a2a18; --panel2:#223a20; --muted:#9fb896;
+  --fg:#f2ede0; --accent:#ffd83d; --action:#2f7fe6;
+  /* 級数の段（⚠️生のpxを書かない。CLAUDE.md §8） */
+  --t-hero:22px; --t-lead:16px; --t-body:13px; --t-sub:11px; --t-micro:10px;
+  --sp:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;
+  padding-block:24px;padding-inline:16px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:32px}
+h1{font-size:var(--t-lead);font-weight:500;color:var(--muted)}
+.row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.col{flex:1 1 300px;min-width:0}
+.cap{font-size:var(--t-body);color:var(--accent);margin-bottom:var(--sp)}
+.note{font-size:var(--t-sub);color:var(--muted);margin-top:var(--sp);line-height:1.6}
+.frame{width:min(390px,100%);background:var(--panel);overflow:hidden}
+
+/* ── 見出し（3案で共通） ── */
+.head{padding:calc(var(--sp)*1.5) var(--sp) var(--sp)}
+.head .grade{font-size:var(--t-sub);color:var(--accent);letter-spacing:.08em}
+.head .name{font-size:var(--t-hero);font-weight:700;line-height:1.2;margin-top:2px}
+.head .where{font-size:var(--t-body);color:var(--fg);margin-top:6px}
+.head .cond{font-size:var(--t-sub);color:var(--muted);margin-top:2px}
+.rule{height:1px;background:#0000004d}
+
+/* 枠の色（データが持つ色。UIのアクセントとは別レイヤー） */
+.w1{background:#e9e4d8;color:#111}.w2{background:#1d1d1d;color:#eee}
+.w3{background:#c0392b;color:#fff}.w4{background:#2f6fb5;color:#fff}
+.w5{background:#e3c12a;color:#111}.w6{background:#3f8f4a;color:#fff}
+.w7{background:#d2732b;color:#fff}.w8{background:#d08aa6;color:#111}
+
+/* ── 案A：1頭1行 ── */
+.a-row{display:flex;align-items:center;gap:6px;padding:6px var(--sp);font-size:var(--t-sub)}
+.a-row+.a-row{border-top:1px solid #ffffff14}
+.a-row.self{background:var(--panel2)}
+.a-waku{width:16px;height:16px;display:grid;place-items:center;font-size:var(--t-micro);flex:0 0 auto}
+.a-num{width:18px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.a-name{flex:1 1 auto;font-size:var(--t-body);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-meta{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.a-pop{width:34px;text-align:right;color:var(--accent);font-variant-numeric:tabular-nums}
+
+/* ── 案B：1頭2行 ── */
+.b-row{padding:7px var(--sp)}
+.b-row+.b-row{border-top:1px solid #ffffff14}
+.b-row.self{background:var(--panel2)}
+.b-top{display:flex;align-items:baseline;gap:6px}
+.b-name{font-size:var(--t-lead);font-weight:700;flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-pop{font-size:var(--t-sub);color:var(--accent);flex:0 0 auto}
+.b-bot{display:flex;gap:10px;margin-top:3px;font-size:var(--t-sub);color:var(--muted);
+  font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.b-last{color:var(--fg)}
+
+/* ── 案C：人気上位を大きく＋残りを小さく ── */
+.c-top{padding:var(--sp)}
+.c-card{display:flex;align-items:center;gap:var(--sp);padding:7px 0}
+.c-card+.c-card{border-top:1px solid #ffffff14}
+.c-rank{font-size:var(--t-sub);color:var(--accent);width:44px;flex:0 0 auto}
+.c-name{font-size:var(--t-lead);font-weight:700}
+.c-sub{font-size:var(--t-sub);color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.c-rest{padding:var(--sp);font-size:var(--t-sub);color:var(--muted);line-height:1.9}
+.c-rest b{color:var(--fg);font-weight:500}
+.c-more{padding:var(--sp);font-size:var(--t-sub);color:var(--action)}
+</style></head><body><div class="wrap">
+
+<h1>出馬表の候補（1974年 東京優駿・実データ23頭。自分の騎乗はコーネルランサー）</h1>
+
+<div class="row">
+
+<!-- ═══ 案A ═══ -->
+<div class="col"><div class="cap">案A：1頭1行（競馬新聞に近い形）</div>
+<div class="frame">
+  <div class="head">
+    <div class="grade">第41回</div>
+    <div class="name">東京優駿</div>
+    <div class="where">東京 芝2400m　23頭</div>
+    <div class="cond">3歳 牡牝 定量　1着 4,000万円</div>
+  </div><div class="rule"></div>
+  <div class="a-row self"><span class="a-waku w2">2</span><span class="a-num">5</span><span class="a-name">コーネルランサー</span><span class="a-meta">牡3 57.0</span><span class="a-meta">中島</span><span class="a-pop">2人気</span></div>
+  <div class="a-row"><span class="a-waku w7">7</span><span class="a-num">19</span><span class="a-name">キタノカチドキ</span><span class="a-meta">牡3 57.0</span><span class="a-meta">武</span><span class="a-pop">1人気</span></div>
+  <div class="a-row"><span class="a-waku w8">8</span><span class="a-num">21</span><span class="a-name">ナスノカゲ</span><span class="a-meta">牡3 57.0</span><span class="a-meta">嶋田</span><span class="a-pop">3人気</span></div>
+  <div class="a-row"><span class="a-waku w4">4</span><span class="a-num">10</span><span class="a-name">フェアーリュウ</span><span class="a-meta">牡3 57.0</span><span class="a-meta">星野</span><span class="a-pop">4人気</span></div>
+  <div class="a-row"><span class="a-waku w3">3</span><span class="a-num">9</span><span class="a-name">スルガスンプジョウ</span><span class="a-meta">牡3 57.0</span><span class="a-meta">岡部</span><span class="a-pop">5人気</span></div>
+  <div class="a-row"><span class="a-waku w5">5</span><span class="a-num">14</span><span class="a-name">インターグッド</span><span class="a-meta">牡3 57.0</span><span class="a-meta">笹倉</span><span class="a-pop">6人気</span></div>
+  <div class="c-more">…残り17頭</div>
+</div>
+<div class="note">近5走と厩舎が入りません。幅390pxに8項目は載りませんでした。騎手は名字だけです。</div>
+</div>
+
+<!-- ═══ 案B ═══ -->
+<div class="col"><div class="cap">案B：1頭2行（全項目が載る）</div>
+<div class="frame">
+  <div class="head">
+    <div class="grade">第41回</div>
+    <div class="name">東京優駿</div>
+    <div class="where">東京 芝2400m　23頭</div>
+    <div class="cond">3歳 牡牝 定量　1着 4,000万円</div>
+  </div><div class="rule"></div>
+  <div class="b-row self">
+    <div class="b-top"><span class="a-waku w2">2</span><span class="a-num">5</span><span class="b-name">コーネルランサー</span><span class="b-pop">2番人気</span></div>
+    <div class="b-bot"><span>牡3</span><span>57.0</span><span>中島啓之</span><span>勝又忠</span><span class="b-last">3-1-4-2-1</span></div>
+  </div>
+  <div class="b-row">
+    <div class="b-top"><span class="a-waku w7">7</span><span class="a-num">19</span><span class="b-name">キタノカチドキ</span><span class="b-pop">1番人気</span></div>
+    <div class="b-bot"><span>牡3</span><span>57.0</span><span>武邦彦</span><span>服部正利</span><span class="b-last">1-1-1-1-2</span></div>
+  </div>
+  <div class="b-row">
+    <div class="b-top"><span class="a-waku w8">8</span><span class="a-num">21</span><span class="b-name">ナスノカゲ</span><span class="b-pop">3番人気</span></div>
+    <div class="b-bot"><span>牡3</span><span>57.0</span><span>嶋田功</span><span>稲葉秀男</span><span class="b-last">1-2-1-3-1</span></div>
+  </div>
+  <div class="b-row">
+    <div class="b-top"><span class="a-waku w4">4</span><span class="a-num">10</span><span class="b-name">フェアーリュウ</span><span class="b-pop">4番人気</span></div>
+    <div class="b-bot"><span>牡3</span><span>57.0</span><span>星野信幸</span><span>橋本輝雄</span><span class="b-last">2-1-5-1-1</span></div>
+  </div>
+  <div class="b-row">
+    <div class="b-top"><span class="a-waku w6">6</span><span class="a-num">18</span><span class="b-name">カネオオエ</span><span class="b-pop">12番人気</span></div>
+    <div class="b-bot"><span>牡3</span><span>57.0</span><span>蛯沢誠治</span><span>成宮明光</span><span class="b-last">初出走</span></div>
+  </div>
+  <div class="c-more">…残り18頭</div>
+</div>
+<div class="note">1頭が2行を使うので、1画面に5頭しか入りません。23頭だと5回スクロールします。</div>
+</div>
+
+<!-- ═══ 案C ═══ -->
+<div class="col"><div class="cap">案C：人気の上位を大きく、残りは小さく</div>
+<div class="frame">
+  <div class="head">
+    <div class="grade">第41回</div>
+    <div class="name">東京優駿</div>
+    <div class="where">東京 芝2400m　23頭</div>
+    <div class="cond">3歳 牡牝 定量　1着 4,000万円</div>
+  </div><div class="rule"></div>
+  <div class="c-top">
+    <div class="c-card"><span class="c-rank">1番人気</span><span class="a-waku w7">7</span>
+      <span><span class="c-name">キタノカチドキ</span><div class="c-sub">19番 牡3 57.0　武邦彦　1-1-1-1-2</div></span></div>
+    <div class="c-card" style="background:var(--panel2)"><span class="c-rank">2番人気</span><span class="a-waku w2">2</span>
+      <span><span class="c-name">コーネルランサー</span><div class="c-sub">5番 牡3 57.0　中島啓之　3-1-4-2-1</div></span></div>
+    <div class="c-card"><span class="c-rank">3番人気</span><span class="a-waku w8">8</span>
+      <span><span class="c-name">ナスノカゲ</span><div class="c-sub">21番 牡3 57.0　嶋田功　1-2-1-3-1</div></span></div>
+  </div><div class="rule"></div>
+  <div class="c-rest">
+    4 <b>フェアーリュウ</b> 10番 星野　5 <b>スルガスンプジョウ</b> 9番 岡部　6 <b>インターグッド</b> 14番 笹倉　7 <b>エクセルラナー</b> 11番 嶋田　8 <b>ホウシュウミサイル</b> 8番 郷原　9 <b>キャメロット</b> 15番 加賀
+  </div>
+  <div class="c-more">全23頭を見る</div>
+</div>
+<div class="note">自分の馬が人気薄だと、下の小さい並びに埋もれます。</div>
+</div>
+
+</div>
+
+<div class="note">
+共通：枠の色はデータが持つ色（UIのアクセント色とは別レイヤー）。縦線は引いていません。絵文字は使っていません。<br>
+1974年の東京優駿は<b>23頭立て</b>でした。18頭を上限とみなすと足りません。<br>
+近5走の「3-1-4-2-1」は左が古い順です。⚠️どちらを左にするかは決めていません。
+</div>
+
+</div></body></html>
