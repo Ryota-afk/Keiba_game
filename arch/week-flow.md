@@ -102,7 +102,7 @@ afterRoster, rides, week, year })`が画面用データを組み、`state`（`we
 - 週の初めの処理（クラスの決め直し・未勝利のまま3歳の9月7日を迎えた馬を中央から外す）は`domain/weekPrepare.js`の`prepareWeek(roster, player)`（決定的・処理済みへ再度呼んでも何も起きない）。
   `WeekScreen`が依頼を作る前に呼び（`weekRoster`）、`advanceWeek`も入口で呼ぶ。⚠️依頼の乱数は馬ごとに固定（`generateWeeklyRequests`の質の揺らぎは`streamRandom(seed, REQUESTS, week, horse.id)`）。
   週の画面に出した依頼＝`advanceWeek`の依頼。触るなら両方が同じ名簿を見ることを保つ。
-- `rides`の各`ride`は`day`（"sat"/"sun"）を持ち、`advanceWeek`は返す前に`view/weekOffersView.js`の`requestDisplayOrder(requests)`（日→競馬場→レースの表→行＝週の画面の並び）で並べ替える（処理順は変えない）。
+- `rides`の各`ride`は`day`（"sat"/"sun"）を持ち、`advanceWeek`は返す前に`view/weekOffersView.js`の`requestDisplayOrder(requests)`（日→競馬場→レースの表→行＝週の画面の並び）で並べ替える（処理順は変えない）。⭐同じ競馬場の中のレースは`groupRequestsByDay`が**レース番号の小さい順**に並べる（2026-11-27のユーザー決定。競馬場と、同じレースの中の馬は依頼の質の順のまま）。行に出す文字（性齢・体重と前走比・「中6週」「連闘」・結果の曜日分け）は`view/horseRowView.js`。調教後の体重は`WeekScreen.jsx`冒頭の`trainingWeightFor`（今はnull＝列ごと出さない）を`domain/horseForm.js`からのimportに置き換えると出る。
 - 見出しは`raceHeadline`（部品）と`raceHeadlineText`（「ダート1700m 未勝利」）を週の画面・結果画面で共有する。`summary.rides[]`に`headline`・`headlineText`・`day`・`courseId`・`raceId`を載せてある。
 
 渡すデータの形（画面はこれ以上計算しない）：

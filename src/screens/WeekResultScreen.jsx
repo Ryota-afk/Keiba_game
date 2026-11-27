@@ -1,19 +1,24 @@
 // 週の結果の画面（「この週を進める」の後に1枚だけ挟む）。
-// 見本：`design/mocks/week-result-v1.html`の「案C 掲示板」（2026-09-25にユーザーが選んだ）。
-// ⚠️見た目はOpus 5.5が担当した（Fableの残量切れ。CLAUDE.md §2・`arch/ui-fable.md`§2のユーザー決定）。
+// 乗った鞍の段の見本：`design/mocks/week-result-v2.html`の「案A 時刻表」（2026-11-27にユーザーが選んだ）
+//   ——土曜→日曜に分け、レース番号の小さい順に1鞍1行。左にレース番号、右に着順。
+//   行の中身：馬名／レースの条件（週の画面と同じ書き方）／性齢・毛色・当日の体重（前走比）。
+// それ以外の段（上部・主戦・信頼・能力・重賞）は`design/mocks/week-result-v1.html`（2026-09-25）のまま。
 // 中身はユーザーが選んだ5つ：乗った鞍の結果／稼いだお金と所持金／主戦の進み具合／
 // 調教師からの信頼の変化（言葉で出す。数字は出さない）／その週の重賞の勝ち馬。
 // データは`domain/weekResultSummary.js`の`buildWeekResultSummary`が作る（この画面は計算しない）。
-// ⚠️落馬した鞍は板に「落馬」と出すだけ。怪我の週数・主戦を失った知らせは週の画面の
+// ⚠️落馬した鞍は着順の場所に「落馬」と出すだけ。怪我の週数・主戦を失った知らせは週の画面の
 // 「先週の出来事」が出すので、ここでは言い直さない（CLAUDE.md §7）。
 
 import React from "react";
 import { buildGrowthLines } from "../view/jockeyProfileView.js";
+import { raceNumberLabel } from "../view/raceNumberView.js";
+import { sexAgeLabel, bodyWeightText, groupRidesByDay } from "../view/horseRowView.js";
+import { GENDER_LABEL } from "../domain/horse.js";
+import { COAT_LABEL } from "../data/coat.js";
 import "./WeekResultScreen.css";
 
 const yen = (n) => `${n.toLocaleString("ja-JP")}円`;
 const signedYen = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toLocaleString("ja-JP")}円`;
-const surfaceLabel = (s) => (s === "dirt" ? "ダート" : "芝");
 
 const TRUST_WORDS = {
   bigUp: "大きく上がりました",
@@ -29,25 +34,46 @@ function mainMountText(m) {
   return `あと${m.ridesLeft}回乗って、1勝すれば主戦`;
 }
 
-function Board({ ride }) {
+/**
+ * 馬の1行：「牝3　鹿毛　418kg（−14）」。無い項目は飛ばす（性齢・毛色・体重は
+ * `buildWeekResultSummary`が`gender`・`age`・`coat`・`bodyKg`・`bodyKgDiff`を足すまでは空）。
+ * `bodyKgDiff`がnull＝初出走（増減の代わりに「初出走」）。undefined＝前走の体重が分からない（体重だけ）。
+ */
+function horseLine(ride) {
+  const sexAge = ride.gender ? sexAgeLabel(GENDER_LABEL[ride.gender] ?? ride.gender, ride.age) : "";
+  const coat = ride.coat ? COAT_LABEL[ride.coat] ?? ride.coat : "";
+  const weight = bodyWeightText(ride.bodyKg, ride.bodyKgDiff, { debut: ride.bodyKgDiff === null, unit: "kg" });
+  return [sexAge, coat, weight].filter(Boolean).join("　");
+}
+
+function RideRow({ ride }) {
+  const head = ride.headline;
+  const sub = horseLine(ride);
   return (
-    <div className={["wr-board", ride.won ? "is-win" : ""].join(" ").trim()}>
-      <div className="wr-board__top">
-        <span>{ride.courseName}</span>
-        {!ride.fell && <span>{ride.popularity}番人気</span>}
-      </div>
-      {ride.fell ? (
-        <div className="wr-board__pos is-fell">落馬</div>
-      ) : (
-        <div className="wr-board__pos">
-          {ride.position}
-          <small>着／{ride.fieldSize}頭立て</small>
+    <div className="wr-ride">
+      <div className="wr-ride__no">{raceNumberLabel(ride.raceNumber)}</div>
+      <div className="wr-ride__mid">
+        <div className="wr-ride__name">{ride.horseName}</div>
+        <div className="wr-ride__sub">
+          <span className={`wr-sf is-${ride.surface}`}>{head.surfaceLabel}</span>
+          {head.distanceLabel} {head.classLabel}
         </div>
-      )}
-      <div className="wr-board__name">{ride.horseName}</div>
-      <div className="wr-board__race">
-        <span className={`wr-sf is-${ride.surface}`}>{surfaceLabel(ride.surface)}</span>
-        {ride.distance}m {ride.className}
+        {sub && <div className="wr-ride__sub">{sub}</div>}
+      </div>
+      <div>
+        {ride.fell ? (
+          <div className="wr-ride__pos is-fell">落馬</div>
+        ) : (
+          <>
+            <div className={["wr-ride__pos", ride.won ? "is-win" : ""].join(" ").trim()}>
+              {ride.position}
+              <small>着</small>
+            </div>
+            <div className="wr-ride__pop">
+              {ride.popularity}番人気／{ride.fieldSize}頭
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -69,15 +95,26 @@ export function WeekResultScreen({ summary, onNext }) {
         </div>
       </div>
 
-      {rides.length > 0 ? (
-        <div className="wr-boards">
-          {rides.map((r, i) => (
-            <Board key={`${r.horseId}-${i}`} ride={r} />
-          ))}
-        </div>
-      ) : (
-        <p className="wr-empty">今週は乗りませんでした。</p>
-      )}
+      {rides.length === 0 && <p className="wr-empty">今週は乗りませんでした。</p>}
+      {groupRidesByDay(rides).map((group, gi) => (
+        <React.Fragment key={group.dayLabel ?? gi}>
+          {group.dayLabel && (
+            <h2 className="wr-day">
+              {group.dayLabel}
+              {group.courseName && <span>{group.courseName}</span>}
+            </h2>
+          )}
+          {group.emptyText ? (
+            <p className="wr-empty is-day">{group.emptyText}</p>
+          ) : (
+            <div className="wr-rides">
+              {group.rides.map((r, i) => (
+                <RideRow key={`${r.horseId}-${i}`} ride={r} />
+              ))}
+            </div>
+          )}
+        </React.Fragment>
+      ))}
 
       {mainMounts.length > 0 && (
         <section className="wr-sec">

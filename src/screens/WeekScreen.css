@@ -27,11 +27,13 @@
   --turf: #8fd07e;
   --rule: rgba(255, 255, 255, 0.1);
   --tap: 44px;
-  /* 表の列。馬名の列は残り全部（390px幅で158px、360px幅で128px＝9文字×14pxが入る） */
-  --col-sex: 28px;
-  --col-run: 36px;
-  --col-sym: 32px;
-  --col-tr: 80px;
+  --dirt: #d8b27a; /* ダートの字の色（芝の緑と並ぶ馬場のデータの色。週の結果と同じ値） */
+  /* 表の列（design/mocks/week-result-v2.html 案A）。馬名の列は残り全部
+     （390px幅で154px、360px幅で124px。9文字×14px＝126pxを超える名前は折り返す） */
+  --col-sexage: 34px;
+  --col-coat: 36px;
+  --col-kg: 64px;
+  --col-since: 46px;
   --col-gap: 6px;
 
   box-sizing: border-box;
@@ -178,8 +180,18 @@
   font-weight: 700;
   line-height: 1.1;
 }
+.wk-race__no {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.5;
+}
 .wk-race__sf {
   color: var(--turf);
+}
+.wk-race__sf.is-dirt {
+  color: var(--dirt);
 }
 .wk-race__cls {
   font-size: var(--fs-body);
@@ -195,20 +207,25 @@
 .wk-th,
 .wk-r {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--col-sex) var(--col-run) var(--col-sym) var(--col-tr);
-  gap: var(--col-gap);
+  grid-template-columns: minmax(0, 1fr) var(--col-sexage) var(--col-coat) var(--col-kg) var(--col-since);
+  gap: 0 var(--col-gap);
   align-items: center;
+}
+/* 調教後の体重がまだ無いあいだは、その列ごと出さない */
+.wk-t.is-nokg .wk-th,
+.wk-t.is-nokg .wk-r {
+  grid-template-columns: minmax(0, 1fr) var(--col-sexage) var(--col-coat) var(--col-since);
 }
 .wk-th {
   font-size: var(--fs-caption);
   color: var(--dim);
   padding: var(--s1) 0 4px;
 }
-.wk-th .wk-c {
-  text-align: center;
-}
-.wk-th .wk-tr {
+/* 数字の列（体重・前走から）は右にそろえる */
+.wk-n {
   text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 /* 行は <div role="button">。<button> だと Chromium が display:grid を効かせず列が崩れる */
 .wk-r {
@@ -231,30 +248,33 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.wk-r__name small {
-  display: block;
-  font-size: var(--fs-caption);
-  font-weight: 400;
-  color: var(--muted);
-}
-.wk-r__name small .wk-r__main {
-  color: var(--accent);
-  font-weight: 700;
-  margin-right: 6px;
-}
-.wk-r__sym {
-  display: block;
-  width: 20px;
-  height: 20px;
-  margin: 0 auto;
+/* 1段目の値（性齢・毛色・体重・前走から）は本文の色で、行の中で読むもの */
+.wk-r b {
+  font-weight: 500;
   color: var(--fg);
 }
-.wk-r__tr {
-  text-align: right;
-  line-height: 1.4;
+/* 2段目：左に主戦・戦績・走り方・芝ダの相性、右に調教師 */
+.wk-r__l2 {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s1);
+  line-height: 1.6;
 }
-.wk-r__tr small {
-  display: block;
+.wk-r__l2 span + span {
+  margin-left: var(--s1);
+}
+.wk-r__main {
+  color: var(--accent);
+  font-weight: 700;
+}
+.wk-r__sym {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  color: var(--fg);
 }
 .wk-r__warn {
   grid-column: 1 / -1;
@@ -272,11 +292,9 @@
   padding: 6px var(--s2);
 }
 .wk-r.is-on .wk-r__name,
-.wk-r.is-on .wk-r__sym {
+.wk-r.is-on .wk-r__sym,
+.wk-r.is-on b {
   color: var(--on-action);
-}
-.wk-r.is-on .wk-r__name small {
-  color: var(--on-action-sub);
 }
 .wk-r.is-off {
   opacity: 0.4;

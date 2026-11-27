@@ -7,6 +7,9 @@
 //   ・同じレースには1頭だけ——決めた表の残りの行は薄くなる
 //   ・1日1場——その日に別の競馬場で決めると、他の競馬場のタブは薄くなり、押すと理由が出る
 //   ・薄い行は押しても開かない。開く行は同時に1つ
+// 行の中身は`design/mocks/week-result-v2.html`の案A 時刻表（2026-11-27にユーザーが選んだ）：
+//   1段目＝馬名・性齢・毛色・調教後の体重（前走比）・前走からの間隔（「中6週」「連闘」「初出走」）。
+//   2段目＝主戦・戦績・走り方・芝ダの相性／調教師。レースの見出しの上に「京都 6R」。レースは番号順。
 // 乗る馬・行く競馬場はプレイヤーの選択をそのまま`advanceWeek`へ渡す（`chooseMounts`・
 // `chooseCourse`）。何も決めなければ、その日はどこへも行かない。
 
@@ -18,12 +21,21 @@ import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weekly
 import { isMainMount } from "../domain/mainMount.js";
 import { isSidelined } from "../domain/fall.js";
 import { deriveFavoredStrategy } from "../domain/strategy.js";
-import { GENDER_LABEL } from "../domain/horse.js";
+import { GENDER_LABEL, weeksSinceLastRace } from "../domain/horse.js";
+import { horseAge } from "../domain/retirement.js";
 import { NOTIFICATION_TYPES } from "../domain/notifications.js";
 import { buildWeekResultSummary } from "../domain/weekResultSummary.js";
 import { DAY } from "../data/weekDays.js";
 import { INJURY_LABELS } from "../data/injuryLabels.js";
 import { STRATEGY_LABELS } from "../data/aptitudeLabels.js";
+import { COAT_LABEL } from "../data/coat.js";
+import {
+  sexAgeLabel,
+  bodyWeightText,
+  intervalLabel,
+  isDebut,
+  trainingWeightView,
+} from "../view/horseRowView.js";
 import {
   formatWeekLabel,
   groupRequestsByDay,
@@ -40,6 +52,13 @@ import { YearEndSummaryScreen, RetiredHorsesScreen } from "./YearEndScreen.jsx";
 import { JockeyProfile } from "./JockeyProfile.jsx";
 import { Banzuke } from "./Banzuke.jsx";
 import "./WeekScreen.css";
+
+// 調教後の体重を出す関数（`domain/horseForm.js`の`trainingWeightFor(horse, year, week, seed)`）。
+// ⚠️まだ無いのでnull＝「調教後」の列ごと出さない。関数ができたら、下の1行を
+//   import { trainingWeightFor } from "../domain/horseForm.js";
+// に置き換えるだけで列が出る（`view/horseRowView.js`の`trainingWeightView`が受ける）。
+const trainingWeightFor = null;
+const HAS_TRAINING_WEIGHT = typeof trainingWeightFor === "function";
 
 const DAY_LABEL = Object.freeze({ [DAY.SAT]: "土曜", [DAY.SUN]: "日曜" });
 // 土曜・日曜の隣の3つ目のタブ。押すと依頼一覧の代わりに自分の能力（`JockeyProfile`）が開く
@@ -392,18 +411,19 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
             <React.Fragment key={race.raceId}>
               <div className="wk-race">
                 <div className="wk-race__big">
-                  <span className="wk-race__sf">{head.surfaceLabel}</span>
+                  {race.raceLabel && <span className="wk-race__no">{race.raceLabel}</span>}
+                  <span className={`wk-race__sf is-${race.surface}`}>{head.surfaceLabel}</span>
                   {head.distanceLabel}
                   <span className="wk-race__cls">{head.classLabel}</span>
                 </div>
               </div>
-              <div className="wk-t">
+              <div className={["wk-t", HAS_TRAINING_WEIGHT ? "" : "is-nokg"].join(" ").trim()}>
                 <div className="wk-th">
                   <span>馬名</span>
-                  <span>性</span>
-                  <span>走り方</span>
-                  <span className="wk-c">{head.surfaceColumnLabel}</span>
-                  <span className="wk-tr">調教師</span>
+                  <span>性齢</span>
+                  <span>毛色</span>
+                  {HAS_TRAINING_WEIGHT && <span className="wk-n">調教後</span>}
+                  <span className="wk-n">前走から</span>
                 </div>
                 {race.requests.map((request) => {
                   const horse = horsesById.get(request.horseId);
@@ -418,6 +438,8 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
                     if (isOff) return;
                     setOpenHorseId((prev) => (prev === request.horseId ? null : request.horseId));
                   };
+                  const since = horse ? weeksSinceLastRace(horse, week) : null;
+                  const weight = trainingWeightView(trainingWeightFor, horse, player.currentYear, week, saveSeed);
                   return (
                     <div
                       key={request.horseId}
@@ -434,21 +456,34 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
                         }
                       }}
                     >
-                      <span className="wk-r__name">
-                        {horse?.name ?? request.horseId}
-                        <small>
+                      <span className="wk-r__name">{horse?.name ?? request.horseId}</span>
+                      <b>
+                        {horse
+                          ? sexAgeLabel(GENDER_LABEL[horse.gender] ?? horse.gender, horseAge(horse, player.currentYear))
+                          : ""}
+                      </b>
+                      <b>{horse ? COAT_LABEL[horse.coat] ?? "" : ""}</b>
+                      {/* 初出走は、増減の代わりに「前走から」の列へ「初出走」と書く（体重は数字だけ） */}
+                      {HAS_TRAINING_WEIGHT && (
+                        <b className="wk-n">{weight ? bodyWeightText(weight.kg, isDebut(since) ? null : weight.diff) : ""}</b>
+                      )}
+                      <b className="wk-n">{isDebut(since) ? "初出走" : intervalLabel(since)}</b>
+                      <span className="wk-r__l2">
+                        <span>
                           {isMain && <span className="wk-r__main">主戦</span>}
-                          {isPicked ? "乗ります" : horse ? recordLabel(horse) : ""}
-                        </small>
-                      </span>
-                      <span>{horse ? GENDER_LABEL[horse.gender] ?? horse.gender : ""}</span>
-                      <span>{horse ? STRATEGY_LABELS[deriveFavoredStrategy(horse)] : ""}</span>
-                      <svg className="wk-r__sym" aria-hidden="true">
-                        <use href={`#${horse ? surfaceMarkId(horse, race.surface) : "wk-m3"}`} />
-                      </svg>
-                      <span className="wk-r__tr">
-                        {stable?.trainerName ?? ""}
-                        {request.isFromOwnStable && <small>所属厩舎</small>}
+                          <span>{isPicked ? "乗ります" : horse ? recordLabel(horse) : ""}</span>
+                          <span>{horse ? STRATEGY_LABELS[deriveFavoredStrategy(horse)] : ""}</span>
+                          <span>
+                            {head.surfaceColumnLabel}
+                            <svg className="wk-r__sym" aria-hidden="true">
+                              <use href={`#${horse ? surfaceMarkId(horse, race.surface) : "wk-m3"}`} />
+                            </svg>
+                          </span>
+                        </span>
+                        <span>
+                          {stable?.trainerName ?? ""}
+                          {request.isFromOwnStable && "　所属厩舎"}
+                        </span>
                       </span>
                       {sidelined && !isPicked && (
                         <span className="wk-r__warn is-muted">

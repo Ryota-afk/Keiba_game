@@ -58,8 +58,9 @@ export function raceHeadline(race) {
 
 /**
  * 依頼一覧を「日 → 競馬場 → レース → 頼まれた馬」の入れ子に組む。
- * 並び順は依頼一覧そのものの順（質の高い順・`weeklyRequests.js`）を保つ：
- * 競馬場は最初に現れた順、レースも最初に現れた順、馬もその順。
+ * 競馬場は依頼一覧（質の高い順・`weeklyRequests.js`）に最初に現れた順、同じレースの中の馬もその順。
+ * ⭐同じ競馬場の中のレースは**レース番号の小さい順**（1R→12R。2026-11-27のユーザー決定：
+ * 番号を画面に出すので、週の画面も週の結果も番号順にそろえる）。番号の無いレースは後ろ（現れた順）。
  * @param {object[]} requests - `generateWeeklyRequests`の戻り値
  * @returns {{ sat: CourseGroup[], sun: CourseGroup[] }}
  *   CourseGroup = { courseId, courseName, count, races: RaceGroup[] }
@@ -97,6 +98,11 @@ export function groupRequestsByDay(requests) {
       course.races.push(race);
     }
     race.requests.push(request);
+  }
+  // `Array.prototype.sort`は安定なので、番号の無いレース同士は現れた順のまま後ろに残る。
+  const numberOf = (race) => race.raceNumber ?? Number.MAX_SAFE_INTEGER;
+  for (const day of [DAY.SAT, DAY.SUN]) {
+    for (const course of result[day]) course.races.sort((a, b) => numberOf(a) - numberOf(b));
   }
   return result;
 }
