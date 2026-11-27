@@ -52,11 +52,12 @@ export function EntryListScreen({ saveSeed, week, currentYear, player, roster, h
         raceName: mount.raceName ?? classDisplayName(mount.classId ?? horse.classId),
         grade: mount.grade ?? null,
         courseId: mount.courseId ?? null,
+        raceNumber: mount.raceNumber ?? null,
         surface: mount.surface,
         distance: mount.distance ?? null,
         fieldSize: field.length,
       }),
-    [mount.classId, mount.raceName, mount.grade, horse.classId, mount.courseId, mount.surface, mount.distance, field.length]
+    [mount.classId, mount.raceName, mount.grade, horse.classId, mount.courseId, mount.raceNumber, mount.surface, mount.distance, field.length]
   );
 
   return (

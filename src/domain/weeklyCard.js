@@ -9,13 +9,14 @@
 
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 import { weekOfYear, WEEKS_PER_YEAR, yearForWeek } from "../data/calendar.js";
-import { DAY, weekdayOfDateString } from "../data/weekDays.js";
+import { dayOfHistoricalDate } from "../data/weekDays.js";
 import { coursesOpenInWeek } from "../data/jraMeetingSchedule.js";
 import { drawShapeAtCourse } from "../data/courses.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { classIndex } from "../data/classes.js";
+import { gradedRaceNumberPreference, openStakesNumberPreference } from "../data/raceNumbers.js";
+import { createCardSlots, freeNumbers, placeInSlot, featureCount, assignGeneralClasses } from "./cardSlots.js";
 import {
-  racesPerDay,
   estimateOpenStakesCount,
   drawGeneralRaceShape,
   SURFACE_SHARE,
@@ -63,22 +64,6 @@ function drawShapeFor(rand01, courseId) {
 }
 
 /**
- * ⭐その重賞が土曜・日曜どちらだったかを、史実の日付から決める（2026-09-17。`TODO.md` #86）。
- * `data/gradedRacesByYear.js`の各レースは`historicalDate`（例："1976-09-12"）を持つ
- * ——推測ではなく実データから曜日が計算できる。
- *
- * 実測（1972〜1989年の重賞1,400本・日付の欠けは0本。`devlog/wave09.md`§9）：
- * 日曜92.4%・土曜3.9%・平日（月〜金）合計3.7%。
- * ⚠️**平日3.7%の置き場所だけは実データが無い決定**——本作は土曜・日曜しか持たないため、
- * 多数派（日曜）へ寄せる。
- */
-function dayOfGradedRace(historicalDate) {
-  if (!historicalDate) return DAY.SUN; // 保険（実測では0件だが、欠けていた場合の既定値）
-  const weekday = weekdayOfDateString(historicalDate);
-  return weekday === DAY.SAT ? DAY.SAT : DAY.SUN;
-}
-
-/**
  * ⭐第11弾（`devlog/wave11.md`§7・CLAUDE.md §10「定員」）：レースの定員を、
  * 番組表を組む時点で1回だけ決める。`raceId`だけをキーにした専用ストリーム
  * （`RNG_STREAMS.FIELD_SIZE`）を使うので、同じ`raceId`なら何度呼んでも同じ値になる
@@ -109,7 +94,7 @@ const weeklyCardCache = new Map();
  * @param {number} week - 絶対週（`player.currentWeek`と同じ数え方）
  * @param {number} year - 番組表の実測値・実データを引くための暦年（`player.currentYear`）
  * @returns {{ raceId: string, classId: string, courseId: string, surface: string,
- *   distance: number, fillyOnly: boolean, source: string, day: string, name?: string,
+ *   distance: number, fillyOnly: boolean, source: string, day: string, raceNumber: number, name?: string,
  *   grade?: string|null, prize1?: number|null, fieldSize: number,
  *   condition?: string|null, trialFor?: string|null }[]} `fieldSize`は重賞
  *   （`RACE_SOURCE.GRADED`）も含め全レースが持つ（第11弾で重賞にも計画段階の定員を追加・
@@ -133,22 +118,34 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
   if (openCourses.length === 0) return []; // 開催が無い週（原則無いはずだが念のため）
 
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.CARD, week);
-  const races = [];
+  // ⭐第13弾§22：先に「開いている競馬場×土日」の枠を作り（1枠＝1日の本数ちょうど。`racesPerDay`）、
+  // 重賞→オープン特別→一般競走の順に番号つきで埋める（`domain/cardSlots.js`）。
+  const slots = createCardSlots(openCourses, year);
+  const slotByKey = new Map(slots.map((slot) => [slot.key, slot]));
 
-  // ①重賞（実データ）：そのままカードへ。グレード表記の無い年（〜1983年）は
-  // オープン以上の一括扱い（`classId: "open"`）にする——グレードそのものが
+  // ①重賞（実データ）：データが持つ競馬場・日（`day`）の枠へ置く。番号は年代で決まる
+  // （`data/raceNumbers.js`：〜1981年9R／1982〜97年11R・G1は10R／1998年〜11R）。
+  // グレード表記の無い年（〜1983年）はオープン以上の一括扱い（`classId: "open"`）にする——グレードそのものが
   // 1984年より前は史実にも付いていない（`tools/build-graded-races.mjs`）。
+  // ⭐同じ枠に2本目の重賞が来たら次の番号（10R）へ。重なりはデータ側で減らしてある
+  // （`tools/build-graded-races.mjs`の`spreadOverlappingGradedRaces`・`arch/race-program.md`§1）。
   const gradedToday = hasGradedRaceData(year) ? gradedRacesForYear(year).filter((r) => r.week === thisWeek) : [];
-  for (const r of gradedToday) {
-    races.push({
+  const gradedByPriority = [...gradedToday].sort((a, b) => gradedPriority(a) - gradedPriority(b));
+  for (const r of gradedByPriority) {
+    const day = r.day ?? dayOfHistoricalDate(r.historicalDate);
+    // 古いデータなどで、その日その競馬場の枠が無いときは、同じ日で重賞・特別の少ない枠へ置く。
+    const slot =
+      slotByKey.get(`${r.courseId}|${day}`) ??
+      slots.filter((x) => x.day === day).sort((x, y) => featureCount(x) - featureCount(y))[0];
+    const race = {
       raceId: r.id,
       classId: r.grade ?? "open",
-      courseId: r.courseId,
+      courseId: slot.courseId,
       surface: r.surface,
       distance: r.distance,
       fillyOnly: r.fillyOnly,
       source: RACE_SOURCE.GRADED,
-      day: dayOfGradedRace(r.historicalDate),
+      day: slot.day,
       name: r.name,
       grade: r.grade,
       prize1: r.prize1,
@@ -162,53 +159,73 @@ function buildWeeklyCardUncached(saveSeed, week, year) {
       // どちらも持たない（実データが無い）。
       condition: r.condition ?? null,
       trialFor: r.trialFor ?? null,
-    });
+    };
+    race.raceNumber = placeInSlot(slot, race, gradedRaceNumberPreference(year, isG1Like(r)));
   }
 
   // ②オープン特別：年の推定本数（`estimateOpenStakesCount`）を52週へ確率配分する。
   // ⚠️実データが無い推定値（`arch/race-program.md`§3）——`classId`は`open`。
+  // ⭐置く枠は、重賞・オープン特別がいちばん少ない枠（同数なら乱数）。メインの番号が空いていればそこへ。
   const openStakesCountThisYear = estimateOpenStakesCount(gradedCountForYear(year));
   const openStakesToday = stochasticRound(openStakesCountThisYear / WEEKS_PER_YEAR, rand01);
   for (let i = 0; i < openStakesToday; i += 1) {
-    const courseId = pick(rand01, openCourses);
-    const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
-    const raceId = `${year}-w${thisWeek}-open-${i}`;
-    races.push({
+    const fewest = Math.min(...slots.map(featureCount));
+    const candidates = slots.filter((slot) => featureCount(slot) === fewest && freeNumbers(slot).length > 0);
+    if (candidates.length === 0) break;
+    const slot = pick(rand01, candidates);
+    const { surface, distance, fillyOnly } = drawShapeFor(rand01, slot.courseId);
+    const number = openStakesNumberPreference(year).find((n) => n <= slot.size && slot.races[n - 1] == null);
+    const raceId = `${year}-w${thisWeek}-${slot.courseId}-${slot.day}-${number}`;
+    slot.races[number - 1] = {
       raceId,
+      raceNumber: number,
       classId: "open",
-      courseId,
+      courseId: slot.courseId,
       surface,
       distance,
       fillyOnly,
       source: RACE_SOURCE.OPEN_STAKES,
-      day: pick(rand01, [DAY.SAT, DAY.SUN]),
+      day: slot.day,
       fieldSize: fieldSizeForRace(saveSeed, raceId),
-    });
+    };
   }
 
-  // ③一般競走（新馬〜3勝クラス）：その週に開いている競馬場×2日×1日のレース数から、
-  // 重賞・オープン特別の本数を引いた残り（`arch/race-program.md`§10）。
-  const totalSlotsThisWeek = openCourses.length * 2 * racesPerDay(year);
-  const generalSlots = Math.max(0, totalSlotsThisWeek - gradedToday.length - openStakesToday);
-  for (let i = 0; i < generalSlots; i += 1) {
-    const classId = drawGeneralRaceClass(rand01, thisWeek);
-    const courseId = pick(rand01, openCourses);
-    const { surface, distance, fillyOnly } = drawShapeFor(rand01, courseId);
-    const raceId = `${year}-w${thisWeek}-gen-${i}`;
-    races.push({
+  // ③一般競走（新馬〜3勝クラス）：残りの空き枠すべて（開いている競馬場×2日×1日の本数から、
+  // 重賞・オープン特別を引いた残り。`arch/race-program.md`§10）。クラスは従来どおりの割合で空き枠の数だけ
+  // 引き、並びの型（`data/raceNumbers.js`）に沿って番号へ割り振る。
+  const generalSlotCount = slots.reduce((sum, slot) => sum + freeNumbers(slot).length, 0);
+  const classes = Array.from({ length: generalSlotCount }, () => drawGeneralRaceClass(rand01, thisWeek));
+  const assigned = assignGeneralClasses(slots, year, classes, rand01);
+  for (const { slot, number, classId } of assigned) {
+    const { surface, distance, fillyOnly } = drawShapeFor(rand01, slot.courseId);
+    const raceId = `${year}-w${thisWeek}-${slot.courseId}-${slot.day}-${number}`;
+    slot.races[number - 1] = {
       raceId,
+      raceNumber: number,
       classId,
-      courseId,
+      courseId: slot.courseId,
       surface,
       distance,
       fillyOnly,
       source: RACE_SOURCE.GENERAL,
-      day: pick(rand01, [DAY.SAT, DAY.SUN]),
+      day: slot.day,
       fieldSize: fieldSizeForRace(saveSeed, raceId),
-    });
+    };
   }
 
-  return races;
+  // 並び＝土曜の競馬場順→日曜の競馬場順、各日は1Rから。
+  return slots.flatMap((slot) => slot.races.filter((race) => race != null));
+}
+
+/** 番号を先に取る順（G1→G2→G3→格付け無し）。 */
+function gradedPriority(r) {
+  if (isG1Like(r)) return 0;
+  return { g2: 1, g3: 2 }[r.grade] ?? 3;
+}
+
+/** G1か。1983年までは「1984年にG1だった」レース（`g1Like`）も数える（`tools/build-graded-races.mjs`）。 */
+function isG1Like(r) {
+  return r.grade === "g1" || r.g1Like === true;
 }
 
 /** オープン以上（重賞・オープン特別）をまとめて指す索引の鍵（第10弾・`domain/rotation.js`用）。 */

@@ -35,7 +35,9 @@ const ROOT = path.resolve(__dirname, "..");
 const { FIXED_G1_WEEK, weekOfYearFromDate, resolveMeetingCourse } = await import(
   path.join(ROOT, "src/data/jraMeetingSchedule.js")
 );
-const { findCourseByName } = await import(path.join(ROOT, "src/data/courses.js"));
+const { findCourseByName, findCourse } = await import(path.join(ROOT, "src/data/courses.js"));
+const { coursesOpenInWeek, REGION_BY_COURSE } = await import(path.join(ROOT, "src/data/jraMeetingSchedule.js"));
+const { dayOfHistoricalDate, DAY } = await import(path.join(ROOT, "src/data/weekDays.js"));
 
 // 平地G1・24本の、現行の固定開催場（`arch/race-program.md`§1・`jraMeetingSchedule.js`の
 // 週割りと矛盾しないことを確認済み——`devlog/wave07.md`実装ログ参照）。
@@ -344,6 +346,58 @@ const GRADE_OVERRIDES = {
   "1998:共同通信杯4歳ステークス（トキノミノル記念）": "g3",
 };
 
+// ⭐第13弾§22：同じ週・同じ競馬場・同じ日に重賞が2本以上ある日を減らす。
+// 原因（`devlog/wave13.md`§22）：`resolveMeetingCourse`が「開いていない競馬場の重賞を、同じ地区の
+// 開いている場の**先頭**へ」移すので、その地区の閉じた競馬場の重賞が全部同じ競馬場に集まる。
+// さらに週は7日刻みの丸め・G1の固定週で寄る。実測は5,318開催日中441（8.3%）。
+// 直し方：置いたあとに年ごとの後処理で、衝突した枠の重賞を空いている枠へ振り直す。
+// 優先して動かさないもの：①G1の固定週・固定場（`fixedName`）②史実の競馬場・日のまま置けているもの。
+// 動かす先の順：同じ週・同じ日の別の競馬場（同じ地区→他地区。馬場・距離がその場にあるものを先に）→
+// 同じ競馬場の別の日→別の競馬場の別の日。どこも空いていなければそのまま（残りは10Rに置く）。
+const GRADE_RANK = { g1: 0, g2: 1, g3: 2 };
+function spreadOverlappingGradedRaces(races) {
+  const slotKey = (week, courseId, day) => `${week}|${courseId}|${day}`;
+  const occupied = new Set();
+  const rank = (r) => {
+    if (r._fixed) return 0;
+    const atTrue = r._trueCourse === r.courseId && r.day === dayOfHistoricalDate(r.historicalDate);
+    return (atTrue ? 1 : 2) * 10 + (GRADE_RANK[r.grade] ?? 3);
+  };
+  const order = races.map((r, i) => [r, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]);
+  const hasShape = (courseId, r) => {
+    const list = findCourse(courseId)?.profile?.[r.surface] ?? [];
+    return list.includes(r.distance);
+  };
+  for (const [r] of order) {
+    const home = slotKey(r.week, r.courseId, r.day);
+    const open = coursesOpenInWeek(r.week);
+    // ⚠️その週に開いていない競馬場（地区に開いている場が無い北海道の3歳戦9〜10月の48本）も動かす
+    // ——番組表は「開いている競馬場×日」の枠に番号を振るので、閉じた場には枠が無い。
+    if (open.includes(r.courseId) && !occupied.has(home)) {
+      occupied.add(home);
+      continue;
+    }
+    const region = REGION_BY_COURSE[r.courseId];
+    const sameRegion = open.filter((c) => c !== r.courseId && REGION_BY_COURSE[c] === region);
+    const otherRegion = open.filter((c) => c !== r.courseId && REGION_BY_COURSE[c] !== region);
+    const otherDay = r.day === DAY.SAT ? DAY.SUN : DAY.SAT;
+    const byShape = (list) => [...list].sort((a, b) => Number(hasShape(b, r)) - Number(hasShape(a, r)));
+    const candidates = [
+      ...byShape(sameRegion).map((c) => [c, r.day]),
+      ...byShape(otherRegion).map((c) => [c, r.day]),
+      ...(open.includes(r.courseId) ? [[r.courseId, otherDay]] : []),
+      ...byShape(sameRegion).map((c) => [c, otherDay]),
+      ...byShape(otherRegion).map((c) => [c, otherDay]),
+    ];
+    const found = candidates.find(([c, d]) => !occupied.has(slotKey(r.week, c, d)));
+    if (found) {
+      r.courseId = found[0];
+      r.day = found[1];
+    }
+    occupied.add(slotKey(r.week, r.courseId, r.day));
+  }
+}
+
 /** 直近の`buildYear`が除外した本数（ログ用）。 */
 const lastExcluded = { jump: 0, arab: 0, broken: 0, nar: 0 };
 
@@ -447,6 +501,9 @@ function buildYear(year) {
       ...(ungradedStakes ? { ungradedStakes: true } : {}), // 「（重賞）」とだけある年（格付け前）。gradeはnull
       week,
       courseId,
+      // ⭐土曜か日曜か（第13弾§22。史実の日付から決め、同じ競馬場・同じ日に重賞が重なる分は
+      // `spreadOverlappingGradedRaces`が振り直す）。
+      day: dayOfHistoricalDate(r.date),
       surface: r.surface, // "turf" | "dirt"
       distance: r.distance,
       prize1,
@@ -456,7 +513,14 @@ function buildYear(year) {
       condition: r.condition ?? null,
       historicalDate: r.date,
       historicalCourse: r.course,
+      _fixed: Boolean(fixedName),
+      _trueCourse: fixedName ? null : findCourseByName(r.course),
     });
+  }
+  spreadOverlappingGradedRaces(races);
+  for (const race of races) {
+    delete race._fixed;
+    delete race._trueCourse;
   }
 
   if (skippedNoCourse) {

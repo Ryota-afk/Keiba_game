@@ -50,6 +50,7 @@ import {
   recordJockeyRideStats,
 } from "./npcJockeyWins.js";
 import { applyLostPlayerRaceWinners, buildGradedLogRows, appendGradedLog } from "./yearGradedLog.js";
+import { buildWeeklyCard } from "./weeklyCard.js";
 import { buildYearEndSummary, buildRetiredHorses } from "./yearEnd.js";
 import { buildBanzuke } from "../view/banzukeView.js";
 import { processYearBoundary } from "./yearBoundary.js";
@@ -428,6 +429,9 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     riddenHorseIds: riddenThisWeek,
     playerJockeyName: nextPlayer.jockey.name,
     jockeyNameById,
+    raceNumberById: new Map(
+      buildWeeklyCard(saveSeed, week, nextPlayer.currentYear).map((r) => [r.raceId, r.raceNumber])
+    ),
   });
   const gradedLog = appendGradedLog(roster.yearGradedLog, nextPlayer.currentYear, gradedLogRows);
 

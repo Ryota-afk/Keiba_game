@@ -10,6 +10,7 @@ import { classDisplayName } from "../data/classes.js";
 import { SURFACE_LABELS } from "../data/aptitudeLabels.js";
 import { SURFACE_APTITUDE_SCALE } from "../data/surfaceAptitude.js";
 import { DAY } from "../data/weekDays.js";
+import { courseRaceLabel } from "./raceNumberView.js";
 
 const CALENDAR = buildCalendarSkeleton();
 
@@ -62,7 +63,7 @@ export function raceHeadline(race) {
  * @param {object[]} requests - `generateWeeklyRequests`の戻り値
  * @returns {{ sat: CourseGroup[], sun: CourseGroup[] }}
  *   CourseGroup = { courseId, courseName, count, races: RaceGroup[] }
- *   RaceGroup = { raceId, surface, distance, classId, raceName, grade, fillyOnly, requests: object[] }
+ *   RaceGroup = { raceId, raceNumber, raceLabel, surface, distance, classId, raceName, grade, fillyOnly, requests: object[] }
  */
 export function groupRequestsByDay(requests) {
   const result = { [DAY.SAT]: [], [DAY.SUN]: [] };
@@ -83,6 +84,8 @@ export function groupRequestsByDay(requests) {
     if (!race) {
       race = {
         raceId: request.raceId,
+        raceNumber: request.raceNumber ?? null, // 第13弾§22
+        raceLabel: courseRaceLabel(request.courseId, request.raceNumber), // 「小倉 3R」
         surface: request.surface,
         distance: request.distance,
         classId: request.classId,

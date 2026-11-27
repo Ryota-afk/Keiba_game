@@ -9,6 +9,7 @@
 
 import { formatWeekLabel, raceHeadline, raceHeadlineText } from "../view/weekOffersView.js";
 import { findCourse } from "../data/courses.js";
+import { courseRaceLabel } from "../view/raceNumberView.js";
 import { classDisplayName } from "../data/classes.js";
 import { gradedRacesForYear } from "../data/gradedRacesByYear.js";
 import { weekOfYear } from "../data/calendar.js";
@@ -91,6 +92,8 @@ export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster,
     day: ride.day ?? null, // "sat"/"sun"（古い記録には無い）
     courseId: ride.courseId,
     courseName: findCourse(ride.courseId)?.name ?? ride.courseId,
+    raceNumber: ride.raceNumber ?? null, // 第13弾§22
+    raceLabel: courseRaceLabel(ride.courseId, ride.raceNumber), // 「小倉 3R」（`view/raceNumberView.js`）
     raceId: ride.raceId ?? null,
     surface: ride.surface,
     distance: ride.distance,

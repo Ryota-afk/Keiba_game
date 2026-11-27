@@ -9,6 +9,7 @@ import { SURFACE_LABELS, DISTANCE_BAND_LABELS } from "../data/aptitudeLabels.js"
 import { TRACK_CONDITION_LABEL } from "../data/trackConditions.js";
 import { approximateDate } from "../data/jraMeetingSchedule.js";
 import { weekOfYear } from "../data/calendar.js";
+import { courseRaceLabel } from "./raceNumberView.js";
 
 function twoDigits(n) {
   return String(n).padStart(2, "0");
@@ -62,7 +63,7 @@ export function buildEntryColumn(entry, riderInfo, genderLabel, age, weight) {
 
 /**
  * レース見出しを組む。
- * @param {{ raceName: string, grade?: string|null, courseId?: string|null, surface: string,
+ * @param {{ raceName: string, raceNumber?: number|null, grade?: string|null, courseId?: string|null, surface: string,
  *           distance?: number|null, distanceBand?: string|null, condition?: string|null,
  *           fieldSize: number, classId?: string, prize1?: number|null }} race
  */
@@ -72,6 +73,9 @@ export function buildEntryListHeader(race) {
   const distanceLabel =
     race.distance != null ? `${race.distance}m` : DISTANCE_BAND_LABELS[race.distanceBand] ?? "";
   return {
+    // ⭐第13弾§22：その日の何レース目か（`raceNumber`）と「小倉 3R」（`raceLabel`）。表示は別の担当。
+    raceNumber: race.raceNumber ?? null,
+    raceLabel: courseRaceLabel(race.courseId, race.raceNumber),
     name: race.raceName ?? (race.classId ? classDisplayName(race.classId) : "レース"),
     gradeLabel: race.grade ? race.grade.toUpperCase() : null,
     whereLine: `${courseName} ${surfaceLabel}${distanceLabel}　${race.fieldSize}頭`.trim(),

@@ -63,6 +63,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     raceId: mount.raceId ?? null,
     raceName: mount.raceName ?? null,
     day: mount.day ?? null,
+    raceNumber: mount.raceNumber ?? null, // 第13弾§22：その日の何レース目か（古い記録には無い）
     courseId: mount.courseId ?? null,
     surface: mount.surface ?? null,
     distance: mount.distance ?? null,

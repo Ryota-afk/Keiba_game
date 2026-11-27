@@ -16,7 +16,8 @@ import { withReclassedClass } from "./horseClass.js";
  * 1行ぶん：1つの重賞の結果。
  * @typedef {{ raceId: string, raceName: string, tier: "g1"|"g2"|"g3", week: number, courseId: string,
  *   surface: string, distance: number, winnerId: string, winnerName: string, jockeyName: string,
- *   byPlayer: boolean, playerRode: boolean, playerPosition: number|null }} GradedLogRow
+ *   byPlayer: boolean, playerRode: boolean, playerPosition: number|null, raceNumber: number|null }} GradedLogRow
+ * `raceNumber`＝その日の何レース目か（第13弾§22。番組表の番号。渡されなければ`null`）。
  * `week`＝暦の週（1〜52）。`byPlayer`＝勝った馬にプレイヤーが乗っていた。`playerRode`＝このレースにプレイヤーが
  * 乗っていた（勝っても負けても）。`playerPosition`＝そのときの着順（落馬は`null`）。
  */
@@ -79,10 +80,20 @@ export function applyLostPlayerRaceWinners(horses, rides, week, year, jockeyIdOf
  * プレイヤーが乗って負けたレース（`applyLostPlayerRaceWinners`で勝ち馬に積み済み）も同じ引き方。
  * @param {{ year: number, week: number, horses: object[], rides: object[],
  *   riddenHorseIds: Set<string>, playerJockeyName: string,
- *   jockeyNameById: Map<string, string> }} args - `week`は絶対週。`horses`は今週の結果を積んだ全馬
+ *   jockeyNameById: Map<string, string>, raceNumberById?: Map<string, number> }} args - `week`は絶対週。`horses`は今週の結果を積んだ全馬。
+ *   `raceNumberById`＝その週の番組表の重賞idごとのレース番号（`domain/weeklyCard.js`の`raceNumber`）
  * @returns {GradedLogRow[]} 行われた重賞だけ（勝ち馬が見つかったもの）
  */
-export function buildGradedLogRows({ year, week, horses, rides, riddenHorseIds, playerJockeyName, jockeyNameById }) {
+export function buildGradedLogRows({
+  year,
+  week,
+  horses,
+  rides,
+  riddenHorseIds,
+  playerJockeyName,
+  jockeyNameById,
+  raceNumberById = new Map(),
+}) {
   const w = weekOfYear(week);
   const races = gradedRacesForYear(year).filter((r) => r.week === w);
   if (races.length === 0) return [];
@@ -108,6 +119,7 @@ export function buildGradedLogRows({ year, week, horses, rides, riddenHorseIds, 
       courseId: race.courseId,
       surface: race.surface,
       distance: race.distance,
+      raceNumber: raceNumberById.get(race.id) ?? null,
       winnerId: winner.id,
       winnerName: winner.name,
       jockeyName: byPlayer ? playerJockeyName : (jockeyNameById.get(jockeyId) ?? ""),
