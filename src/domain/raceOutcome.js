@@ -115,7 +115,8 @@ export function assemblePlayerMountField(saveSeed, week, mount, horse, allHorses
  *     年齢を数えるのに使う（`devlog/wave11.md`§12）。渡さないと年齢の条件を見ない
  *     （`horse.js`の`isAgeSexEligible`の仕様どおり）
  * @returns {{ position: number, fieldSize: number, won: boolean, field: object[],
- *             popularity: number }}
+ *             popularity: number, finisherIds: string[] }} `finisherIds`＝着順に並べた出走馬のid
+ *   （1着から。年末の画面が、プレイヤーが乗って負けた重賞の勝ち馬を記録するのに使う）
  */
 export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, options = {}) {
   const field = assemblePlayerMountField(saveSeed, week, mount, horse, allHorses, options.year ?? null);
@@ -160,5 +161,6 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, opti
 
   const selfEntryIndex = entries.findIndex((e) => e.isSelf);
   const position = sim.order.indexOf(selfEntryIndex) + 1;
-  return { position, fieldSize, won: position === 1, field, popularity };
+  const finisherIds = sim.order.map((i) => entries[i].horse.id);
+  return { position, fieldSize, won: position === 1, field, popularity, finisherIds };
 }

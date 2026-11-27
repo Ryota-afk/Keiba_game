@@ -8,9 +8,10 @@
 // 自体は流用できるはず。
 
 import { runPlaceholderRace } from "./raceOutcome.js";
-import { appendRaceResult } from "./horse.js";
+import { appendRaceResult, appendRaceResultWithEarnings, placePrizeShare, earningsForResult } from "./horse.js";
 import { withReclassedClass } from "./horseClass.js";
 import { shutokuForGeneralRace, shutokuForGradedRace, gradedRaceById } from "../data/shutokuPrize.js";
+import { gradedTierOf } from "../data/gradedTier.js";
 import { checkFall, applyInjuryToHorse } from "./fall.js";
 import { rollActualCondition } from "./weather.js";
 import { fatiguePenaltyFactor } from "./fatigue.js";
@@ -20,6 +21,11 @@ import { recordRide } from "./mainMount.js";
 import { attemptReveal } from "./disclosure.js";
 import { computeReputation } from "./reputation.js";
 import { injuryNotification, bigTrustChangeNotification, isBigTrustChange } from "./notifications.js";
+
+function gradedTierForRide(mount, year) {
+  const race = gradedRaceById(year, mount.raceId);
+  return race ? gradedTierOf(race, year) : (mount.grade ?? "g3");
+}
 
 export const RIDE_TRAINER_TRUST_GAIN = 1; // 日常の鞍そのもの（乗るだけで少し上がる）
 export const WIN_TRAINER_TRUST_GAIN = 3; // 勝つとさらに上がる
@@ -44,7 +50,8 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  *     surface: string|null|undefined, distance: number|null|undefined,
  *     classId: string|null|undefined, grade: string|null|undefined, fell: boolean,
  *     position: number|null, fieldSize: number|null, popularity: number|null,
- *     won: boolean, income: number, injuryType?: "fracture"|"bruise", weeksOut?: number } }}
+ *     won: boolean, income: number, prize: number, winnerHorseId?: string|null, tier?: string,
+ *     injuryType?: "fracture"|"bruise", weeksOut?: number } }}
  */
 export function processMountResult(saveSeed, week, player, horse, mount, allHorses, getJockey, stableStrengthById) {
   const notifications = [];
@@ -78,6 +85,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
         fieldSize: null,
         popularity: null,
         won: false,
+        prize: 0,
         income: 0, // 落馬した鞍には騎乗料が出ない（下の`rideIncome`呼び出しに到達しないため）
         injuryType: fall.injuryType,
         weeksOut: fall.weeksOut,
@@ -142,11 +150,45 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
   // 判定する（`domain/playerRecord.js`と同じ）。⚠️獲得賞金（`earnings`）の積み方は従来のまま。
   const rideAge = horse.bornYear != null ? player.currentYear - horse.bornYear : 4;
   let shutokuGain;
+  const gradedRace = mount.raceName ? gradedRaceById(player.currentYear, mount.raceId) : null;
   if (mount.raceName) {
-    const gradedRace = gradedRaceById(player.currentYear, mount.raceId);
     shutokuGain = gradedRace ? shutokuForGradedRace(gradedRace, player.currentYear, result.position, rideAge) : 0;
   } else {
     shutokuGain = shutokuForGeneralRace(mount.classId ?? horse.classId, rideAge, result.position);
+  }
+  const historyEntry = {
+    position: result.position,
+    fieldSize: result.fieldSize,
+    popularity: result.popularity,
+    week,
+    year: player.currentYear,
+    courseId: mount.courseId ?? null,
+    surface: mount.surface ?? null,
+    distance: mount.distance ?? null,
+    condition,
+  };
+  let nextRecord;
+  let prizeGain; // この鞍でその馬が稼いだ獲得賞金（円・`ride.prize`＝最多獲得賞金騎手の材料）
+  if (mount.raceName) {
+    // ⭐E1・E3（`devlog/wave13.md`§10）：重賞は、レース名（クラス名ではなく）と、そのレース本来の
+    // 賞金（`prize1`×着順の配分）で積む。NPCの重賞（`domain/npcGradedRace.js`）と同じ形。
+    // 実データが引けなかったとき（通常は起きない）はクラスの額に退く。
+    const tier = gradedRace ? gradedTierOf(gradedRace, player.currentYear) : (mount.grade ?? "g3");
+    prizeGain = gradedRace
+      ? (gradedRace.prize1 ?? 0) * placePrizeShare(result.position)
+      : earningsForResult(horse.classId, result.position);
+    nextRecord = appendRaceResultWithEarnings(
+      horse.record,
+      { ...historyEntry, raceName: mount.raceName },
+      prizeGain,
+      true,
+      undefined,
+      shutokuGain,
+      tier
+    );
+  } else {
+    nextRecord = appendRaceResult(horse.record, horse.classId, historyEntry, null, shutokuGain);
+    prizeGain = nextRecord.earnings - horse.record.earnings;
   }
   nextHorse = {
     ...nextHorse,
@@ -155,25 +197,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
     // NPC馬とズレる不整合があった）。⭐距離は`mount.distance`（週の番組表・実データが
     // 決めた具体的なメートル数。`arch/race-program.md`§10）をそのまま使う。
-    // ⚠️`mount.raceName`は重賞だけが持つ値（`domain/playerRecord.js`）。賞金と`gradedWins`は従来どおり
-    // クラス基準のまま、番付の「今年勝った重賞」（`yearStats.lastBigWinName`）にだけ名前を残す。
-    record: appendRaceResult(
-      horse.record,
-      horse.classId,
-      {
-        position: result.position,
-        fieldSize: result.fieldSize,
-        popularity: result.popularity,
-        week,
-        year: player.currentYear,
-        courseId: mount.courseId ?? null,
-        surface: mount.surface ?? null,
-        distance: mount.distance ?? null,
-        condition,
-      },
-      mount.raceName ?? null,
-      shutokuGain
-    ),
+    record: nextRecord,
   };
   // クラスは収得賞金・馬齢・時期から決め直す（`domain/horseClass.js`）。
   nextHorse = withReclassedClass(nextHorse, week, player.currentYear);
@@ -186,6 +210,9 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     popularity: result.popularity,
     won: result.won,
     income,
+    prize: prizeGain, // その馬が稼いだ獲得賞金（円）。落馬した鞍は0
+    // 重賞のとき：1着の馬（プレイヤーの馬を含む）のid。負けた重賞の勝ち馬を記録するため
+    ...(mount.raceName ? { winnerHorseId: result.finisherIds?.[0] ?? null, tier: gradedTierForRide(mount, player.currentYear) } : {}),
   };
 
   return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result, ride };

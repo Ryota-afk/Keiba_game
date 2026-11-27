@@ -113,3 +113,33 @@ Q6 自分の「稼いだお金」は自分の収入（騎乗手当＋賞金の�
 Q8 行き先は繁殖に上がる馬だけ書く／Q9 不具合E1〜E3（自分が乗った重賞のレース名・負けた重賞の勝ち馬・獲得賞金）を一緒に直す／
 Q10 主戦は引退した時点で主戦の馬。＋**未勝利で地方へ移った主戦の馬も引退した馬の画面に載せる**（札に「地方へ移りました」）。
 ⭐この新しいセッションで、環境の準備用スクリプトが桜井スキルを入れていることを確かめた（§4の「未確認」を解消）。
+
+## §10 年末のまとめ・引退した馬：データと処理の実装と計測（2026-11-27・Sonnet。画面は別の担当。`src/screens`・CSSは未変更）
+設計は`design/mocks/year-end-v1-spec.md`＋§9のユーザー決定。**実装したもの**：
+- **重賞の格**：`tools/build-graded-races.mjs`が1983年までの「1984年にG1だったレース」へ`g1Like: true`を書く（`isG1ThisYear`の結果そのまま・1972〜2024年を作り直し、
+  差分は1972〜83年の12〜14本ずつの`g1Like`の追加だけ・1984年以降と読み込み口は同一を確認）。`data/gradedTier.js`の`gradedTierOf(race, year)`＝g1/g2/g3・`g1LabelForYear`＝「G1」／1983年まで「大レース」。
+- **記録（D1〜D6）**：馬の`record.yearStats.graded`・`record.g1Wins`（`horse.js`の`appendRaceResultWithEarnings`の第7引数）／NPC騎手の`startsByYear`・`prizeByYear`
+  （`npcJockeyWins.js`の`countJockeyRideStats`）／プレイヤーの`byYear[年].{gradedWins,g1Wins,income,prize}`（`playerRecord.js`）／`roster.yearGradedLog`（`yearGradedLog.js`）／
+  `player.leftForLocalThisYear`（地方へ移った主戦の馬を年末まで貯める）。古いセーブは全部`?? 0`／`?? []`で読む（欄を外した世界で1年通して確認・セーブ形式の版は上げていない）。
+- **E1・E3**（`weekResults.js`）：プレイヤーが乗った重賞は、レース名・`prize1`×着順の配分の賞金・`gradedWins`・格で積む。⚠️これまで積まれなかった`gradedWins`が積まれる（引退の「重賞を勝った牡馬は種牡馬」へ効く）。
+  **E2**：`runPlaceholderRace`が`finisherIds`（着順のid）を返し、負けた重賞の勝ち馬へ勝ちだけ積む（`applyLostPlayerRaceWinners`。2着以下の相手馬は積まない）。
+  検証：1994年開始・52週で自分が乗った重賞6鞍すべてで、馬の記録のレース名＝依頼のレース名・賞金＝`prize1`×配分・負けた5鞍の勝ち馬の記録に勝ちが積まれている（`週の結果画面の「今週の重賞」`にも勝ち馬が出るようになる）。
+- **賞の選び方**（`view/yearEndAwards.js`）：部門＝2歳牡/牝・3歳牡/牝・4歳以上牡/牝・短距離（1981年〜・芝1600m以下・3歳以上）・ダート（1984年〜・3歳以上）・年度代表馬（受賞馬の中で年間の全重賞で数え直す）。
+  G1の勝ち数→重賞の点数（`GRADED_POINTS`・暫定）→今年の獲得賞金→馬id。名前「優駿賞」〜1986・「JRA賞」1987〜。騎手＝最多勝利（同数は騎乗数の少ない方）・最高勝率（50回以上）・最多獲得賞金。自分の順位つき・自分が同率1位なら受賞は自分。
+- **画面へ渡す形**（`domain/yearEnd.js`）：`buildYearEndSummary`＝`{ year, title, g1Label, representative, awards[], jockeyAwards[], player{…, last}, g1Races[], g1RacesLabel }`／
+  `buildRetiredHorses`＝`[{ horseId, name, gender, age, starts, wins, g1Wins[], playerRides, isMain, destination: "sire"|"broodmare"|"local"|null, earnings }]`（空なら②を出さない）。
+  `advanceWeek`は年の最終週に`yearEnd = { year, summary, retired }`を返し（それ以外は`null`）、`roster.lastYearEnd`にも置く。**順序**：番付の保存→`processYearBoundary`→その直後に`advancedHorses`（馬が抜ける前）で組む→`currentYear`を繰り上げ。
+**計測**（台本`/tmp/.../scratchpad/ye13/`。開始1974・1994×世界の種7・8・9×3年＝18年分。プレイヤーは信頼80で既定の騎乗。⚠️#116が未実装のため`advanceWeek`の既定では自分が年約270〜300鞍乗る＝設計メモの年104鞍と違う）：
+| 項目 | 1974開始（部門6）9年 | 1994開始（部門8）9年 |
+|---|---|---|
+| 馬の部門が埋まった | 50/54（空はすべて最優秀2歳牝馬の4年。2歳牡馬は9年とも埋まった） | **72/72** |
+| 年度代表馬 | 9年とも居る（G1 1〜3勝） | 9年とも居る |
+| G1の行（予定） | 11〜13（12・12・13） | 16・16・19（予定どおり全部） |
+| ②の札（引退した馬） | 2〜8枚・平均5.3・**0枚の年は無い** | 2〜10枚・平均5.9・0枚の年は無い |
+うち主戦の札は18年で4枚（地方へ移った主戦は、この計測では0枚。別の確認（1986年開始・主戦に未勝利馬を仕込む）で`destination: "local"`の札が2枚出ることを確認）。行き先：種牡馬・繁殖牝馬・無しがそれぞれ出る。
+自分の順位：最多勝利22〜68位／127人・最高勝率29〜93位（対象75〜127人・自分は毎年対象）・最多獲得賞金5〜67位。**自分が1位の部門は18年で0**。自分の重賞勝ちは0〜4・G1は0〜1。
+**処理時間**：年末の週は123〜381ms（6本並列時）・直列の1本で184ms（その年の他の週の平均124ms）。うち`buildYearEndSummary`は1.3ms・`buildRetiredHorses`は1.4ms（残りは区切りの処理）。
+**セーブの大きさ**：新しい欄の合計は名簿のJSONで103〜180KB（全体7.3〜9.8MBの1.4〜1.8%）。内訳は`yearStats.graded`約50KB（年が替わって走ると捨てる）・`yearGradedLog`最大約26KB（102行・年末に捨てる）・
+`lastYearEnd`6〜8KB（毎年上書き）・騎手の年別欄約5KB（1年で約5KB増える）・`g1Wins`は0.6KB（累積）。累積するのは騎手の年別欄・`g1Wins`・プレイヤーの`byYear`だけで1年あたり数KB。
+⚠️別件の観察：名簿の大きさが3年で7.3→9.8MBと毎年約1MB増えている（今回の変更とは別。`recentFinishes`・引退馬の保存の累積が疑わしいが未調査）。
+**動かなかったもの**：G1の行われる本数・NPCの勝ち数（NPCが勝った重賞の騎手の数え方は従来のまま。プレイヤーが負けた重賞の勝ち馬の騎手の勝ちが+1される分だけ増える）。

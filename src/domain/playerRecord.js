@@ -11,7 +11,10 @@ export function createEmptyPlayerRecord() {
     wins: 0,
     gradedWins: 0, // 重賞（`grade`有り）を勝った数
     bigRaceWins: 0, // G1、または1984年より前は八大競走を勝った数
-    byYear: {}, // year -> { starts, wins, horseIds }（horseIds＝その年に乗った馬のid・重複なし。番付の「自分が乗った馬」）
+    // year -> { starts, wins, horseIds, gradedWins, g1Wins, income, prize }（horseIds＝その年に乗った馬のid・重複なし。
+    // 番付の「自分が乗った馬」。⭐gradedWins＝重賞の勝ち数・g1Wins＝G1〈1983年までは1984年にG1だったレース〉の勝ち数・
+    // income＝騎乗手当＋進上金・prize＝乗った馬が稼いだ獲得賞金。年末のまとめが使う。古いセーブは`?? 0`で読む）
+    byYear: {},
     byAptitude: {}, // 適性キー（strategy:.../distance:.../surface:...） -> { starts, wins }
   };
 }
@@ -22,13 +25,17 @@ function bumpBucket(bucket, won) {
 }
 
 // 年ごとの欄。`horseIds`は古いセーブ（欄が無い年）でも落ちないよう`?? []`で補う。
-function bumpYearBucket(bucket, won, horseId) {
+function bumpYearBucket(bucket, won, horseId, extra) {
   const current = bucket ?? { starts: 0, wins: 0 };
   const horseIds = current.horseIds ?? [];
   return {
     starts: current.starts + 1,
     wins: current.wins + (won ? 1 : 0),
     horseIds: horseId == null || horseIds.includes(horseId) ? horseIds : [...horseIds, horseId],
+    gradedWins: (current.gradedWins ?? 0) + (extra.gradedWin ? 1 : 0),
+    g1Wins: (current.g1Wins ?? 0) + (extra.g1Win ? 1 : 0),
+    income: (current.income ?? 0) + (extra.income ?? 0),
+    prize: (current.prize ?? 0) + (extra.prize ?? 0),
   };
 }
 
@@ -38,11 +45,14 @@ function bumpYearBucket(bucket, won, horseId) {
  * この関数を呼ぶこと（経験（`domain/aptitudeGrowth.js`）とは扱いが違う点に注意）。
  * @param {object} record - `createEmptyPlayerRecord`の形
  * @param {{ won: boolean, grade: string|null|undefined, raceName: string|null|undefined,
- *   year: number, aptitudeKeys: string[], horseId?: string }} ride - `aptitudeKeys`はその鞍で宣言した3つ
+ *   year: number, aptitudeKeys: string[], horseId?: string, tier?: string|null, income?: number,
+ *   prize?: number }} ride - `aptitudeKeys`はその鞍で宣言した3つ
  *   （`strategy:...`・`distance:...`・`surface:...`）。`horseId`はその年に乗った馬の一覧
- *   （`byYear[year].horseIds`）に積む
+ *   （`byYear[year].horseIds`）に積む。⭐`tier`＝重賞の格（`data/gradedTier.js`。1983年までの「G1扱い」を含む。
+ *   年ごとの`g1Wins`に使う。⚠️`bigRaceWins`〈昇格の条件〉は従来どおり八大競走で数える）。`income`＝その鞍の収入、
+ *   `prize`＝その馬がその鞍で稼いだ獲得賞金（年ごとの欄へ）
  */
-export function applyRideToRecord(record, { won, grade, raceName, year, aptitudeKeys, horseId }) {
+export function applyRideToRecord(record, { won, grade, raceName, year, aptitudeKeys, horseId, tier = null, income = 0, prize = 0 }) {
   // ⚠️「重賞かどうか」は`grade`ではなく`raceName`の有無で判定する——`grade`（G1/G2/G3）は
   // 1984年より前は格付け制度そのものが無く全部nullだが、`raceName`は`weeklyCard.js`の
   // 重賞（`RACE_SOURCE.GRADED`）だけが持つ値で、年代を問わず「重賞」を指す
@@ -54,7 +64,15 @@ export function applyRideToRecord(record, { won, grade, raceName, year, aptitude
   // （ARCHITECTURE.md §8・`data/eightGreatRaces.js`）。
   const isBigRaceWin = won && (grade === "g1" || (year < 1984 && EIGHT_GREAT_RACE_NAMES.has(raceName)));
 
-  const byYear = { ...record.byYear, [year]: bumpYearBucket(record.byYear[year], won, horseId) };
+  const byYear = {
+    ...record.byYear,
+    [year]: bumpYearBucket(record.byYear[year], won, horseId, {
+      gradedWin: isGradedWin,
+      g1Win: isGradedWin && tier === "g1",
+      income,
+      prize,
+    }),
+  };
   let byAptitude = record.byAptitude;
   for (const key of aptitudeKeys) {
     byAptitude = { ...byAptitude, [key]: bumpBucket(byAptitude[key], won) };

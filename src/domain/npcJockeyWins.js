@@ -57,3 +57,54 @@ export function countWinnerJockeys(horses, week, excludeHorseIds, jockeyIdOf) {
   }
   return counts;
 }
+
+/**
+ * ⭐NPC騎手の年ごとの騎乗数・獲得賞金の材料を、その週の分だけ数える（年末の賞「最高勝率」「最多獲得賞金」。
+ * `devlog/wave13.md`§10）。騎乗数＝今週走った馬（`record.recentFinishes[0].week`が今週）＋プレイヤーが乗った
+ * 重賞の相手馬（`extraStarterIds`。負けた側は記録に残らないため別に渡す）。賞金＝その馬の獲得賞金
+ * （`record.earnings`）の今週の増え。プレイヤーが乗った馬は数えない（`excludeHorseIds`）。
+ * ⚠️プレイヤーが乗った重賞の相手馬は、勝った馬の賞金だけ数える（2着以下の記録は馬に積んでいないため）。
+ * @param {object[]} horsesBefore - 今週の初めの馬（賞金の増えを引くための元の値）
+ * @param {object[]} horsesAfter - 今週のレースが終わった後の全馬
+ * @param {number} week - 絶対週
+ * @param {Set<string>} excludeHorseIds - 数えない馬（プレイヤーが乗った馬）
+ * @param {Set<string>} extraStarterIds - 記録は無いが今週走った馬（プレイヤーが乗った重賞の相手馬）
+ * @param {(horse: object) => string|undefined} jockeyIdOf
+ * @returns {{ starts: Map<string, number>, prize: Map<string, number> }} 騎手id -> 今週の値
+ */
+export function countJockeyRideStats(horsesBefore, horsesAfter, week, excludeHorseIds, extraStarterIds, jockeyIdOf) {
+  const earningsBefore = new Map(horsesBefore.map((h) => [h.id, h.record?.earnings ?? 0]));
+  const starts = new Map();
+  const prize = new Map();
+  const counted = new Set();
+  const bump = (map, key, n) => map.set(key, (map.get(key) ?? 0) + n);
+  for (const horse of horsesAfter) {
+    if (excludeHorseIds.has(horse.id)) continue;
+    const ran = horse.record?.recentFinishes?.[0]?.week === week;
+    if (!ran && !extraStarterIds.has(horse.id)) continue;
+    const jockeyId = jockeyIdOf(horse);
+    if (!jockeyId) continue;
+    counted.add(horse.id);
+    bump(starts, jockeyId, 1);
+    const gain = (horse.record?.earnings ?? 0) - (earningsBefore.get(horse.id) ?? 0);
+    if (ran && gain > 0) bump(prize, jockeyId, gain);
+  }
+  return { starts, prize };
+}
+
+/**
+ * `countJockeyRideStats`の結果を騎手の年ごとの欄（`startsByYear`・`prizeByYear`）へ積む。純関数。
+ * 今週1回の`map`で全員分処理する（`recordJockeyWins`と同じ形）。
+ */
+export function recordJockeyRideStats(npcJockeys, stats, year) {
+  if (stats.starts.size === 0 && stats.prize.size === 0) return npcJockeys;
+  return npcJockeys.map((jockey) => {
+    const s = stats.starts.get(jockey.id);
+    const p = stats.prize.get(jockey.id);
+    if (!s && !p) return jockey;
+    const next = { ...jockey };
+    if (s) next.startsByYear = { ...(jockey.startsByYear ?? {}), [year]: (jockey.startsByYear?.[year] ?? 0) + s };
+    if (p) next.prizeByYear = { ...(jockey.prizeByYear ?? {}), [year]: (jockey.prizeByYear?.[year] ?? 0) + p };
+    return next;
+  });
+}

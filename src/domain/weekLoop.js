@@ -43,7 +43,15 @@ import { withJockeyDefaults } from "./jockey.js";
 import { applyRideExperience } from "./aptitudeGrowth.js";
 import { applyRideToRecord } from "./playerRecord.js";
 import { checkRankPromotions } from "./jockeyRank.js";
-import { recordJockeyWins, maxNpcWinsInYear, countWinnerJockeys } from "./npcJockeyWins.js";
+import {
+  recordJockeyWins,
+  maxNpcWinsInYear,
+  countWinnerJockeys,
+  countJockeyRideStats,
+  recordJockeyRideStats,
+} from "./npcJockeyWins.js";
+import { applyLostPlayerRaceWinners, buildGradedLogRows, appendGradedLog } from "./yearGradedLog.js";
+import { buildYearEndSummary, buildRetiredHorses } from "./yearEnd.js";
 import { buildBanzuke } from "../view/banzukeView.js";
 import { processYearBoundary } from "./yearBoundary.js";
 import { distanceBandOf } from "../data/aptitudeCategories.js";
@@ -121,6 +129,9 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   名簿から抜ける**前**の、その週の終わりの馬（年が替わらない週は`roster.horses`と同じ配列）。
  *   週の結果画面が最終週の重賞の勝ち馬を引くために使う（引退で名簿から消えても見せられるように）。
  *   `yearBoundary`＝年の区切りの`stats`（それ以外の週は`null`。計測用）。
+ *   ⭐第13弾：`yearEnd`＝年の最終週（`week % 52 === 0`）だけ`{ year, summary, retired }`（それ以外は`null`）。
+ *   `summary`＝年末のまとめ①（`domain/yearEnd.js`の`buildYearEndSummary`）・`retired`＝引退した馬②
+ *   （`buildRetiredHorses`・空なら画面を出さない）。同じ値を`roster.lastYearEnd`にも置く（セーブから見直せる）。
  *   ⭐第13弾：`leftForLocal`＝この週の初めに、未勝利のまま3歳の9月7日を迎えて中央を去った
  *   （地方へ移った扱い）プレイヤーの主戦の馬（`[{horseId, horseName}]`。居なければ`[]`。
  *   データだけで、画面はまだ使わない）
@@ -138,6 +149,17 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   const leftForLocal = reclassed.leftForLocal
     .filter((h) => isMainMount(player.mainMounts ?? {}, h.id))
     .map((h) => ({ horseId: h.id, horseName: h.name }));
+  // ⭐年の最後の週に「引退した馬」の画面へ載せるため、その年に地方へ移った主戦の馬を年の終わりまで貯める
+  // （`player.leftForLocalThisYear`・年末に空へ戻す。`domain/yearEnd.js`の`buildRetiredHorses`）。
+  if (leftForLocal.length > 0) {
+    player = {
+      ...player,
+      leftForLocalThisYear: [
+        ...(player.leftForLocalThisYear ?? []),
+        ...leftForLocal.map((x) => ({ ...x, year: player.currentYear, week })),
+      ],
+    };
+  }
   const notifications = [];
   const horsesById = new Map(roster.horses.map((h) => [h.id, h]));
   // ⭐本物のsimは騎手の適性も見る（`devlog/wave08.md`§2）。相手馬にも必ず騎手を乗せる
@@ -197,6 +219,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       distance: m.distance ?? 2000,
       surface: m.surface ?? "turf",
       horses: field.filter((h) => h.id !== m.horseId),
+      graded: !!m.raceName, // 重賞の鞍（相手馬の騎乗数を年末の賞へ数える。planWeekWithBookingsは読まない）
     };
   });
   const weekBooking = planWeekWithBookings({
@@ -268,6 +291,9 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
         raceName: res.ride.raceName,
         year: nextPlayer.currentYear,
         horseId: mount.horseId,
+        tier: res.ride.tier ?? null,
+        income: res.ride.income,
+        prize: res.ride.prize ?? 0,
         aptitudeKeys: [
           `strategy:${mount.declaredStrategy}`,
           `distance:${distanceBandOf(mount.distance)}`,
@@ -359,7 +385,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // ⭐NPCの馬が今週勝った場合は、乗っていた騎手のidを勝った1走の記録（`recentFinishes[0]`）に
   // 添える——週の結果の画面（`domain/weekResultSummary.js`）が重賞の勝ち騎手を、割り当てを
   // 再計算せずに引けるようにする（割り当ては週の最初に決まり、あとからは求められない）。
-  const mergedHorses = roster.horses.map((h) => {
+  const mergedBase = roster.horses.map((h) => {
     const horse = riddenThisWeek.has(h.id) ? horsesById.get(h.id) : npcHorsesById.get(h.id);
     if (!horse || riddenThisWeek.has(h.id)) return horse ?? h;
     const last = horse.record?.recentFinishes?.[0];
@@ -372,6 +398,12 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     };
   });
 
+  // ⭐E2（`devlog/wave13.md`§10）：プレイヤーが乗って負けた重賞の勝ち馬（相手馬の1頭）の勝ちを、その馬へ積む。
+  // これをしないと、自分が負けたG1の勝ち馬が年末のG1の一覧・賞の選び方・生涯のG1の勝ちから消える。
+  const mergedHorses = applyLostPlayerRaceWinners(mergedBase, rides, week, nextPlayer.currentYear, (h) =>
+    weekBooking.booking.jockeyByHorseId.get(h.id)
+  );
+
   // ⭐NPC騎手の年間勝ち数（ARCHITECTURE.md §8「一流＝最多勝利騎手」の判定材料）：
   // 今週勝った馬（プレイヤーが乗った馬は除く＝プレイヤーの勝ちは`player.record`側で数える）を
   // 探し、その馬に乗った騎手を、週の最初の割り当て（`weekBooking`＝実際にレースへ渡した騎手と
@@ -379,7 +411,30 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // 「今週勝った」を判定する（`npcWeeklyRace.js`/`npcGradedRace.js`の戻り値を直接は使わない
   // ——両ファイルは勝者一覧を返さないため）。
   const npcWinnerJockeyCounts = countWinnerJockeys(mergedHorses, week, riddenThisWeek, jockeyIdOf);
-  const npcJockeysWithWins = recordJockeyWins(roster.npcJockeys, npcWinnerJockeyCounts, nextPlayer.currentYear);
+  const npcJockeysWithWinsOnly = recordJockeyWins(roster.npcJockeys, npcWinnerJockeyCounts, nextPlayer.currentYear);
+  // ⭐年末の賞「最高勝率」「最多獲得賞金」の材料：NPC騎手の年ごとの騎乗数・獲得賞金（`startsByYear`・`prizeByYear`）。
+  // プレイヤーが乗った重賞の相手馬の騎乗は、勝った馬の分だけ賞金に数える（`countJockeyRideStats`）。
+  const extraStarterIds = new Set();
+  for (const f of playerFields) if (f.graded) for (const h of f.horses) extraStarterIds.add(h.id);
+  const npcJockeysWithWins = recordJockeyRideStats(
+    npcJockeysWithWinsOnly,
+    countJockeyRideStats(roster.horses, mergedHorses, week, riddenThisWeek, extraStarterIds, jockeyIdOf),
+    nextPlayer.currentYear
+  );
+
+  // ⭐その年の重賞の結果の記録（`roster.yearGradedLog`・年末のG1の一覧の材料）。勝った馬が年の最後の週の後に
+  // 引退して名簿から抜けても名前・騎手が引けるよう、週ごとに写しておく（`domain/yearGradedLog.js`）。
+  const jockeyNameById = new Map(roster.npcJockeys.map((j) => [j.id, j.name]));
+  const gradedLogRows = buildGradedLogRows({
+    year: nextPlayer.currentYear,
+    week,
+    horses: mergedHorses,
+    rides,
+    riddenHorseIds: riddenThisWeek,
+    playerJockeyName: nextPlayer.jockey.name,
+    jockeyNameById,
+  });
+  const gradedLog = appendGradedLog(roster.yearGradedLog, nextPlayer.currentYear, gradedLogRows);
 
   // ⭐第10弾：計画が今週で期限切れ・またはまだ計画の無い馬に、次の計画を立て直す
   // （`devlog/wave10.md`§3.5「除外された馬は、その週のうちに目標を組み直す」・
@@ -447,6 +502,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   let boundary = null;
   let nextHorses = advancedHorses;
   let breedingPool = roster.breedingPool;
+  let yearEnd = null;
   const retiredMainMounts = [];
   if (wrapsToNextYear) {
     boundary = processYearBoundary(
@@ -465,12 +521,34 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       if (weekEndHorseById.get(horseId)?.leftForLocal) continue; // 地方へ移った馬は週の初めに知らせ済み
       retiredMainMounts.push({ horseId, horseName: weekEndHorseById.get(horseId)?.name ?? horseId });
     }
+    // ⭐年末のまとめ（①）と引退した馬（②）の画面に渡すデータ。馬が名簿から抜ける前の顔ぶれ（`advancedHorses`）で組む
+    // （`domain/yearEnd.js`）。②に載せる馬が居なければ`retired`は空（画面を出さない）。
+    const year = nextPlayer.currentYear;
+    yearEnd = {
+      year,
+      summary: buildYearEndSummary({
+        year,
+        horses: advancedHorses,
+        npcJockeys: npcJockeysWithWins,
+        player: nextPlayer,
+        gradedLog,
+      }),
+      retired: buildRetiredHorses({
+        year,
+        horses: advancedHorses,
+        retiredHorseIds: boundary.retiredHorseIds,
+        leftForLocal: nextPlayer.leftForLocalThisYear ?? [],
+        breedingPool,
+        mainMounts: nextPlayer.mainMounts ?? {},
+      }),
+    };
   }
 
   nextPlayer = {
     ...nextPlayer,
     currentWeek: week + 1,
     currentYear: wrapsToNextYear ? nextPlayer.currentYear + 1 : nextPlayer.currentYear,
+    ...(wrapsToNextYear ? { leftForLocalThisYear: [] } : {}),
   };
 
   return {
@@ -481,6 +559,9 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       npcJockeys: npcJockeysWithWins,
       trialResults: gradedResult.trialResults,
       ...(lastYearBanzuke ? { lastYearBanzuke } : {}),
+      // 年が替わったら、その年の重賞の記録は捨てる（年末のまとめは`lastYearEnd`へ写し済み）
+      yearGradedLog: wrapsToNextYear ? null : gradedLog,
+      ...(yearEnd ? { lastYearEnd: yearEnd } : {}),
     },
     player: nextPlayer,
     notifications,
@@ -492,5 +573,6 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     leftForLocal,
     weekEndHorses: advancedHorses,
     yearBoundary: boundary?.stats ?? null,
+    yearEnd,
   };
 }

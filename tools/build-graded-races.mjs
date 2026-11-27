@@ -441,6 +441,9 @@ function buildYear(year) {
       id: `${year}-${name.replace(/[\s（）]/g, "")}`,
       name,
       grade: year >= 1984 ? parsedGrade : null, // グレードは1984年から出す
+      // ⭐1983年までの「G1扱い」（＝1984年にG1だったレース）の印。`isG1ThisYear`の結果そのもの
+      // （名前の名寄せを実行時にしないため。年末の賞・G1の一覧が使う。`devlog/wave13.md`§10）。
+      ...(year < 1984 && fixedName ? { g1Like: true } : {}),
       ...(ungradedStakes ? { ungradedStakes: true } : {}), // 「（重賞）」とだけある年（格付け前）。gradeはnull
       week,
       courseId,

@@ -250,6 +250,16 @@
   `weekResults.js`（プレイヤーが乗った鞍。⭐第13弾まで重賞・オープン特別が0円になる不具合があった。
   重賞かどうかは`mount.raceName`の有無で判定し、実データの重賞は`gradedRaceById`で引く）。
 
+**重賞の記録**（第13弾・`devlog/wave13.md`§10・年末の賞と引退した馬の画面の材料）
+- `record.yearStats.graded = [{ raceName, tier, position, surface, distance }]`＝今年走った重賞（年が替わって次に走ると捨てて数え直す。重賞に出ていない馬は欄が無い）。
+  `record.g1Wins = [{ raceName, year }]`＝生涯のG1の勝ち（勝ったことが無い馬は欄が無い）。`tier`は`data/gradedTier.js`の`gradedTierOf`：1984年からは実データの`grade`
+  （無印はg3）・⚠️1983年までは重賞データの`g1Like: true`（＝1984年にG1だったレース・`tools/build-graded-races.mjs`が書く）だけg1・他はg3。積む入口は
+  `appendRaceResultWithEarnings`の第7引数`gradedTier`（NPC重賞・プレイヤーが乗った重賞・プレイヤーが負けた重賞の勝ち馬の3経路）。古いセーブは`?? []`で読む。
+- プレイヤーが乗った重賞は、馬の記録にレース名（クラス名ではなく）・本来の賞金（`prize1`×着順の配分）・`gradedWins`を積む（第13弾まで、レース名はクラス名・賞金はクラスの額・
+  `gradedWins`は積まれなかった＝E1・E3）。プレイヤーが乗って負けた重賞の勝ち馬は`yearGradedLog.js`の`applyLostPlayerRaceWinners`で勝ちだけ積む（E2）。
+- プレイヤー自身は`player.record.byYear[年]`に`gradedWins`・`g1Wins`・`income`（騎乗手当＋進上金）・`prize`（乗った馬の獲得賞金）を足した。⚠️`record.bigRaceWins`
+  （騎手ランクの昇格の条件）は従来どおり八大競走（1983年まで）で数える＝年末の「G1」とは数え方が違う。
+
 **クラスの決め方**（`classByShutoku`・`domain/horseClass.js`の`classForHorse`）
 | 馬齢・時期 | 0円 | 〜500万 | 〜1,000万 | 〜1,600万 | 1,600万超 |
 |---|---|---|---|---|---|

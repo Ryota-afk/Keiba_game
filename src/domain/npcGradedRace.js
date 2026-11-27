@@ -14,6 +14,7 @@ import { weekOfYear } from "../data/calendar.js";
 import { gradedRacesForYear, hasGradedRaceData } from "../data/gradedRacesByYear.js";
 import { canRaceOnSurface, preferSuitedRunners } from "../data/surfaceAptitude.js";
 import { shutokuForGradedRace } from "../data/shutokuPrize.js";
+import { gradedTierOf } from "../data/gradedTier.js";
 import { GRADED_MAX_FIELD_SIZE } from "../data/raceProgram.js";
 import {
   appendRaceResultWithEarnings,
@@ -246,7 +247,8 @@ export function runNpcGradedRaces(
           earningsGain,
           true,
           undefined,
-          shutokuForGradedRace(race, year, position, age)
+          shutokuForGradedRace(race, year, position, age),
+          gradedTierOf(race, year)
         ),
         // 目標だったなら計画は完了（`null`にして次の計画待ちに）。優先出走権で
         // 出た馬（自分の計画外の重賞）や前哨戦を走っただけの馬は計画をそのまま持ち越す。

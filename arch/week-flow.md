@@ -69,6 +69,21 @@
 `WeekScreen`が週の結果画面〈最終週の重賞の勝ち馬〉に渡す）・`yearBoundary`（区切りの`stats`、無ければ`null`）が増えた。
 ⚠️⑤調教師・⑥騎手の世代交代と⑦主戦の付け直し（`primaryJockeyId`は新2歳にも翌週の`assignHorsePrimaryJockeys`が付けるだけ）は未実装。
 
+⭐**年末のまとめ・引退した馬の画面用のデータ**（第13弾・`devlog/wave13.md`§10。画面はまだ無い）：年の最終週、②`processYearBoundary`の**直後**
+（馬が抜ける前の`advancedHorses`を使う）に`buildYearEndSummary`（`domain/yearEnd.js`・①まとめ）と`buildRetiredHorses`（同・②引退した馬）を呼び、
+戻り値`yearEnd = { year, summary, retired }`（年が替わらない週は`null`）と`roster.lastYearEnd`（同じ値・セーブから見直せる）に置く。
+`retired`が空配列の年は②を出さない（ユーザー決定Q7）。材料：
+- `roster.yearGradedLog = { year, rows }`：毎週、その週に行われた重賞の結果の行を足す（`domain/yearGradedLog.js`の`buildGradedLogRows`・勝ち馬の名前・騎手の名前・
+  格〈g1/g2/g3〉・暦の週・自分が乗ったか）。年が替わったら`null`に戻す（上限は1年ぶん・実測102行・約26KB）。
+- 馬の`record.yearStats.graded`（今年の重賞の着順）・`record.g1Wins`（生涯のG1の勝ち・`[{raceName, year}]`）。⚠️1983年までは「1984年にG1だったレース」
+  （重賞データの`g1Like: true`・`tools/build-graded-races.mjs`が書く。格の引き方は`data/gradedTier.js`の`gradedTierOf`）。
+- NPC騎手の`startsByYear`・`prizeByYear`（`countJockeyRideStats`）。プレイヤーの`record.byYear[年].{gradedWins,g1Wins,income,prize}`。
+- `player.leftForLocalThisYear`：その年に未勝利で地方へ移った主戦の馬（`[{horseId, horseName, year, week}]`）を貯め、年末に空へ戻す。
+- 賞の選び方は`view/yearEndAwards.js`（G1の勝ち数→重賞の着順の点数→今年の獲得賞金→馬id）。
+⚠️**E1〜E3の修正**：プレイヤーが乗った重賞は、レース名（クラス名ではなく）・そのレース本来の賞金（`prize1`×着順の配分）で馬に積み、`gradedWins`も積む
+（`weekResults.js`）。プレイヤーが乗って負けた重賞は、勝ち馬（`runPlaceholderRace`の`finisherIds[0]`）にだけ勝ちを積む
+（`applyLostPlayerRaceWinners`。⚠️2着以下の相手馬の出走・着順は積まない＝NPC騎手の賞金も勝った馬の分だけ）。
+
 ⚠️**弱い厩舎で信頼を積んでも良い馬には乗れない。** ⭐どの厩舎に出入りするかが長期の賭けになり、
 調教師の「見抜く力」（§8）が生きる。
 

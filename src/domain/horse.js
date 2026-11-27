@@ -253,6 +253,8 @@ export function earningsForResult(classId, position) {
  *   残す重賞の名前。省略すると、`isGraded`なら`historyEntry.raceName`、そうでなければ無し。
  *   プレイヤーが乗った重賞の鞍は`isGraded`を立てない（`gradedWins`・賞金は従来どおり）が、名前だけ渡す
  * @param {number} [shutokuGain] - このレースで積む収得賞金（円・`data/shutokuPrize.js`）。省略は0
+ * @param {"g1"|"g2"|"g3"|null} [gradedTier] - 重賞ならその格（`data/gradedTier.js`）。今年の重賞の記録
+ *   （`yearStats.graded`）と生涯のG1の勝ち（`record.g1Wins`）に積む。一般競走はnull
  */
 export function appendRaceResultWithEarnings(
   record,
@@ -260,10 +262,17 @@ export function appendRaceResultWithEarnings(
   earningsGain,
   isGraded = false,
   bigRaceName = isGraded ? (historyEntry.raceName ?? null) : null,
-  shutokuGain = 0
+  shutokuGain = 0,
+  gradedTier = null
 ) {
   const { position } = historyEntry;
   const won = position === 1;
+  // ⭐生涯のG1の勝ち（`record.g1Wins`・引退した馬の画面が使う）。1983年までは「1984年にG1だった名前」＝
+  // g1扱いの重賞（`data/gradedTier.js`）。古いセーブ（欄が無い馬）は`?? []`で補う。
+  const g1Wins =
+    won && gradedTier === "g1" && historyEntry.raceName
+      ? [...(record.g1Wins ?? []), { raceName: historyEntry.raceName, year: historyEntry.year ?? null }]
+      : record.g1Wins ?? [];
   return {
     starts: record.starts + 1,
     wins: record.wins + (won ? 1 : 0),
@@ -274,7 +283,8 @@ export function appendRaceResultWithEarnings(
     gradedWins: (record.gradedWins ?? 0) + (won && isGraded ? 1 : 0),
     recentFinishes: [historyEntry, ...(record.recentFinishes ?? [])].slice(0, RECENT_FINISHES_WINDOW),
     // ⭐今年の成績（番付の材料）。年が変わったら0から数え直す。古いセーブ（欄が無い馬）でも落ちない
-    yearStats: bumpYearStats(record.yearStats, historyEntry, earningsGain, bigRaceName),
+    yearStats: bumpYearStats(record.yearStats, historyEntry, earningsGain, bigRaceName, gradedTier),
+    ...(g1Wins.length > 0 ? { g1Wins } : {}), // 勝っていない馬には欄を作らない（セーブの大きさのため）
   };
 }
 
