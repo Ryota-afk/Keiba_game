@@ -16,6 +16,7 @@ import {
 import { weekOfYear } from "../data/calendar.js";
 import { parseRaceCondition } from "../data/raceConditions.js";
 import { bumpYearStats } from "./horseYearStats.js";
+import { drawHorseLooks, looksRandomFor } from "./horseLooks.js";
 
 // ⭐架空馬のスピードの上限（`devlog/wave04.md`§40・ユーザー決定「(2)b」）。史実の
 // ダービー馬51頭は65〜92なので、この上限（理論上の最大に近い値で71〜72）なら
@@ -88,6 +89,8 @@ function createInitialAdaptability(bloodlineFamily) {
  *           bloodlineFamily?: string, bornYear?: number,
  *           stableId?: string|null, ownerId?: string|null,
  *           usedNames?: Set<string> }} [opts]
+ *   `sireGenes`・`damGenes`（親の`coatGenes`）を渡すと、毛色の遺伝子を親から受け継ぐ（`domain/horseLooks.js`）。
+ *   ⚠️見た目（毛色・模様・frameKg）は能力・名前とは別の乱数列で引く（同じシードで既存の値が変わらない）。
  *   `usedNames`を渡すと、その中にある名前を避け、⚠️**引いた名前をその集合へ破壊的に追加する**
  *   （`domain/humanNaming.js`の`pickHumanName`と同じ形。`domain/horseNames.js`の
  *   `createUsedHorseNames`で作り、同じ回に生成する馬どうしで使い回す）。
@@ -154,6 +157,11 @@ export function generateHorse(saveSeed, key, opts = {}) {
     stableId: opts.stableId ?? null,
     ownerId: opts.ownerId ?? null,
     isHistorical: false,
+    // 毛色・白い模様・ベスト体重の個体差（一生変わらない・`arch/horse.md`「毛色・白い模様・ベスト体重」）
+    ...drawHorseLooks(looksRandomFor(saveSeed, `horse-${key}`), {
+      sireGenes: opts.sireGenes,
+      damGenes: opts.damGenes,
+    }),
     isRetired: false, // 引退したらtrue（年齢・成績・怪我。世代交代）
     classId: CLASS_LADDER[0], // 新馬からスタート
     abilities,

@@ -12,6 +12,7 @@ import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "./
 import { commentaryVars, pickCommentaryLine } from "./view/dreamDerbyCommentary.js";
 import { bootstrapRosterAsync } from "./domain/bootstrap.js";
 import { readSave, writeSave } from "./state/saveGame.js";
+import { ensureRosterLooks } from "./domain/horseLooks.js";
 import { formatWeekLabel } from "./view/weekOffersView.js";
 
 // 画面遷移の起点。タイトル→夢のダービー→卒業式→週の進行（1年目の終わりまで）。
@@ -112,7 +113,8 @@ export function App() {
     setCareer({ saveSeed: existingSave.saveSeed, year: existingSave.startYear, difficulty: existingSave.player.difficulty });
     setDreamResult(null);
     setBootstrappedRoster(null);
-    setGameState({ roster: existingSave.roster, player: existingSave.player });
+    // 毛色などの欄が無い古いセーブの馬に見た目を補う（⑭・`domain/horseLooks.js`）
+    setGameState({ roster: ensureRosterLooks(existingSave.roster, existingSave.saveSeed), player: existingSave.player });
     setWeekReady(true);
     setPhase("week");
   }

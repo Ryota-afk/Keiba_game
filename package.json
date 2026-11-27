@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tools/test-horse-looks.mjs"
   },
   "dependencies": {
     "react": "18.2.0",

@@ -18,6 +18,7 @@
 import { shouldRetire, selectBreedingHorses } from "./retirement.js";
 import { generateHorse } from "./horse.js";
 import { createUsedHorseNames } from "./horseNames.js";
+import { ensureHorseLooks } from "./horseLooks.js";
 import { streamRandom, RNG_STREAMS, pick } from "../core/rng.js";
 
 // 新しい馬が名簿に入る年の馬齢（2歳。馬齢は`年 - 生年`）。
@@ -104,12 +105,17 @@ export function processYearBoundary(saveSeed, newYear, roster, player, options =
     for (let i = 0; i < departedCount; i += 1) {
       const sire = breedingPool.sires.length > 0 ? pick(foalRand, breedingPool.sires) : null;
       const dam = breedingPool.broodmares.length > 0 ? pick(foalRand, breedingPool.broodmares) : null;
+      // 毛色の遺伝：父母の遺伝子を渡す（古いセーブの親は見た目が無いので補う）
+      const sireGenes = sire ? ensureHorseLooks(sire, saveSeed).coatGenes : null;
+      const damGenes = dam ? ensureHorseLooks(dam, saveSeed).coatGenes : null;
       const parentStableId = dam?.stableId ?? sire?.stableId ?? null;
       const parentOwnerId = dam?.ownerId ?? sire?.ownerId ?? null;
       newFoals.push(
         generateHorse(saveSeed, `foal-${newYear}-${i}`, {
           sireId: sire?.id ?? null,
           damId: dam?.id ?? null,
+          sireGenes,
+          damGenes,
           ...(sire ? { bloodlineFamily: sire.bloodlineFamily } : {}),
           // ⭐新しい2歳：生年は「その年に2歳になる年」。馬齢は`年 - 生年`（`retirement.js`の
           // `horseAge`）で数え、2歳戦は6月から（`domain/horse.js`の`canDebutThisWeek`）。
