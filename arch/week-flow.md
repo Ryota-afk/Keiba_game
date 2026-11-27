@@ -69,7 +69,7 @@
 `WeekScreen`が週の結果画面〈最終週の重賞の勝ち馬〉に渡す）・`yearBoundary`（区切りの`stats`、無ければ`null`）が増えた。
 ⚠️⑤調教師・⑥騎手の世代交代と⑦主戦の付け直し（`primaryJockeyId`は新2歳にも翌週の`assignHorsePrimaryJockeys`が付けるだけ）は未実装。
 
-⭐**年末のまとめ・引退した馬の画面用のデータ**（第13弾・`devlog/wave13.md`§10。画面はまだ無い）：年の最終週、②`processYearBoundary`の**直後**
+⭐**年末のまとめ・引退した馬の画面用のデータ**（第13弾・`devlog/wave13.md`§10。画面は`screens/YearEndScreen.jsx`＋`view/yearEndView.js`・同§11）：年の最終週、②`processYearBoundary`の**直後**
 （馬が抜ける前の`advancedHorses`を使う）に`buildYearEndSummary`（`domain/yearEnd.js`・①まとめ）と`buildRetiredHorses`（同・②引退した馬）を呼び、
 戻り値`yearEnd = { year, summary, retired }`（年が替わらない週は`null`）と`roster.lastYearEnd`（同じ値・セーブから見直せる）に置く。
 `retired`が空配列の年は②を出さない（ユーザー決定Q7）。材料：
@@ -193,4 +193,12 @@ distance,winnerName,jockeyName,popularity,fieldSize}] }`。
 ⭐**着順は直す前と完全に一致**（86,311走の`{week, horseId, raceName, position, fieldSize}`を
 突き合わせてdiff差分0件。計測に使ったスクリプトはリポジトリの外・スクラッチパッドに置いた）。
 
+## 年末の2枚の画面（第13弾・`devlog/wave13.md`§11）
+流れ：年の最後の週の「この週を進める」→週の結果画面→「次の週へ」→**①年末のまとめ**（`YearEndSummaryScreen`）→「次へ」→
+**②引退した馬**（`RetiredHorsesScreen`・`yearEnd.retired`が1頭以上の年だけ。0頭の年は①のボタンが「◯◯年へ」）→「◯◯年へ」→1月の最初の週。
+- 出し分けは`screens/WeekScreen.jsx`の`yearEnd`（`advanceWeek`の戻り値）と`yearEndStep`（`null`／`"summary"`／`"retired"`）。`app.jsx`は変えていない。
+- 画面は計算しない。文字列（万円・億の表記、部門の短い名前、順位、「対象外」、札の行）は`view/yearEndView.js`の純関数。
+- ⚠️セーブは「この週を進める」の直後（年が替わった後の状態）に書く。年末の画面の途中で閉じて「つづきから」を押すと1月の最初の週から始まり、
+  年末の2枚は出ない（週の結果画面と同じ扱い）。データは`roster.lastYearEnd`に残っているが、見直す入口はまだ無い。
+- 動き：①は年度代表馬→部門の行、②は札が上から順に現れる（`styles/motion.css`の`--m-list-*`＝t-stagger-seq。番付と同じ値）。
 

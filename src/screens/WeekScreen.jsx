@@ -35,6 +35,7 @@ import {
 } from "../view/weekOffersView.js";
 import { EntryListScreen } from "./EntryListScreen.jsx";
 import { WeekResultScreen } from "./WeekResultScreen.jsx";
+import { YearEndSummaryScreen, RetiredHorsesScreen } from "./YearEndScreen.jsx";
 import { JockeyProfile } from "./JockeyProfile.jsx";
 import { Banzuke } from "./Banzuke.jsx";
 import "./WeekScreen.css";
@@ -112,6 +113,10 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const [openHorseId, setOpenHorseId] = useState(null);
   const [entryListRequest, setEntryListRequest] = useState(null);
   const [weekResult, setWeekResult] = useState(null);
+  // 年の最後の週だけ：結果画面のあとに出す年末の2枚（`advanceWeek`の`yearEnd`）。
+  // `yearEndStep`＝今どちらを出しているか（null＝出していない／"summary"＝年末のまとめ／"retired"＝引退した馬）。
+  const [yearEnd, setYearEnd] = useState(null);
+  const [yearEndStep, setYearEndStep] = useState(null);
   const [sideTab, setSideTab] = useState(null); // 「自分」「番付」のどちらが開いているか（null＝依頼一覧）
   const sideOpen = sideTab != null; // 依頼一覧の代わりに別のタブが開いているか
   const rootRef = useRef(null);
@@ -160,8 +165,6 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const viewCourse = coursesToday.find((c) => c.courseId === viewCourseId) ?? null;
   const goingToday = goingCourseByDay[day];
   const viewIsLocked = goingToday != null && viewCourseId != null && viewCourseId !== goingToday;
-
-  const yearCompleted = player.currentYear > startYear;
 
   function rowState(request) {
     const horse = horsesById.get(request.horseId);
@@ -213,13 +216,30 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     setSideTab(null);
     setViewCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
     setWeekResult(summary);
+    setYearEnd(res.yearEnd ?? null);
     // 「この週を進める」は一覧の一番下にあるので、結果画面は先頭から見せる。
     document.querySelector(".screen-pane--week")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   }
 
+  function scrollPaneToTop() {
+    document.querySelector(".screen-pane--week")?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }
+
+  // 年末のまとめ →（載せる馬が居る年だけ）引退した馬 → 1月の最初の週
+  function handleYearEndNext() {
+    if (yearEndStep === "summary" && yearEnd.retired.length > 0) setYearEndStep("retired");
+    else {
+      setYearEndStep(null);
+      setYearEnd(null);
+    }
+    scrollPaneToTop();
+  }
+
   function handleWeekResultNext() {
     setWeekResult(null);
+    if (yearEnd) setYearEndStep("summary"); // 年の最後の週は、週の画面へ戻る前に年末の2枚を挟む
     // 週が変わったら一覧の先頭へ戻す（前の週の位置のままだと見出しが画面の外に残る）。
     // ⚠️結果画面を出している間は`rootRef`の`<main>`（週の画面側）がアンマウントされて
     // いるため、`rootRef`ではなく`app.jsx`側の安定した親（`.screen-pane--week`）を
@@ -231,6 +251,20 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
 
   if (weekResult) {
     return <WeekResultScreen summary={weekResult} onNext={handleWeekResultNext} />;
+  }
+
+  if (yearEnd && yearEndStep === "summary") {
+    return (
+      <YearEndSummaryScreen
+        summary={yearEnd.summary}
+        playerName={player.jockey.name}
+        nextLabel={yearEnd.retired.length > 0 ? "次へ" : `${yearEnd.year + 1}年へ`}
+        onNext={handleYearEndNext}
+      />
+    );
+  }
+  if (yearEnd && yearEndStep === "retired") {
+    return <RetiredHorsesScreen year={yearEnd.year} retired={yearEnd.retired} onNext={handleYearEndNext} />;
   }
 
   if (entryListRequest) {
@@ -271,8 +305,6 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
           ))}
         </div>
       )}
-
-      {yearCompleted && <div className="wk-notes">1年目が終わりました。</div>}
 
       <div className="wk-days">
         {[DAY.SAT, DAY.SUN].map((d) => (
