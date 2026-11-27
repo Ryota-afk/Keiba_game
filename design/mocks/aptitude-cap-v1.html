@@ -1,0 +1,181 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>適性の合計の見せ方 v1</title>
+<style>
+/*
+ * 「自分」タブの「新人のあいだに、あと 14 増やせます」（通しプレイ③の指摘⑫「←なにが？」）の候補4案。
+ * 2026-11-27・Fable。画面の他の部分は今の実装（src/screens/JockeyProfile.css）と同じ見た目。
+ * 値：芦田翔太・柳沢厩舎（jockey-profile-v1.html と同じ騎手）。卒業直後の適性（合計30）から
+ * 6段階上げた36／50と、新人のまま50に届いた50／50。⚠️この2つは見本用に手で置いた値で、simの実測ではない。
+ * 注意：モックの都合の値（.frame の 390px 幅）は実装へ持ち込まない。
+ * 級数・余白はトークンだけ。縦線なし。絵文字なし。accent＝読むもの（黄）。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px;
+  --s1:8px; --s2:16px; --s3:24px; --s6:48px;
+  --panel:#1a2a18; --fg:#f2ede0; --muted:#9fb896; --dim:#5f7659;
+  --accent:#ffd83d; --action:#1a5fb4; --rule:rgba(255,255,255,.1);
+  --mono:"M PLUS 1 Code",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p","Noto Sans CJK JP",sans-serif;padding:var(--s3) var(--s2) var(--s6)}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:56em;margin-top:var(--s1)}
+section.cand{margin-top:var(--s6);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+section.cand h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+section.cand h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;background:var(--panel);box-shadow:0 0 0 1px #000;padding-bottom:var(--s2)}
+/* 週の画面のタブ（位置を見せるだけ） */
+.tabs{display:flex;padding:var(--s1) var(--s2) 0;font-size:var(--fs-body);color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+.tabs span{flex:1;text-align:center;padding:var(--s1) 0 10px}
+.tabs .on{color:var(--action);box-shadow:inset 0 -2px 0 var(--action)}
+
+/* ── 今の実装と同じ部分 ── */
+.jp{--jp-col-grade:2em;--jp-col-next:56px;--jp-scale-w:110px;--jp-lad-h:8px;font-variant-numeric:tabular-nums}
+.jp-head{padding:var(--s2) var(--s2) 0}
+.jp-head__name{font-size:var(--fs-lead);font-weight:700;line-height:1.3}
+.jp-head__who{margin-top:2px;font-size:var(--fs-caption);color:var(--muted)}
+.jp-head__who b{margin-right:var(--s1);color:var(--accent);font-weight:700}
+.jp-career{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s2) var(--s2) 0;font-size:var(--fs-body);line-height:1.5}
+.jp-career__l b{font-weight:700}
+.jp-career__l span{margin-left:var(--s1);color:var(--muted)}
+.jp-career__yr{font-size:var(--fs-caption);color:var(--muted);white-space:nowrap}
+.jp-total{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) 0}
+.jp-total__n{font-size:var(--fs-body)}
+.jp-total__n b{margin-right:2px;font-size:var(--fs-lead);font-weight:700}
+.jp-total__n span{color:var(--muted)}
+.jp-total__n.is-full b{color:var(--accent)}
+.jp-total__n em{font-style:normal;font-size:var(--fs-caption);color:var(--muted);margin-right:var(--s1)}
+.jp-scale{display:flex;align-items:center;gap:var(--s1);width:var(--jp-scale-w);font-family:var(--mono);font-size:var(--fs-caption);color:var(--muted)}
+.jp-scale i{flex:1;height:1px;background:var(--rule)}
+.jp-scale.alone{margin-left:auto}
+.jp-note{padding:4px var(--s2) 0;font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
+.jp-note.is-full{color:var(--accent)}
+.jp-grp{padding:var(--s2) var(--s2) 0}
+.jp-grp h3{padding-bottom:4px;font-size:var(--fs-caption);font-weight:500;letter-spacing:.16em;color:var(--accent)}
+.jp-row{padding:var(--s1) 0 4px}
+.jp-row__l1{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.jp-row__nm{font-size:var(--fs-body);color:var(--fg)}
+.jp-row__nm small{margin-left:var(--s1);font-size:var(--fs-caption);color:var(--accent)}
+.jp-row__l2{display:flex;align-items:center;gap:var(--s1);margin-top:4px}
+.jp-lad{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(16,1fr);gap:2px;height:var(--jp-lad-h)}
+.jp-lad i{display:block;position:relative;overflow:hidden;background:rgba(255,255,255,.08)}
+.jp-lad i.is-on{background:rgba(255,255,255,.55)}
+.jp-lad i.is-on.is-top{background:var(--accent)}
+.jp-lad i.is-risk{background:none!important;box-shadow:inset 0 0 0 1px var(--accent)}
+.jp-lad i.is-next::after{content:"";position:absolute;inset:0;width:var(--p,0%);background:rgba(255,255,255,.28)}
+.jp-row__gr{width:var(--jp-col-grade);font-family:var(--mono);font-size:var(--fs-lead);font-weight:700;line-height:1;color:var(--muted);white-space:nowrap}
+.jp-row__gr.is-top{color:var(--accent)}
+.jp-row__nx{width:var(--jp-col-next);font-size:var(--fs-caption);color:var(--muted);text-align:right;white-space:nowrap}
+
+/* ── 案B：合計のマス（梯子と同じマスを50個） ── */
+.gB{padding:var(--s2) var(--s2) 0}
+.gB__h{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-caption);color:var(--muted)}
+.gB__h b{font-size:var(--fs-lead);font-weight:700;color:var(--fg);margin-right:2px}
+.gB__h .n span{font-size:var(--fs-body)}
+.gB__h .n.is-full b{color:var(--accent)}
+.gB__cells{display:flex;gap:6px;margin-top:6px}
+.gB__cells div{flex:1;display:grid;grid-template-columns:repeat(10,1fr);gap:1px;height:8px}
+.gB__cells i{background:rgba(255,255,255,.08)}
+.gB__cells i.on{background:rgba(255,255,255,.55)}
+.gB__cells.is-full i.on{background:var(--accent)}
+.gB__f{display:flex;justify-content:space-between;margin-top:4px;font-size:var(--fs-caption);color:var(--muted)}
+
+/* ── 案D：次のランクまで続く帯 ── */
+.gD{padding:var(--s2) var(--s2) 0}
+.gD__h{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-caption);color:var(--muted)}
+.gD__h b{font-size:var(--fs-lead);font-weight:700;color:var(--fg)}
+.gD__h .is-full b{color:var(--accent)}
+.gD__bar{display:flex;gap:3px;margin-top:6px;height:8px}
+.gD__now{flex:50;background:rgba(255,255,255,.08);position:relative}
+.gD__now i{position:absolute;inset:0;background:rgba(255,255,255,.55)}
+.gD__now.is-full i{background:var(--accent)}
+.gD__nextz{flex:15;background:repeating-linear-gradient(90deg,rgba(255,255,255,.1) 0 3px,transparent 3px 6px)}
+.gD__lab{display:flex;gap:3px;margin-top:4px;font-size:var(--fs-caption);color:var(--muted)}
+.gD__lab span:first-child{flex:50;text-align:right}
+.gD__lab span:last-child{flex:15;text-align:right;color:var(--dim)}
+.gD__lab b{color:var(--fg);font-weight:500}
+</style></head><body>
+<h1>「あと 14 増やせます」の見せ方　候補4案</h1>
+<p class="intro">「自分」タブの合計の行だけを変えた見本です。左が<b>36／50</b>（まだ上げられる）、右が<b>50／50</b>（いっぱい。次に下がる適性に黄色い枠）。50／50の行の添え書きは今の「次に上がると下がります」のままにしています。</p>
+<div id="root"></div>
+<script>
+const G=["G","G+","F","F+","E","E+","D","D+","C","C+","B","B+","A","A+","S","S+"];
+const need=s=>8*(1+s/4);
+// [名前, 段, たまった経験, 戦, 勝]
+const D36={total:36,career:["38戦 0勝","0.0%","今年 38戦 0勝"],groups:[
+ ["走り方",[["逃げ",2,5,4,0],["先行",3,3,14,0],["差し",7,9,19,0],["追込",0,1,1,0]]],
+ ["距離",[["〜1400m",4,6,9,0],["1400〜1800m",3,11,18,0],["1800〜2400m",1,7,9,0],["2400m〜",6,2,2,0]]],
+ ["馬場",[["芝",3,10,18,0],["ダート",7,4,20,0]]]]};
+const D50={total:50,career:["96戦 0勝","0.0%","今年 44戦 0勝"],groups:[
+ ["走り方",[["逃げ",3,6,11,0,1],["先行",5,4,38,0],["差し",9,12,44,0],["追込",1,2,3,0]]],
+ ["距離",[["〜1400m",5,7,24,0],["1400〜1800m",5,13,46,0],["1800〜2400m",2,3,21,0],["2400m〜",7,6,5,0,1]]],
+ ["馬場",[["芝",5,9,41,0,1],["ダート",8,15,55,0]]]]};
+const D47={...D36,total:47,career:["88戦 0勝","0.0%","今年 36戦 0勝"],groups:JSON.parse(JSON.stringify(D50.groups))};
+D47.groups[0][1][0]=["逃げ",2,5,9,0];D47.groups[1][1][0]=["〜1400m",4,6,22,0];D47.groups[2][1][0]=["芝",4,9,39,0];
+D47.groups.forEach(g=>g[1].forEach(r=>r[5]=0));[[9,35,41,3],[22,42,19,5],[39,49]].forEach((a,gi)=>a.forEach((v,i)=>D47.groups[gi][1][i][3]=v));
+
+function rows(d,full,dropWord){
+  return d.groups.map(([label,rs])=>{
+    const top=Math.max(...rs.map(r=>r[1]));
+    return `<section class="jp-grp"><h3>${label}</h3>`+rs.map(([nm,st,xp,s,w,drop])=>{
+      let c="";for(let i=0;i<16;i++){
+        if(i<st)c+=`<i class="is-on${st===top?" is-top":""}${full&&drop&&i===st-1?" is-risk":""}"></i>`;
+        else if(i===st)c+=`<i class="is-next" style="--p:${Math.round(xp/need(st)*100)}%"></i>`;
+        else c+="<i></i>";}
+      return `<div class="jp-row"><div class="jp-row__l1"><span class="jp-row__nm">${nm}${full&&drop?`<small>${dropWord}</small>`:""}</span><span>${s}戦${w}勝</span></div>
+      <div class="jp-row__l2"><div class="jp-lad">${c}</div><span class="jp-row__gr${st===top?" is-top":""}">${G[st]}</span><span class="jp-row__nx">あと${Math.max(1,Math.ceil(need(st)-xp))}鞍</span></div></div>`;
+    }).join("")+`</section>`;}).join("");
+}
+const scale=`<div class="jp-scale"><span>G</span><i></i><span>S+</span></div>`;
+function frame(d,totalHtml,dropWord="次に上がると下がります"){
+  const full=d.total>=50;
+  return `<div class="frame"><div class="tabs"><span>土曜</span><span>日曜</span><span class="on">自分</span></div><div class="jp">
+  <div class="jp-head"><div class="jp-head__name">芦田翔太</div><div class="jp-head__who"><b>新人</b>柳沢厩舎</div></div>
+  <div class="jp-career"><div class="jp-career__l"><b>${d.career[0]}</b><span>勝率 ${d.career[1]}</span><span>重賞 0勝</span></div><div class="jp-career__yr">${d.career[2]}</div></div>
+  ${totalHtml}${rows(d,full,dropWord)}</div></div>`;
+}
+const fullCls=d=>d.total>=50?" is-full":"";
+// 今の実装
+const T0=d=>`<div class="jp-total"><div class="jp-total__n${fullCls(d)}"><b>${d.total}</b><span>／50</span></div>${scale}</div>
+<div class="jp-note${fullCls(d)}">${d.total>=50?"新人のあいだは、これ以上増えません":`新人のあいだに、あと ${50-d.total} 増やせます`}</div>`;
+// 案A：言葉だけ
+const TA=d=>`<div class="jp-total"><div class="jp-total__n${fullCls(d)}"><em>適性の合計</em><b>${d.total}</b><span>／50</span></div>${scale}</div>
+<div class="jp-note${fullCls(d)}">${d.total>=50?"新人は合計50段階までです。どれかが1段階上がると、黄色い枠のものが1段階下がります":`新人は合計50段階までです。あと${50-d.total}段階上げられます`}</div>`;
+// 案B：マス
+const TB=d=>{let h="";for(let g=0;g<5;g++){h+="<div>";for(let i=0;i<10;i++)h+=`<i class="${g*10+i<d.total?"on":""}"></i>`;h+="</div>";}
+return `<div class="gB"><div class="gB__h"><span>適性の合計</span><span class="n${fullCls(d)}"><b>${d.total}</b><span>／50</span></span></div>
+<div class="gB__cells${fullCls(d)}">${h}</div><div class="gB__f"><span>${d.total>=50?"":"空き "+(50-d.total)}</span><span>新人は50まで</span></div></div>
+${d.total>=50?`<div class="jp-note is-full">どれかが1つ上がると、黄色い枠のものが1つ下がります</div>`:""}
+<div class="jp-total" style="padding-top:var(--s1)">${scale.replace('jp-scale"','jp-scale alone"')}</div>`;};
+// 案C：届きそうになるまで出さない
+const TC=d=>`<div class="jp-total">${scale.replace('jp-scale"','jp-scale alone"')}</div>`+
+(d.total>=50?`<div class="jp-note is-full">新人のあいだは、適性をこれ以上増やせません。どれかが1段階上がると、黄色い枠のものが1段階下がります</div>`
+ :50-d.total<=5?`<div class="jp-note">新人のあいだに上げられる適性は、合わせてあと${50-d.total}段階です</div>`:"");
+// 案D：次のランクまで続く帯
+const TD=d=>`<div class="gD"><div class="gD__h"><span>適性の合計</span><span class="${fullCls(d).trim()}"><b>${d.total}</b></span></div>
+<div class="gD__bar"><div class="gD__now${fullCls(d)}"><i style="width:${d.total/50*100}%"></i></div><div class="gD__nextz"></div></div>
+<div class="gD__lab"><span><b>新人は50まで</b></span><span>若手は65</span></div></div>
+${d.total>=50?`<div class="jp-note is-full">どれかが1つ上がると、黄色い枠のものが1つ下がります</div>`:""}
+<div class="jp-total" style="padding-top:var(--s1)">${scale.replace('jp-scale"','jp-scale alone"')}</div>`;
+
+const shot=(cap,html)=>`<div class="shot"><div class="cap">${cap}</div>${html}</div>`;
+const cands=[
+ ["0","今の画面（比較用）","「14」が何の数か、画面のどこにも書いていません。",
+   [shot("<b>36／50</b>",frame(D36,T0(D36))),shot("<b>50／50</b>",frame(D50,T0(D50)))]],
+ ["A","案A　言葉を足す","数字の前に「適性の合計」、文に「段階」を入れます。見た目は今のまま、文字だけが増えます。",
+   [shot("<b>36／50</b>",frame(D36,TA(D36))),shot("<b>50／50</b>　下がる仕組みも1文で言います",frame(D50,TA(D50)))]],
+ ["B","案B　マスで見せる","下の梯子と同じマスを50個並べ、塗ってある数＝合計にします。文は消し、いっぱいのときだけ1行出します。",
+   [shot("<b>36／50</b>　塗っていないマスが残り",frame(D36,TB(D36))),shot("<b>50／50</b>　全部が黄色",frame(D50,TB(D50)))]],
+ ["C","案C　届きそうになるまで出さない","合計も文も消します。残り5段階以下になったら1行出し、いっぱいになったら黄色い1行にします。",
+   [shot("<b>36／50</b>　何も出しません",frame(D36,TC(D36))),shot("<b>47／50</b>　残り3で初めて出ます",frame(D47,TC(D47))),shot("<b>50／50</b>",frame(D50,TC(D50)))]],
+ ["D","案D　次のランクまで続く帯","帯を若手の65まで描き、新人の50で切ります。ランクが上がると広がることが見えます。",
+   [shot("<b>36／50</b>",frame(D36,TD(D36))),shot("<b>50／50</b>　新人の分が埋まり、若手の分が空いています",frame(D50,TD(D50)))]],
+];
+document.getElementById("root").innerHTML=cands.map(([id,t,s,shots])=>
+ `<section class="cand" id="cand-${id}"><h2>${t}<small>${s}</small></h2><div class="gallery">${shots.join("")}</div></section>`).join("");
+</script></body></html>
