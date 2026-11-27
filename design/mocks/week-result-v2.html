@@ -1,0 +1,333 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>週の画面の行と、週の結果 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&family=M+PLUS+1+Code:wght@700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 週の画面の依頼の行（馬の性齢・毛色・体重・前走からの週数）と、週の結果（曜日ごと・レース番号つき）——候補3案。
+ * 2026-11-27・Fable 5.2。通しプレイ③の指摘⑬⑭（devlog/wave13.md §13〜§19・§22・§25）。
+ * 要素の全列挙・取得元・空のときの見え方：design/mocks/week-result-v2-spec.md
+ * データ：実際のゲームのコードで作った1994年10月3週（世界の種7）。体重だけは仮（spec §1）。
+ * 色・級数・余白は src/screens/WeekScreen.css・WeekResultScreen.css と同じトークン。縦線なし。絵文字なし。
+ * 注意：.frame の 390px 幅は並べて見せるための値。実装へ持ち込まない。
+ * ?only=A（B・C）を付けると、その案だけを画面いっぱいに縦に並べる（スマホの大きさで撮るため）。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --sh:calc(var(--s1) / 2);
+  --panel:#1a2a18; --panel2:#223a20; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896; --dim:#5f7659;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff; --on-action-sub:#dbe8ff;
+  --turf:#8fd07e; --dirt:#d8b27a;
+  --rule:rgba(255,255,255,.1);
+  --tap:44px; --col-gap:6px;
+  /* 毛色の色面（案Cだけ。馬の実データの色＝UIの飾りの色とは別の層） */
+  --coat-bay:#8a4a22; --coat-darkBay:#4b2a1a; --coat-brown:#2c1c17; --coat-black:#151110;
+  --coat-chestnut:#b96a24; --coat-liverChestnut:#7b4426; --coat-gray:#b7bbbf; --coat-white:#f3f0e8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6);line-break:strict}
+.wrap{max-width:1260px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:62em;margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:500}
+.cand{padding:0 var(--s1) var(--s3)}
+.cand>h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s5);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+.cand>h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7;max-width:60em}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;box-shadow:0 0 0 1px #000;background:var(--panel);font-variant-numeric:tabular-nums}
+.frame.is-tall{min-height:720px;display:flex;flex-direction:column}
+.frame+.cap{margin-top:var(--s2)}
+body.only{padding:0}
+body.only .wrap>h1,body.only .intro,body.only .cand>h2{display:none}
+body.only .cand{display:none;padding:0}
+body.only .cand.is-only{display:block}
+body.only .gallery{display:block;margin:0}
+body.only .shot,body.only .frame{width:100%}
+body.only .frame{box-shadow:none}
+body.only .cap{padding:var(--s2) var(--s2) var(--s1);margin:0;min-height:0;background:#0f0c0a}
+
+/* ══ 週の画面（今の実装と同じ部品） ══ */
+.wk-hd{display:flex;justify-content:space-between;align-items:baseline;padding:var(--s2) var(--s2) var(--s1)}
+.wk-hd__week{font-size:var(--fs-body)}
+.wk-hd__left{font-size:var(--fs-caption);color:var(--muted)}
+.wk-hd__left b{font-size:var(--fs-lead);color:var(--accent);font-weight:700;margin:0 2px}
+.wk-days{display:flex;padding:0 var(--s2);box-shadow:inset 0 -1px 0 var(--rule)}
+.wk-days span{flex:1;text-align:center;min-height:var(--tap);line-height:var(--tap);font-size:var(--fs-body);font-weight:700;color:var(--muted);border-bottom:2px solid transparent}
+.wk-days span.is-on{color:var(--action);border-bottom-color:var(--action)}
+.wk-courses{display:flex;gap:var(--s1);padding:var(--s1) var(--s2) 0}
+.wk-courses span{min-height:var(--tap);padding:0 var(--s2);display:flex;align-items:center;gap:6px;font-size:var(--fs-body);color:var(--muted);background:var(--panel2)}
+.wk-courses span.is-on{background:var(--action);color:var(--on-action)}
+.wk-courses span.is-lock{opacity:.4}
+.wk-courses i{font-style:normal;font-size:var(--fs-caption);font-weight:700}
+.wk-race{padding:var(--s2) var(--s2) 0}
+.wk-race__big{font-size:var(--fs-title);font-weight:700;line-height:1.1}
+.wk-race__no{font-size:var(--fs-body);font-weight:700;color:var(--muted);display:block;line-height:1.5}
+.sf-turf{color:var(--turf)} .sf-dirt{color:var(--dirt)}
+.wk-race__cls{font-size:var(--fs-body);font-weight:400;color:var(--muted);margin-left:var(--s1)}
+.wk-t{padding:var(--s1) var(--s2) 0}
+.wk-th{font-size:var(--fs-caption);color:var(--dim);padding:var(--s1) 0 var(--sh)}
+.wk-r{min-height:52px;padding:6px 0;box-shadow:inset 0 1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted)}
+.wk-th,.wk-r{display:grid;gap:0 var(--col-gap);align-items:center}
+.wk-r__name{font-size:var(--fs-body);font-weight:700;color:var(--fg);line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.wk-r__name small{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.wk-r__main{color:var(--accent);font-weight:700;margin-right:6px}
+.sym{display:block;width:20px;height:20px;margin:0 auto;color:var(--fg)}
+.sym.is-inline{display:inline-block;width:14px;height:14px;margin:0 0 0 2px;vertical-align:-2px}
+.wk-r__tr{text-align:right;line-height:1.4}
+.wk-r__tr small{display:block}
+.wk-r.is-on{background:var(--action);color:var(--on-action-sub);margin:0 calc(var(--s2) * -1);padding:6px var(--s2)}
+.wk-r.is-on .wk-r__name,.wk-r.is-on .sym,.wk-r.is-on b{color:var(--on-action)}
+.wk-r.is-on .wk-r__name small{color:var(--on-action-sub)}
+.wk-r.is-off{opacity:.4}
+.wk-r.is-open{background:var(--panel2);margin:0 calc(var(--s2) * -1);padding:6px var(--s2) var(--s1)}
+.wk-r__acts{grid-column:1 / -1;display:flex;gap:var(--s1);align-items:center;padding-top:var(--s1)}
+.wk-btn{display:block;width:100%;min-height:var(--s6);line-height:var(--s6);text-align:center;background:var(--action);color:var(--on-action);font-size:var(--fs-body);font-weight:700}
+.wk-r__acts .wk-btn{flex:1 1 auto;min-height:var(--tap);line-height:var(--tap)}
+.wk-lnk{min-height:var(--tap);line-height:var(--tap);padding:0 var(--s2);font-size:var(--fs-body);font-weight:700;color:var(--action);white-space:nowrap}
+.wk-adv{padding:var(--s4) var(--s2) var(--s2)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.r{text-align:right} .c{text-align:center}
+
+/* 案A の行：1段目＝馬名と数字の列（性齢・毛色・体重・前走から）。2段目＝戦績・走り方・芝ダの相性・調教師 */
+.A .wk-th,.A .wk-r{grid-template-columns:minmax(0,1fr) 34px 36px 64px 46px}
+.A .wk-r b{font-weight:500;color:var(--fg)}
+.A .wk-r__l2{grid-column:1 / -1;display:flex;justify-content:space-between;gap:var(--s1);line-height:1.6}
+.A .wk-r__l2 span+span{margin-left:var(--s1)}
+/* 案B の行：今の列のまま（性→性齢）。馬名の下の小さい行に毛色・体重・前走から */
+.B .wk-th,.B .wk-r{grid-template-columns:minmax(0,1fr) 34px 36px 32px 80px}
+.B .wk-r__l2{grid-column:1 / -1;line-height:1.6}
+.B .wk-r__l2 span+span{margin-left:var(--s1)}
+/* 案C の行：毛色の色面＋馬名（名札）。右に体重。見出し行は無い */
+.C .wk-r{grid-template-columns:20px minmax(0,1fr) auto;align-items:start;gap:0 var(--s1)}
+.C .wk-t{padding-top:var(--s1)}
+.coat{display:block;width:20px;height:20px;margin-top:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+.C .wk-r__kg{text-align:right;line-height:1.3}
+.C .wk-r__kg b{display:block;font-size:var(--fs-body);font-weight:700;color:var(--fg)}
+.C .wk-r__l2{grid-column:2 / -1;display:flex;justify-content:space-between;gap:var(--s1);line-height:1.6;padding-top:2px}
+.C .wk-r__l2 span+span{margin-left:var(--s1)}
+
+/* ══ 週の結果（共通：上部・下の段・ボタン。今の実装と同じ） ══ */
+.wr-hd{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s2) var(--s2) var(--s1)}
+.wr-hd__week{font-size:var(--fs-body)}
+.wr-hd__money{text-align:right;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.wr-hd__money b{display:block;font-size:var(--fs-lead);font-weight:700;color:var(--accent)}
+.wr-sec{padding:var(--s2) var(--s2) 0}
+.wr-sec h3{padding-bottom:var(--s1);font-size:var(--fs-caption);font-weight:500;letter-spacing:.08em;color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+.wr-line{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;font-size:var(--fs-body);line-height:1.5;box-shadow:inset 0 -1px 0 var(--rule)}
+.wr-line:last-child,.wr-graded:last-child{box-shadow:none}
+.wr-line__v{font-size:var(--fs-caption);color:var(--muted);text-align:right}
+.wr-line small{display:block;font-size:var(--fs-caption);color:var(--muted)}
+.wr-line__gch{font-family:"M PLUS 1 Code",monospace;font-weight:700;white-space:nowrap}
+.wr-line__gch.is-up{color:var(--accent)} .wr-line__gch.is-down{color:var(--muted)}
+.wr-graded{display:grid;grid-template-columns:1fr auto;gap:0 var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.wr-graded__race{font-size:var(--fs-caption);color:var(--muted)}
+.wr-graded__winner{font-size:var(--fs-body);font-weight:700}
+.wr-graded__jockey{align-self:end;text-align:right;font-size:var(--fs-caption);color:var(--muted)}
+.wr-foot{margin-top:auto;padding:var(--s4) var(--s2) var(--s2)}
+.wr-empty{padding:var(--s1) var(--s2) var(--s2);font-size:var(--fs-body);color:var(--muted)}
+/* 曜日の見出し（3案共通の言葉：「土曜　東京」） */
+.day{display:flex;align-items:baseline;gap:var(--s1);padding:var(--s2) var(--s2) var(--s1);font-size:var(--fs-body);font-weight:700}
+.day span{font-weight:400;color:var(--muted)}
+
+/* 案A 時刻表：左にレース番号、1鞍1行。右に着順 */
+.ra{padding:0 var(--s2)}
+.ra-r{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:0 var(--s1);align-items:start;padding:var(--s1) 0;box-shadow:inset 0 1px 0 var(--rule)}
+.ra-r__no{font-size:var(--fs-lead);font-weight:700;line-height:1.3}
+.ra-r__nm{font-size:var(--fs-body);font-weight:700;line-height:1.4;overflow-wrap:anywhere;padding-top:2px}
+.ra-r__sub{font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
+.ra-r__pos{text-align:right;font-size:var(--fs-title);font-weight:700;line-height:1;white-space:nowrap}
+.ra-r__pos small{font-size:var(--fs-caption);font-weight:400;color:var(--muted);margin-left:2px}
+.ra-r__pos.is-win{color:var(--accent)}
+.ra-r__pos.is-fell{font-size:var(--fs-lead);color:var(--muted);line-height:calc(var(--fs-title) * 1)}
+.ra-r__pop{text-align:right;font-size:var(--fs-caption);color:var(--muted);line-height:1.6;white-space:nowrap}
+
+/* 案B 掲示板：今の板のまま。左の列＝土曜、右の列＝日曜 */
+.rb{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s1);padding:0 var(--s2);align-items:start}
+.rb-col{display:grid;gap:var(--s1);min-width:0}
+.rb-col .day{padding:var(--s2) 0 0}
+.rb-none{font-size:var(--fs-caption);color:var(--muted);padding:var(--s1) 0}
+.wr-board{min-width:0;background:var(--board);padding:var(--s1) var(--s1) var(--s2)}
+.wr-board__top{display:flex;justify-content:space-between;gap:var(--s1);font-size:var(--fs-caption);color:var(--muted)}
+.wr-board__top b{color:var(--fg);font-weight:700}
+.wr-board__pos{margin-top:2px;font-size:var(--fs-display);font-weight:700;line-height:1.1}
+.wr-board__pos small{margin-left:2px;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.wr-board.is-win .wr-board__pos{color:var(--accent)}
+.wr-board__pos.is-fell{font-size:var(--fs-lead);line-height:calc(var(--fs-display) * 1.1);color:var(--muted)}
+.wr-board__name{font-size:var(--fs-body);font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.wr-board__race{font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+
+/* 案C 名札：週の画面と同じ「色面＋馬名」をそのまま出し、右に着順 */
+.rc{display:grid;gap:var(--s1);padding:0 var(--s2)}
+.rc-card{background:var(--board);padding:var(--s1) var(--s2) var(--s2)}
+.rc-card__race{display:flex;justify-content:space-between;gap:var(--s1);font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
+.rc-card__race b{color:var(--fg);font-weight:700;margin-right:var(--s1)}
+.rc-card__body{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:0 var(--s1);align-items:center;margin-top:var(--sh)}
+.rc-card__nm{font-size:var(--fs-lead);font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.rc-card__sub{font-size:var(--fs-caption);color:var(--muted);line-height:1.6}
+.rc-card__pos{text-align:right;font-size:var(--fs-display);font-weight:700;line-height:1;white-space:nowrap}
+.rc-card__pos i{font-style:normal;font-size:var(--fs-caption);font-weight:400;color:var(--muted);margin-left:2px}
+.rc-card.is-win .rc-card__pos{color:var(--accent)}
+.rc-card__pos.is-fell{font-size:var(--fs-lead);color:var(--muted);line-height:var(--fs-display)}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wk-m2" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="wk-m1" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="wk-m3" viewBox="0 0 20 20"><path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="wk-mx" viewBox="0 0 20 20"><path d="M3 3 L17 17 M17 3 L3 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+<div class="wrap">
+<h1>週の画面の行と、週の結果　候補3案（v2）</h1>
+<p class="intro">通しプレイ③の指摘⑬「結果の順番がレース順か分からない・選んだ馬と結びつかない」と、⑭「馬が名前だけで個性が無い」への見た目の案です。
+3案とも、<b>週の画面と結果の画面で、同じ曜日・同じレース番号の順・同じ見出しの書き方</b>を使います。違うのは、何を一番大きく見せるかです。<br>
+データは実際のゲームのコードで作った<b>1994年10月3週</b>です（馬名・競馬場・レース番号・クラス・毛色・着順・人気・お金はそのまま）。
+<b>体重だけは仮の数字</b>です（調子の仕組みがまだ無いため。ベスト体重を当日の体重とし、前走との増減は2024年の実際の割合から引きました）。</p>
+
+<section class="cand" id="cand-A"><h2>案A　時刻表<small>一番大きいのはレース番号。結果は1鞍1行で、左に「6R」、右に着順。6鞍が1画面に入ります。週の画面の行は、性齢・毛色・体重・前走からの週数を列にそろえます。</small></h2><div class="gallery" data-c="A"></div></section>
+<section class="cand" id="cand-B"><h2>案B　掲示板を曜日で分ける<small>一番大きいのは着順の数字（今の板のまま）。左の列が土曜、右の列が日曜。板の上段が「京都 6R」。週の画面の行は今の列を変えず、小さい行を1つ足すだけです。</small></h2><div class="gallery" data-c="B"></div></section>
+<section class="cand" id="cand-C"><h2>案C　馬の名札<small>一番大きいのは馬。毛色の色面と馬名を1組にして、週の画面でも結果でも同じ形で出します。結果は1鞍1枚で、馬名の右に着順。</small></h2><div class="gallery" data-c="C"></div></section>
+</div>
+<script>
+const DATA = {"w41":{"dump":{"weekLabel":"1994年 10月3週","slots":6,"going":{"sat":"tokyo","sun":"kyoto"},"picked":["horse-foal-1993-453","horse-foal-1993-143","horse-4738","horse-1181","horse-838","horse-3881"],"days":{"sat":[{"courseId":"tokyo","courseName":"東京","count":2,"races":[{"raceId":"1994-w42-tokyo-sat-2","raceNumber":2,"raceLabel":"東京 2R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"1勝クラス"},"headText":"ダート1400m 1勝クラス","rows":[{"id":"horse-foal-1993-453","name":"グロリアマッハ","sex":"セン","age":3,"coat":"黒鹿毛","coatId":"darkBay","face":"none","kg":470,"weeksSince":8,"record":"11戦1勝","starts":11,"run":"逃げ","main":false,"lastPos":7,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":470,"dayDiff":2,"trainKg":470,"trainDiff":2,"debut":false}]},{"raceId":"1994-w42-tokyo-sat-3","raceNumber":3,"raceLabel":"東京 3R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1600m","classLabel":"未勝利"},"headText":"ダート1600m 未勝利","rows":[{"id":"horse-4738","name":"グレイスハーモニー","sex":"セン","age":2,"coat":"黒鹿毛","coatId":"darkBay","face":"blaze","kg":470,"weeksSince":3,"record":"1戦0勝","starts":1,"run":"差し","main":false,"lastPos":9,"mark":"wk-m2","trainer":"岸本悟","own":false,"dayKg":470,"dayDiff":-6,"trainKg":470,"trainDiff":-6,"debut":false}]}]},{"courseId":"kyoto","courseName":"京都","count":2,"races":[{"raceId":"1994-w42-kyoto-sat-8","raceNumber":8,"raceLabel":"京都 8R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"1400m","classLabel":"1勝クラス"},"headText":"芝1400m 1勝クラス","rows":[{"id":"horse-2338","name":"オーロラチャージ","sex":"牡","age":4,"coat":"鹿毛","coatId":"bay","face":"strip","kg":464,"weeksSince":1,"record":"12戦1勝","starts":12,"run":"逃げ","main":false,"lastPos":7,"mark":"wk-m1","trainer":"岸本悟","own":false,"dayKg":464,"dayDiff":4,"trainKg":460,"trainDiff":0,"debut":false}]},{"raceId":"1994-w42-kyoto-sat-7","raceNumber":7,"raceLabel":"京都 7R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"1勝クラス"},"headText":"芝2000m 1勝クラス","rows":[{"id":"horse-1438","name":"テンロウルビー","sex":"セン","age":4,"coat":"鹿毛","coatId":"bay","face":"blaze","kg":502,"weeksSince":6,"record":"18戦1勝","starts":18,"run":"差し","main":false,"lastPos":5,"mark":"wk-m3","trainer":"岸本悟","own":false,"dayKg":502,"dayDiff":0,"trainKg":506,"trainDiff":4,"debut":false}]}]}],"sun":[{"courseId":"kyoto","courseName":"京都","count":5,"races":[{"raceId":"1994-w42-kyoto-sun-6","raceNumber":6,"raceLabel":"京都 6R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2400m","classLabel":"1勝クラス"},"headText":"芝2400m 1勝クラス","rows":[{"id":"horse-foal-1993-143","name":"ロマンウェーブ","sex":"牝","age":3,"coat":"鹿毛","coatId":"bay","face":"star","kg":418,"weeksSince":7,"record":"5戦1勝","starts":5,"run":"先行","main":false,"lastPos":1,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":418,"dayDiff":-14,"trainKg":416,"trainDiff":-16,"debut":false},{"id":"horse-2788","name":"オンダブロッサム","sex":"セン","age":3,"coat":"黒鹿毛","coatId":"darkBay","face":"blaze","kg":488,"weeksSince":46,"record":"3戦1勝","starts":3,"run":"逃げ","main":false,"lastPos":2,"mark":"wk-m1","trainer":"岸本悟","own":false,"dayKg":488,"dayDiff":14,"trainKg":488,"trainDiff":14,"debut":false}]},{"raceId":"1994-w42-kyoto-sun-1","raceNumber":1,"raceLabel":"京都 1R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"1勝クラス"},"headText":"ダート1400m 1勝クラス","rows":[{"id":"horse-1181","name":"ユウナギアズール","sex":"牡","age":3,"coat":"芦毛","coatId":"gray","face":"starSnip","kg":520,"weeksSince":7,"record":"6戦1勝","starts":6,"run":"先行","main":false,"lastPos":6,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":520,"dayDiff":-2,"trainKg":524,"trainDiff":2,"debut":false}]},{"raceId":"1994-w42-kyoto-sun-11","raceNumber":11,"raceLabel":"京都 11R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"オープン特別"},"headText":"芝2000m オープン特別","rows":[{"id":"horse-838","name":"テンロウヴェント","sex":"牝","age":3,"coat":"青鹿毛","coatId":"brown","face":"star","kg":420,"weeksSince":2,"record":"16戦1勝","starts":16,"run":"先行","main":true,"lastPos":5,"mark":"wk-m2","trainer":"岸本悟","own":false,"dayKg":420,"dayDiff":0,"trainKg":416,"trainDiff":-4,"debut":false}]},{"raceId":"1994-w42-kyoto-sun-3","raceNumber":3,"raceLabel":"京都 3R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"1勝クラス"},"headText":"ダート1200m 1勝クラス","rows":[{"id":"horse-3881","name":"ライラックフェスタ","sex":"セン","age":5,"coat":"鹿毛","coatId":"bay","face":"blaze","kg":550,"weeksSince":7,"record":"13戦1勝","starts":13,"run":"差し","main":false,"lastPos":6,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":550,"dayDiff":8,"trainKg":550,"trainDiff":8,"debut":false}]}]},{"courseId":"tokyo","courseName":"東京","count":3,"races":[{"raceId":"1994-w42-tokyo-sun-10","raceNumber":10,"raceLabel":"東京 10R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"3勝クラス"},"headText":"ダート1400m 3勝クラス","rows":[{"id":"horse-431","name":"ツバクロアメジスト","sex":"牝","age":4,"coat":"鹿毛","coatId":"bay","face":"none","kg":466,"weeksSince":5,"record":"30戦3勝","starts":30,"run":"差し","main":false,"lastPos":11,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":466,"dayDiff":-4,"trainKg":470,"trainDiff":0,"debut":false}]},{"raceId":"1994-w42-tokyo-sun-1","raceNumber":1,"raceLabel":"東京 1R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"1勝クラス"},"headText":"ダート1200m 1勝クラス","rows":[{"id":"horse-foal-1993-261","name":"ランタンラファーガ","sex":"牡","age":3,"coat":"鹿毛","coatId":"bay","face":"blaze","kg":492,"weeksSince":7,"record":"6戦1勝","starts":6,"run":"逃げ","main":false,"lastPos":6,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":492,"dayDiff":4,"trainKg":494,"trainDiff":6,"debut":false}]},{"raceId":"1994-w42-tokyo-sun-8","raceNumber":8,"raceLabel":"東京 8R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2400m","classLabel":"2勝クラス"},"headText":"芝2400m 2勝クラス","rows":[{"id":"horse-238","name":"トモシビミネルバ","sex":"牝","age":3,"coat":"青鹿毛","coatId":"brown","face":"none","kg":442,"weeksSince":3,"record":"8戦2勝","starts":8,"run":"差し","main":false,"lastPos":3,"mark":"wk-m2","trainer":"岸本悟","own":false,"dayKg":442,"dayDiff":6,"trainKg":444,"trainDiff":8,"debut":false}]}]}]}},"summary":{"weekLabel":"1994年 10月3週","moneyGained":415000,"moneyAfter":10180000,"rides":[{"horseId":"horse-foal-1993-453","horseName":"グロリアマッハ","day":"sat","courseId":"tokyo","courseName":"東京","raceNumber":2,"raceLabel":"東京 2R","raceId":"1994-w42-tokyo-sat-2","surface":"dirt","distance":1400,"className":"1勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"1勝クラス"},"headlineText":"ダート1400m 1勝クラス","fell":false,"position":10,"fieldSize":14,"popularity":13,"won":false,"income":27500,"sex":"セン","age":3,"coat":"黒鹿毛","coatId":"darkBay","dayKg":470,"dayDiff":2,"trainKg":470,"trainDiff":2,"debut":false},{"horseId":"horse-4738","horseName":"グレイスハーモニー","day":"sat","courseId":"tokyo","courseName":"東京","raceNumber":3,"raceLabel":"東京 3R","raceId":"1994-w42-tokyo-sat-3","surface":"dirt","distance":1600,"className":"未勝利","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1600m","classLabel":"未勝利"},"headlineText":"ダート1600m 未勝利","fell":false,"position":9,"fieldSize":11,"popularity":11,"won":false,"income":27500,"sex":"セン","age":2,"coat":"黒鹿毛","coatId":"darkBay","dayKg":470,"dayDiff":-6,"trainKg":470,"trainDiff":-6,"debut":false},{"horseId":"horse-foal-1993-143","horseName":"ロマンウェーブ","day":"sun","courseId":"kyoto","courseName":"京都","raceNumber":6,"raceLabel":"京都 6R","raceId":"1994-w42-kyoto-sun-6","surface":"turf","distance":2400,"className":"1勝クラス","headline":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2400m","classLabel":"1勝クラス"},"headlineText":"芝2400m 1勝クラス","fell":false,"position":1,"fieldSize":9,"popularity":3,"won":true,"income":277500,"sex":"牝","age":3,"coat":"鹿毛","coatId":"bay","dayKg":418,"dayDiff":-14,"trainKg":416,"trainDiff":-16,"debut":false},{"horseId":"horse-1181","horseName":"ユウナギアズール","day":"sun","courseId":"kyoto","courseName":"京都","raceNumber":1,"raceLabel":"京都 1R","raceId":"1994-w42-kyoto-sun-1","surface":"dirt","distance":1400,"className":"1勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"1勝クラス"},"headlineText":"ダート1400m 1勝クラス","fell":false,"position":9,"fieldSize":18,"popularity":6,"won":false,"income":27500,"sex":"牡","age":3,"coat":"芦毛","coatId":"gray","dayKg":520,"dayDiff":-2,"trainKg":524,"trainDiff":2,"debut":false},{"horseId":"horse-838","horseName":"テンロウヴェント","day":"sun","courseId":"kyoto","courseName":"京都","raceNumber":11,"raceLabel":"京都 11R","raceId":"1994-w42-kyoto-sun-11","surface":"turf","distance":2000,"className":"オープン特別","headline":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"オープン特別"},"headlineText":"芝2000m オープン特別","fell":false,"position":13,"fieldSize":14,"popularity":5,"won":false,"income":27500,"sex":"牝","age":3,"coat":"青鹿毛","coatId":"brown","dayKg":420,"dayDiff":0,"trainKg":416,"trainDiff":-4,"debut":false},{"horseId":"horse-3881","horseName":"ライラックフェスタ","day":"sun","courseId":"kyoto","courseName":"京都","raceNumber":3,"raceLabel":"京都 3R","raceId":"1994-w42-kyoto-sun-3","surface":"dirt","distance":1200,"className":"1勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"1勝クラス"},"headlineText":"ダート1200m 1勝クラス","fell":false,"position":6,"fieldSize":6,"popularity":6,"won":false,"income":27500,"sex":"セン","age":5,"coat":"鹿毛","coatId":"bay","dayKg":550,"dayDiff":8,"trainKg":550,"trainDiff":8,"debut":false}],"mainMounts":[{"horseId":"horse-foal-1993-453","horseName":"グロリアマッハ","status":"progress","ridesLeft":0,"needsWin":true},{"horseId":"horse-4738","horseName":"グレイスハーモニー","status":"progress","ridesLeft":3,"needsWin":true},{"horseId":"horse-foal-1993-143","horseName":"ロマンウェーブ","status":"progress","ridesLeft":4,"needsWin":false},{"horseId":"horse-1181","horseName":"ユウナギアズール","status":"progress","ridesLeft":4,"needsWin":true},{"horseId":"horse-3881","horseName":"ライラックフェスタ","status":"progress","ridesLeft":0,"needsWin":true}],"trust":[{"stableId":"stable-131","trainerName":"藤野貴之","delta":7,"change":"bigUp"},{"stableId":"stable-88","trainerName":"岸本悟","delta":2,"change":"up"}],"graded":[{"raceName":"府中牝馬ステークス","courseName":"東京","surface":"turf","distance":1600,"winnerName":"インパクトバラード","jockeyName":"平尾英治","popularity":14,"fieldSize":18}]},"growth":{"rankLine":null,"lines":[{"key":"surface:dirt","label":"ダート","from":"D+","to":"C","up":true,"reason":null},{"key":"surface:turf","label":"芝","from":"A+","to":"A","up":false,"reason":"適性の合計がいっぱいのため"}]}},"w39":{"dump":{"weekLabel":"1994年 10月1週","slots":6,"going":{"sat":"kyoto","sun":"tokyo"},"picked":["horse-688","horse-foal-1993-230","horse-foal-1994-261","horse-foal-1994-174","horse-2951","horse-2801"],"days":{"sat":[{"courseId":"tokyo","courseName":"東京","count":3,"races":[{"raceId":"1994-クイーンステークス","raceNumber":11,"raceLabel":"東京 11R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"クイーンステークス GIII"},"headText":"芝2000m クイーンステークス GIII","rows":[{"id":"horse-foal-1993-464","name":"アステルオンダ","sex":"牝","age":3,"coat":"黒鹿毛","coatId":"darkBay","face":"none","kg":422,"weeksSince":6,"record":"6戦2勝","starts":6,"run":"逃げ","main":false,"lastPos":10,"mark":"wk-m3","trainer":"藤野貴之","own":false,"dayKg":422,"dayDiff":0,"trainKg":422,"trainDiff":0,"debut":false}]},{"raceId":"1994-w40-tokyo-sat-7","raceNumber":7,"raceLabel":"東京 7R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"1勝クラス"},"headText":"ダート1400m 1勝クラス","rows":[{"id":"horse-foal-1993-66","name":"アレグロアクセル","sex":"牡","age":3,"coat":"栗毛","coatId":"chestnut","face":"blaze","kg":464,"weeksSince":7,"record":"5戦1勝","starts":5,"run":"先行","main":false,"lastPos":1,"mark":"wk-m3","trainer":"児玉誠","own":false,"dayKg":464,"dayDiff":2,"trainKg":464,"trainDiff":2,"debut":false},{"id":"horse-1151","name":"リュウジングロリア","sex":"セン","age":5,"coat":"栗毛","coatId":"chestnut","face":"blaze","kg":538,"weeksSince":7,"record":"19戦1勝","starts":19,"run":"先行","main":false,"lastPos":6,"mark":"wk-m1","trainer":"塚本遼","own":false,"dayKg":538,"dayDiff":-8,"trainKg":542,"trainDiff":-4,"debut":false}]}]},{"courseId":"kyoto","courseName":"京都","count":5,"races":[{"raceId":"1994-w40-kyoto-sat-9","raceNumber":9,"raceLabel":"京都 9R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"1勝クラス"},"headText":"芝2000m 1勝クラス","rows":[{"id":"horse-688","name":"トモシビダリア","sex":"牡","age":4,"coat":"黒鹿毛","coatId":"darkBay","face":"blaze","kg":416,"weeksSince":7,"record":"11戦1勝","starts":11,"run":"差し","main":false,"lastPos":3,"mark":"wk-m1","trainer":"岸本悟","own":false,"dayKg":416,"dayDiff":12,"trainKg":412,"trainDiff":8,"debut":false}]},{"raceId":"1994-w40-kyoto-sat-5","raceNumber":5,"raceLabel":"京都 5R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"新馬"},"headText":"ダート1400m 新馬","rows":[{"id":"horse-foal-1994-261","name":"ドルフィンコメット","sex":"牝","age":2,"coat":"栗毛","coatId":"chestnut","face":"blaze","kg":472,"weeksSince":null,"record":"0戦0勝","starts":0,"run":"先行","main":false,"lastPos":null,"mark":"wk-m1","trainer":"前川雅人","own":false,"dayKg":472,"dayDiff":null,"trainKg":472,"trainDiff":null,"debut":true}]},{"raceId":"1994-w40-kyoto-sat-7","raceNumber":7,"raceLabel":"京都 7R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"2勝クラス"},"headText":"ダート1200m 2勝クラス","rows":[{"id":"horse-2951","name":"ストライドアネモネ","sex":"セン","age":4,"coat":"鹿毛","coatId":"bay","face":"star","kg":530,"weeksSince":5,"record":"32戦2勝","starts":32,"run":"差し","main":false,"lastPos":5,"mark":"wk-m1","trainer":"塚本遼","own":false,"dayKg":530,"dayDiff":8,"trainKg":526,"trainDiff":4,"debut":false}]},{"raceId":"1994-w40-kyoto-sat-8","raceNumber":8,"raceLabel":"京都 8R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"3勝クラス"},"headText":"芝2000m 3勝クラス","rows":[{"id":"horse-2801","name":"アロースピネル","sex":"セン","age":3,"coat":"青鹿毛","coatId":"brown","face":"strip","kg":442,"weeksSince":1,"record":"11戦3勝","starts":11,"run":"先行","main":false,"lastPos":5,"mark":"wk-m1","trainer":"塚本遼","own":false,"dayKg":442,"dayDiff":8,"trainKg":446,"trainDiff":12,"debut":false}]},{"raceId":"1994-w40-kyoto-sat-10","raceNumber":10,"raceLabel":"京都 10R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"2勝クラス"},"headText":"ダート1200m 2勝クラス","rows":[{"id":"horse-3401","name":"タイドグロウ","sex":"牝","age":5,"coat":"栗毛","coatId":"chestnut","face":"none","kg":498,"weeksSince":5,"record":"16戦2勝","starts":16,"run":"逃げ","main":false,"lastPos":4,"mark":"wk-m1","trainer":"塚本遼","own":false,"dayKg":498,"dayDiff":4,"trainKg":502,"trainDiff":8,"debut":false}]}]}],"sun":[{"courseId":"tokyo","courseName":"東京","count":2,"races":[{"raceId":"1994-w40-tokyo-sun-5","raceNumber":5,"raceLabel":"東京 5R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"1勝クラス"},"headText":"芝2000m 1勝クラス","rows":[{"id":"horse-foal-1993-230","name":"パレードバラード","sex":"牝","age":3,"coat":"鹿毛","coatId":"bay","face":"snip","kg":460,"weeksSince":2,"record":"4戦1勝","starts":4,"run":"差し","main":false,"lastPos":12,"mark":"wk-m2","trainer":"児玉誠","own":false,"dayKg":460,"dayDiff":-4,"trainKg":458,"trainDiff":-6,"debut":false}]},{"raceId":"1994-w40-tokyo-sun-1","raceNumber":1,"raceLabel":"東京 1R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"1800m","classLabel":"未勝利"},"headText":"芝1800m 未勝利","rows":[{"id":"horse-foal-1994-174","name":"アルバベルベット","sex":"牡","age":2,"coat":"鹿毛","coatId":"bay","face":"none","kg":450,"weeksSince":2,"record":"1戦0勝","starts":1,"run":"差し","main":false,"lastPos":9,"mark":"wk-m2","trainer":"児玉誠","own":false,"dayKg":450,"dayDiff":-4,"trainKg":446,"trainDiff":-8,"debut":false}]}]},{"courseId":"kyoto","courseName":"京都","count":2,"races":[{"raceId":"1994-w40-kyoto-sun-10","raceNumber":10,"raceLabel":"京都 10R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"オープン特別"},"headText":"芝2000m オープン特別","rows":[{"id":"horse-foal-1993-208","name":"リボンアロー","sex":"セン","age":3,"coat":"栗毛","coatId":"chestnut","face":"none","kg":472,"weeksSince":2,"record":"4戦2勝","starts":4,"run":"差し","main":false,"lastPos":11,"mark":"wk-m2","trainer":"児玉誠","own":false,"dayKg":472,"dayDiff":-6,"trainKg":476,"trainDiff":-2,"debut":false}]},{"raceId":"1994-w40-kyoto-sun-8","raceNumber":8,"raceLabel":"京都 8R","head":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"1800m","classLabel":"2勝クラス"},"headText":"芝1800m 2勝クラス","rows":[{"id":"horse-4601","name":"セレナーデサーガ","sex":"セン","age":3,"coat":"黒鹿毛","coatId":"darkBay","face":"star","kg":446,"weeksSince":5,"record":"9戦2勝","starts":9,"run":"先行","main":false,"lastPos":4,"mark":"wk-m2","trainer":"塚本遼","own":false,"dayKg":446,"dayDiff":-4,"trainKg":446,"trainDiff":-4,"debut":false}]}]}]}},"summary":{"weekLabel":"1994年 10月1週","moneyGained":137500,"moneyAfter":8900000,"rides":[{"horseId":"horse-688","horseName":"トモシビダリア","day":"sat","courseId":"kyoto","courseName":"京都","raceNumber":9,"raceLabel":"京都 9R","raceId":"1994-w40-kyoto-sat-9","surface":"turf","distance":2000,"className":"1勝クラス","headline":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"1勝クラス"},"headlineText":"芝2000m 1勝クラス","fell":false,"position":2,"fieldSize":8,"popularity":3,"won":false,"income":27500,"sex":"牡","age":4,"coat":"黒鹿毛","coatId":"darkBay","dayKg":416,"dayDiff":12,"trainKg":412,"trainDiff":8,"debut":false},{"horseId":"horse-foal-1994-261","horseName":"ドルフィンコメット","day":"sat","courseId":"kyoto","courseName":"京都","raceNumber":5,"raceLabel":"京都 5R","raceId":"1994-w40-kyoto-sat-5","surface":"dirt","distance":1400,"className":"新馬","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"新馬"},"headlineText":"ダート1400m 新馬","fell":false,"position":6,"fieldSize":13,"popularity":8,"won":false,"income":27500,"sex":"牝","age":2,"coat":"栗毛","coatId":"chestnut","dayKg":472,"dayDiff":null,"trainKg":472,"trainDiff":null,"debut":true},{"horseId":"horse-2951","horseName":"ストライドアネモネ","day":"sat","courseId":"kyoto","courseName":"京都","raceNumber":7,"raceLabel":"京都 7R","raceId":"1994-w40-kyoto-sat-7","surface":"dirt","distance":1200,"className":"2勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"2勝クラス"},"headlineText":"ダート1200m 2勝クラス","fell":false,"position":7,"fieldSize":8,"popularity":4,"won":false,"income":27500,"sex":"セン","age":4,"coat":"鹿毛","coatId":"bay","dayKg":530,"dayDiff":8,"trainKg":526,"trainDiff":4,"debut":false},{"horseId":"horse-2801","horseName":"アロースピネル","day":"sat","courseId":"kyoto","courseName":"京都","raceNumber":8,"raceLabel":"京都 8R","raceId":"1994-w40-kyoto-sat-8","surface":"turf","distance":2000,"className":"3勝クラス","headline":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"3勝クラス"},"headlineText":"芝2000m 3勝クラス","fell":false,"position":3,"fieldSize":5,"popularity":4,"won":false,"income":27500,"sex":"セン","age":3,"coat":"青鹿毛","coatId":"brown","dayKg":442,"dayDiff":8,"trainKg":446,"trainDiff":12,"debut":false},{"horseId":"horse-foal-1993-230","horseName":"パレードバラード","day":"sun","courseId":"tokyo","courseName":"東京","raceNumber":5,"raceLabel":"東京 5R","raceId":"1994-w40-tokyo-sun-5","surface":"turf","distance":2000,"className":"1勝クラス","headline":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"2000m","classLabel":"1勝クラス"},"headlineText":"芝2000m 1勝クラス","fell":true,"position":null,"fieldSize":null,"popularity":null,"won":false,"income":0,"sex":"牝","age":3,"coat":"鹿毛","coatId":"bay","dayKg":460,"dayDiff":-4,"trainKg":458,"trainDiff":-6,"debut":false},{"horseId":"horse-foal-1994-174","horseName":"アルバベルベット","day":"sun","courseId":"tokyo","courseName":"東京","raceNumber":1,"raceLabel":"東京 1R","raceId":"1994-w40-tokyo-sun-1","surface":"turf","distance":1800,"className":"未勝利","headline":{"surfaceLabel":"芝","surfaceColumnLabel":"芝","distanceLabel":"1800m","classLabel":"未勝利"},"headlineText":"芝1800m 未勝利","fell":false,"position":3,"fieldSize":16,"popularity":16,"won":false,"income":27500,"sex":"牡","age":2,"coat":"鹿毛","coatId":"bay","dayKg":450,"dayDiff":-4,"trainKg":446,"trainDiff":-8,"debut":false}],"mainMounts":[{"horseId":"horse-688","horseName":"トモシビダリア","status":"progress","ridesLeft":3,"needsWin":true},{"horseId":"horse-foal-1994-261","horseName":"ドルフィンコメット","status":"progress","ridesLeft":4,"needsWin":true},{"horseId":"horse-2951","horseName":"ストライドアネモネ","status":"progress","ridesLeft":2,"needsWin":true},{"horseId":"horse-2801","horseName":"アロースピネル","status":"progress","ridesLeft":1,"needsWin":true},{"horseId":"horse-foal-1994-174","horseName":"アルバベルベット","status":"progress","ridesLeft":4,"needsWin":true}],"trust":[{"stableId":"stable-88","trainerName":"岸本悟","delta":1,"change":"up"},{"stableId":"stable-84","trainerName":"前川雅人","delta":1,"change":"up"},{"stableId":"stable-101","trainerName":"塚本遼","delta":2,"change":"up"},{"stableId":"stable-99","trainerName":"児玉誠","delta":1,"change":"up"}],"graded":[{"raceName":"セントウルステークス","courseName":"東京","surface":"turf","distance":1200,"winnerName":"アローサーガ","jockeyName":"岸本一郎","popularity":1,"fieldSize":18},{"raceName":"京都新聞杯 （菊花賞トライアル）","courseName":"京都","surface":"turf","distance":2200,"winnerName":"ムラクモカメリア","jockeyName":"白石浩二","popularity":9,"fieldSize":18},{"raceName":"クイーンステークス","courseName":"東京","surface":"turf","distance":2000,"winnerName":"ゼファースター","jockeyName":"梶原忠雄","popularity":1,"fieldSize":18}]},"growth":{"rankLine":null,"lines":[]}},"w13":{"dump":{"weekLabel":"1994年 4月1週","slots":6,"going":{"sat":"fukushima","sun":null},"picked":["horse-1288","horse-4438","horse-3084","horse-foal-1993-453","horse-foal-1993-617"],"days":{"sat":[{"courseId":"fukushima","courseName":"福島","count":5,"races":[{"raceId":"1994-w14-fukushima-sat-9","raceNumber":9,"raceLabel":"福島 9R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1150m","classLabel":"2勝クラス"},"headText":"ダート1150m 2勝クラス","rows":[{"id":"horse-1288","name":"リュウジンスター","sex":"セン","age":4,"coat":"鹿毛","coatId":"bay","face":"starSnip","kg":500,"weeksSince":4,"record":"14戦2勝","starts":14,"run":"先行","main":false,"lastPos":3,"mark":"wk-m2","trainer":"岸本悟","own":false,"dayKg":500,"dayDiff":0,"trainKg":500,"trainDiff":0,"debut":false}]},{"raceId":"1994-w14-fukushima-sat-10","raceNumber":10,"raceLabel":"福島 10R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1000m","classLabel":"1勝クラス"},"headText":"ダート1000m 1勝クラス","rows":[{"id":"horse-4438","name":"シエロカデンツァ","sex":"牝","age":4,"coat":"鹿毛","coatId":"bay","face":"star","kg":440,"weeksSince":9,"record":"11戦1勝","starts":11,"run":"先行","main":false,"lastPos":7,"mark":"wk-m1","trainer":"岸本悟","own":false,"dayKg":440,"dayDiff":0,"trainKg":442,"trainDiff":2,"debut":false}]},{"raceId":"1994-w14-fukushima-sat-2","raceNumber":2,"raceLabel":"福島 2R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"未勝利"},"headText":"ダート1700m 未勝利","rows":[{"id":"horse-3084","name":"ハートオペラ","sex":"セン","age":3,"coat":"鹿毛","coatId":"bay","face":"bald","kg":508,"weeksSince":21,"record":"2戦0勝","starts":2,"run":"差し","main":false,"lastPos":11,"mark":"wk-m1","trainer":"前川雅人","own":false,"dayKg":508,"dayDiff":0,"trainKg":508,"trainDiff":0,"debut":false}]},{"raceId":"1994-w14-fukushima-sat-8","raceNumber":8,"raceLabel":"福島 8R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"1勝クラス"},"headText":"ダート1700m 1勝クラス","rows":[{"id":"horse-foal-1993-453","name":"グロリアマッハ","sex":"セン","age":3,"coat":"黒鹿毛","coatId":"darkBay","face":"none","kg":468,"weeksSince":3,"record":"4戦1勝","starts":4,"run":"逃げ","main":false,"lastPos":4,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":468,"dayDiff":2,"trainKg":464,"trainDiff":-2,"debut":false}]},{"raceId":"1994-w14-fukushima-sat-6","raceNumber":6,"raceLabel":"福島 6R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"未勝利"},"headText":"ダート1700m 未勝利","rows":[{"id":"horse-foal-1993-617","name":"テンペストメイプル","sex":"牡","age":3,"coat":"栗毛","coatId":"chestnut","face":"strip","kg":492,"weeksSince":18,"record":"3戦0勝","starts":3,"run":"先行","main":false,"lastPos":12,"mark":"wk-m3","trainer":"児玉誠","own":false,"dayKg":492,"dayDiff":-8,"trainKg":490,"trainDiff":-10,"debut":false}]}]},{"courseId":"nakayama","courseName":"中山","count":4,"races":[{"raceId":"1994-w14-nakayama-sat-4","raceNumber":4,"raceLabel":"中山 4R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1800m","classLabel":"1勝クラス"},"headText":"ダート1800m 1勝クラス","rows":[{"id":"horse-1438","name":"テンロウルビー","sex":"セン","age":4,"coat":"鹿毛","coatId":"bay","face":"blaze","kg":500,"weeksSince":45,"record":"10戦1勝","starts":10,"run":"差し","main":false,"lastPos":3,"mark":"wk-m1","trainer":"岸本悟","own":false,"dayKg":500,"dayDiff":2,"trainKg":496,"trainDiff":-2,"debut":false}]},{"raceId":"1994-w14-nakayama-sat-8","raceNumber":8,"raceLabel":"中山 8R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"未勝利"},"headText":"ダート1700m 未勝利","rows":[{"id":"horse-foal-1993-43","name":"フィオーレアクセル","sex":"牝","age":3,"coat":"鹿毛","coatId":"bay","face":"blaze","kg":420,"weeksSince":19,"record":"3戦0勝","starts":3,"run":"逃げ","main":false,"lastPos":2,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":420,"dayDiff":4,"trainKg":420,"trainDiff":4,"debut":false}]},{"raceId":"1994-w14-nakayama-sat-1","raceNumber":1,"raceLabel":"中山 1R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"1勝クラス"},"headText":"ダート1200m 1勝クラス","rows":[{"id":"horse-foal-1993-139","name":"ベリルイーグル","sex":"牡","age":3,"coat":"青鹿毛","coatId":"brown","face":"none","kg":434,"weeksSince":1,"record":"8戦1勝","starts":8,"run":"逃げ","main":false,"lastPos":5,"mark":"wk-m1","trainer":"藤野貴之","own":false,"dayKg":434,"dayDiff":-18,"trainKg":438,"trainDiff":-14,"debut":false}]},{"raceId":"1994-w14-nakayama-sat-6","raceNumber":6,"raceLabel":"中山 6R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1200m","classLabel":"1勝クラス"},"headText":"ダート1200m 1勝クラス","rows":[{"id":"horse-2966","name":"ウェーブウィング","sex":"セン","age":4,"coat":"青鹿毛","coatId":"brown","face":"snip","kg":474,"weeksSince":3,"record":"18戦1勝","starts":18,"run":"差し","main":false,"lastPos":6,"mark":"wk-m2","trainer":"神谷茂","own":false,"dayKg":474,"dayDiff":4,"trainKg":476,"trainDiff":6,"debut":false}]}]},{"courseId":"hanshin","courseName":"阪神","count":3,"races":[{"raceId":"1994-w14-hanshin-sat-1","raceNumber":1,"raceLabel":"阪神 1R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1800m","classLabel":"未勝利"},"headText":"ダート1800m 未勝利","rows":[{"id":"horse-534","name":"セセラギシャイン","sex":"牝","age":3,"coat":"鹿毛","coatId":"bay","face":"strip","kg":394,"weeksSince":18,"record":"3戦0勝","starts":3,"run":"先行","main":false,"lastPos":4,"mark":"wk-m1","trainer":"前川雅人","own":false,"dayKg":394,"dayDiff":6,"trainKg":390,"trainDiff":2,"debut":false}]},{"raceId":"1994-w14-hanshin-sat-11","raceNumber":11,"raceLabel":"阪神 11R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1800m","classLabel":"オープン特別"},"headText":"ダート1800m オープン特別","rows":[{"id":"horse-1584","name":"ユウナギジェイド","sex":"セン","age":4,"coat":"黒鹿毛","coatId":"darkBay","face":"bald","kg":488,"weeksSince":8,"record":"12戦4勝","starts":12,"run":"先行","main":false,"lastPos":3,"mark":"wk-m2","trainer":"前川雅人","own":false,"dayKg":488,"dayDiff":2,"trainKg":490,"trainDiff":4,"debut":false}]},{"raceId":"1994-w14-hanshin-sat-5","raceNumber":5,"raceLabel":"阪神 5R","head":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1400m","classLabel":"未勝利"},"headText":"ダート1400m 未勝利","rows":[{"id":"horse-foal-1993-66","name":"アレグロアクセル","sex":"牡","age":3,"coat":"栗毛","coatId":"chestnut","face":"blaze","kg":462,"weeksSince":22,"record":"2戦0勝","starts":2,"run":"先行","main":false,"lastPos":3,"mark":"wk-m3","trainer":"児玉誠","own":false,"dayKg":462,"dayDiff":8,"trainKg":462,"trainDiff":8,"debut":false}]}]}],"sun":[]}},"summary":{"weekLabel":"1994年 4月1週","moneyGained":137500,"moneyAfter":3640000,"rides":[{"horseId":"horse-1288","horseName":"リュウジンスター","day":"sat","courseId":"fukushima","courseName":"福島","raceNumber":9,"raceLabel":"福島 9R","raceId":"1994-w14-fukushima-sat-9","surface":"dirt","distance":1150,"className":"2勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1150m","classLabel":"2勝クラス"},"headlineText":"ダート1150m 2勝クラス","fell":false,"position":3,"fieldSize":13,"popularity":3,"won":false,"income":27500,"sex":"セン","age":4,"coat":"鹿毛","coatId":"bay","dayKg":500,"dayDiff":0,"trainKg":500,"trainDiff":0,"debut":false},{"horseId":"horse-4438","horseName":"シエロカデンツァ","day":"sat","courseId":"fukushima","courseName":"福島","raceNumber":10,"raceLabel":"福島 10R","raceId":"1994-w14-fukushima-sat-10","surface":"dirt","distance":1000,"className":"1勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1000m","classLabel":"1勝クラス"},"headlineText":"ダート1000m 1勝クラス","fell":false,"position":3,"fieldSize":9,"popularity":5,"won":false,"income":27500,"sex":"牝","age":4,"coat":"鹿毛","coatId":"bay","dayKg":440,"dayDiff":0,"trainKg":442,"trainDiff":2,"debut":false},{"horseId":"horse-3084","horseName":"ハートオペラ","day":"sat","courseId":"fukushima","courseName":"福島","raceNumber":2,"raceLabel":"福島 2R","raceId":"1994-w14-fukushima-sat-2","surface":"dirt","distance":1700,"className":"未勝利","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"未勝利"},"headlineText":"ダート1700m 未勝利","fell":false,"position":7,"fieldSize":8,"popularity":8,"won":false,"income":27500,"sex":"セン","age":3,"coat":"鹿毛","coatId":"bay","dayKg":508,"dayDiff":0,"trainKg":508,"trainDiff":0,"debut":false},{"horseId":"horse-foal-1993-453","horseName":"グロリアマッハ","day":"sat","courseId":"fukushima","courseName":"福島","raceNumber":8,"raceLabel":"福島 8R","raceId":"1994-w14-fukushima-sat-8","surface":"dirt","distance":1700,"className":"1勝クラス","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"1勝クラス"},"headlineText":"ダート1700m 1勝クラス","fell":false,"position":10,"fieldSize":13,"popularity":6,"won":false,"income":27500,"sex":"セン","age":3,"coat":"黒鹿毛","coatId":"darkBay","dayKg":468,"dayDiff":2,"trainKg":464,"trainDiff":-2,"debut":false},{"horseId":"horse-foal-1993-617","horseName":"テンペストメイプル","day":"sat","courseId":"fukushima","courseName":"福島","raceNumber":6,"raceLabel":"福島 6R","raceId":"1994-w14-fukushima-sat-6","surface":"dirt","distance":1700,"className":"未勝利","headline":{"surfaceLabel":"ダート","surfaceColumnLabel":"ダ","distanceLabel":"1700m","classLabel":"未勝利"},"headlineText":"ダート1700m 未勝利","fell":false,"position":14,"fieldSize":16,"popularity":16,"won":false,"income":27500,"sex":"牡","age":3,"coat":"栗毛","coatId":"chestnut","dayKg":492,"dayDiff":-8,"trainKg":490,"trainDiff":-10,"debut":false}],"mainMounts":[{"horseId":"horse-1288","horseName":"リュウジンスター","status":"progress","ridesLeft":2,"needsWin":true},{"horseId":"horse-4438","horseName":"シエロカデンツァ","status":"progress","ridesLeft":4,"needsWin":true},{"horseId":"horse-3084","horseName":"ハートオペラ","status":"progress","ridesLeft":4,"needsWin":true},{"horseId":"horse-foal-1993-453","horseName":"グロリアマッハ","status":"progress","ridesLeft":4,"needsWin":true},{"horseId":"horse-foal-1993-617","horseName":"テンペストメイプル","status":"progress","ridesLeft":4,"needsWin":true}],"trust":[{"stableId":"stable-88","trainerName":"岸本悟","delta":2,"change":"up"},{"stableId":"stable-84","trainerName":"前川雅人","delta":1,"change":"up"},{"stableId":"stable-131","trainerName":"藤野貴之","delta":1,"change":"up"},{"stableId":"stable-99","trainerName":"児玉誠","delta":1,"change":"up"}],"graded":[{"raceName":"ダービー卿チャレンジトロフィー","courseName":"中山","surface":"turf","distance":1200,"winnerName":"アローサーガ","jockeyName":"瀬川慎太郎","popularity":2,"fieldSize":18},{"raceName":"産経大阪杯","courseName":"阪神","surface":"turf","distance":2000,"winnerName":"ムラクモコバルト","jockeyName":"大森明彦","popularity":5,"fieldSize":18}]},"growth":{"rankLine":null,"lines":[]}}};
+const DAY_LABEL = { sat: "土曜", sun: "日曜" };
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const yen = (n) => `${n.toLocaleString("ja-JP")}円`;
+const signedYen = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toLocaleString("ja-JP")}円`;
+// 体重の書き方：「472（+6）」「524（±0）」。初出走は増減の代わりに「初出走」。前走の体重が分からなければ体重だけ。
+const diffText = (d) => (d > 0 ? `+${d}` : d < 0 ? `−${-d}` : "±0");
+function kgText(kg, diff, debut, unit = "") {
+  if (debut) return `${kg}${unit}（初出走）`;
+  if (diff == null) return `${kg}${unit}`;
+  return `${kg}${unit}（${diffText(diff)}）`;
+}
+const sinceShort = (h) => (h.debut || h.weeksSince == null ? "" : `${h.weeksSince}週`);
+const sinceLong = (h) => (h.debut || h.weeksSince == null ? "" : `${h.weeksSince}週ぶり`);
+const sexAge = (h) => `${h.sex}${h.age}`;
+const byNo = (a, b) => (a.raceNumber ?? 99) - (b.raceNumber ?? 99);
+const sfSpan = (head, surface) => `<span class="sf-${surface}">${head.surfaceLabel}</span>`;
+const surfaceOf = (race) => (race.head.surfaceLabel === "芝" ? "turf" : "dirt");
+const sym = (id, inline) => `<svg class="sym${inline ? " is-inline" : ""}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const acts = `<span class="wk-r__acts"><span class="wk-btn">乗る</span><span class="wk-lnk">出馬表</span></span>`;
+
+// ── 週の画面 ──
+function weekRow(c, h, race, st) {
+  const cls = ["wk-r", st.picked ? "is-on" : "", st.off ? "is-off" : "", st.open ? "is-open" : ""].join(" ").trim();
+  const rec = st.picked ? "乗ります" : h.record;
+  const main = h.main ? `<span class="wk-r__main">主戦</span>` : "";
+  const tr = `${esc(h.trainer)}${h.own ? "　所属厩舎" : ""}`;
+  const sfCol = race.head.surfaceColumnLabel;
+  if (c === "A") return `<div class="${cls}">
+    <span class="wk-r__name">${esc(h.name)}</span><b>${sexAge(h)}</b><b>${h.coat}</b><b class="num r">${kgText(h.trainKg, h.trainDiff, h.debut)}</b><b class="num r">${sinceShort(h)}</b>
+    <span class="wk-r__l2"><span>${main}<span>${rec}</span><span>${h.run}</span><span>${sfCol}${sym(h.mark, true)}</span></span><span>${tr}</span></span>
+    ${st.open ? acts : ""}</div>`;
+  if (c === "B") return `<div class="${cls}">
+    <span class="wk-r__name">${esc(h.name)}<small>${main}${rec}</small></span><span>${sexAge(h)}</span><span>${h.run}</span>${sym(h.mark)}
+    <span class="wk-r__tr">${esc(h.trainer)}${h.own ? "<small>所属厩舎</small>" : ""}</span>
+    <span class="wk-r__l2"><span>${h.coat}</span><span class="num">調教後 ${kgText(h.trainKg, h.trainDiff, h.debut, "kg")}</span><span>${sinceLong(h)}</span></span>
+    ${st.open ? acts : ""}</div>`;
+  return `<div class="${cls}">
+    <i class="coat" style="background:var(--coat-${h.coatId})"></i>
+    <span class="wk-r__name">${esc(h.name)}<small>${sexAge(h)}　${h.coat}　${main}${rec}</small></span>
+    <span class="wk-r__kg"><b class="num">${kgText(h.trainKg, h.trainDiff, h.debut, "kg")}</b>${sinceLong(h) || "　"}</span>
+    <span class="wk-r__l2"><span><span>${h.run}</span><span>${race.head.surfaceLabel}${sym(h.mark, true)}</span></span><span>${tr}</span></span>
+    ${st.open ? acts : ""}</div>`;
+}
+function weekRace(c, race, stateOf) {
+  const sf = surfaceOf(race);
+  const th = c === "A" ? `<div class="wk-th"><span>馬名</span><span>性齢</span><span>毛色</span><span class="r">調教後</span><span class="r">前走から</span></div>`
+    : c === "B" ? `<div class="wk-th"><span>馬名</span><span>性齢</span><span>走り方</span><span class="c">${race.head.surfaceColumnLabel}</span><span class="r">調教師</span></div>` : "";
+  return `<div class="wk-race"><div class="wk-race__big"><span class="wk-race__no">${esc(race.raceLabel)}</span>${sfSpan(race.head, sf)}${race.head.distanceLabel}<span class="wk-race__cls">${esc(race.head.classLabel)}</span></div></div>
+    <div class="wk-t">${th}${race.rows.map((h) => weekRow(c, h, race, stateOf(h, race))).join("")}</div>`;
+}
+function weekScreen(c, w, day, courseId, picked, openId, slotsLeft) {
+  const courses = w.dump.days[day];
+  const course = courses.find((x) => x.courseId === courseId);
+  const pickedRaces = new Set();
+  for (const r of course.races) for (const h of r.rows) if (picked.has(h.id)) pickedRaces.add(r.raceId);
+  const stateOf = (h, race) => ({ picked: picked.has(h.id), open: h.id === openId, off: !picked.has(h.id) && pickedRaces.has(race.raceId) });
+  return `<div class="wk-hd"><div class="wk-hd__week">${w.dump.weekLabel}</div><div class="wk-hd__left">あと<b>${slotsLeft}</b>件</div></div>
+    <div class="wk-days">${["sat", "sun"].map((d) => `<span class="${d === day ? "is-on" : ""}">${DAY_LABEL[d]}</span>`).join("")}<span>自分</span><span>番付</span></div>
+    <div class="wk-courses">${courses.map((x) => `<span class="${x.courseId === courseId ? "is-on" : "is-lock"}">${x.courseName}<i>${x.count}</i></span>`).join("")}</div>
+    ${[...course.races].sort(byNo).map((r) => weekRace(c, r, stateOf)).join("")}
+    <div class="wk-adv"><span class="wk-btn">この週を進める</span></div>`;
+}
+
+// ── 週の結果 ──
+const posHtml = (r) => (r.fell ? "落馬" : `${r.position}<small>着／${r.fieldSize}頭立て</small>`);
+const headHtml = (r) => `<span class="sf-${r.surface}">${r.headline.surfaceLabel}</span>${r.headline.distanceLabel} ${esc(r.headline.classLabel)}`;
+const dayKg = (r, unit) => kgText(r.dayKg, r.dayDiff, r.debut, unit);
+function ridesByDay(s) {
+  return ["sat", "sun"].map((d) => ({ d, rides: s.rides.filter((r) => r.day === d).sort(byNo) }));
+}
+function dayHead(g) {
+  return `<div class="day">${DAY_LABEL[g.d]}${g.rides.length ? `<span>${g.rides[0].courseName}</span>` : ""}</div>`;
+}
+function resultRides(c, s) {
+  const days = ridesByDay(s);
+  if (s.rides.length === 0) return `<p class="wr-empty">今週は乗りませんでした。</p>`;
+  if (c === "A") return days.map((g) => dayHead(g) + (g.rides.length === 0 ? `<p class="wr-empty">${DAY_LABEL[g.d]}は乗りませんでした。</p>` : `<div class="ra">${g.rides.map((r) => `<div class="ra-r">
+      <div class="ra-r__no">${r.raceNumber}R</div>
+      <div><div class="ra-r__nm">${esc(r.horseName)}</div><div class="ra-r__sub">${headHtml(r)}</div><div class="ra-r__sub num">${r.sex}${r.age}　${r.coat}　${dayKg(r, "kg")}</div></div>
+      <div><div class="ra-r__pos ${r.fell ? "is-fell" : r.won ? "is-win" : ""}">${r.fell ? "落馬" : `${r.position}<small>着</small>`}</div><div class="ra-r__pop">${r.fell ? "" : `${r.popularity}番人気／${r.fieldSize}頭`}</div></div>
+    </div>`).join("")}</div>`)).join("");
+  if (c === "B") return `<div class="rb">${days.map((g) => `<div class="rb-col">${dayHead(g)}${g.rides.length === 0 ? `<p class="rb-none">乗りませんでした。</p>` : g.rides.map((r) => `<div class="wr-board ${r.won ? "is-win" : ""}">
+      <div class="wr-board__top"><b>${esc(r.raceLabel)}</b>${r.fell ? "" : `<span>${r.popularity}番人気</span>`}</div>
+      <div class="wr-board__pos ${r.fell ? "is-fell" : ""}">${posHtml(r)}</div>
+      <div class="wr-board__name">${esc(r.horseName)}</div>
+      <div class="wr-board__race">${headHtml(r)}</div>
+      <div class="wr-board__race num">${r.sex}${r.age}　${r.coat}　${dayKg(r, "kg")}</div>
+    </div>`).join("")}</div>`).join("")}</div>`;
+  return days.map((g) => dayHead(g) + (g.rides.length === 0 ? `<p class="wr-empty">${DAY_LABEL[g.d]}は乗りませんでした。</p>` : `<div class="rc">${g.rides.map((r) => `<div class="rc-card ${r.won ? "is-win" : ""}">
+      <div class="rc-card__race"><span><b>${esc(r.raceLabel)}</b>${headHtml(r)}</span><span>${r.fell ? "" : `${r.popularity}番人気／${r.fieldSize}頭立て`}</span></div>
+      <div class="rc-card__body"><i class="coat" style="background:var(--coat-${r.coatId})"></i>
+        <div><div class="rc-card__nm">${esc(r.horseName)}</div><div class="rc-card__sub num">${r.sex}${r.age}　${r.coat}　${dayKg(r, "kg")}</div></div>
+        <div class="rc-card__pos ${r.fell ? "is-fell" : ""}">${r.fell ? "落馬" : `${r.position}<i>着</i>`}</div>
+      </div></div>`).join("")}</div>`)).join("");
+}
+const TRUST_WORDS = { bigUp: "大きく上がりました", up: "少し上がりました", down: "下がりました", bigDown: "大きく下がりました" };
+function mainMountText(m) {
+  if (m.status === "became") return "主戦になりました";
+  if (!m.needsWin) return `あと${m.ridesLeft}回乗れば主戦`;
+  if (m.ridesLeft === 0) return "1勝すれば主戦";
+  return `あと${m.ridesLeft}回乗って、1勝すれば主戦`;
+}
+function resultScreen(c, w) {
+  const s = w.summary, g = w.growth;
+  return `<div class="wr-hd"><div class="wr-hd__week">${s.weekLabel}</div><div class="wr-hd__money">今週<b>${signedYen(s.moneyGained)}</b>所持金 ${yen(s.moneyAfter)}</div></div>
+    ${resultRides(c, s)}
+    <section class="wr-sec"><h3>主戦</h3>${s.mainMounts.map((m) => `<div class="wr-line"><span>${esc(m.horseName)}</span><span class="wr-line__v">${mainMountText(m)}</span></div>`).join("")}</section>
+    <section class="wr-sec"><h3>調教師からの信頼</h3>${s.trust.map((t) => `<div class="wr-line"><span>${esc(t.trainerName)}調教師</span><span class="wr-line__v">${TRUST_WORDS[t.change]}</span></div>`).join("")}</section>
+    ${g.lines.length ? `<section class="wr-sec"><h3>能力</h3>${g.lines.map((l) => `<div class="wr-line"><span>${l.label}${l.reason ? `<small>${l.reason}</small>` : ""}</span><span class="wr-line__gch ${l.up ? "is-up" : "is-down"}">${l.from} → ${l.to}</span></div>`).join("")}</section>` : ""}
+    <section class="wr-sec"><h3>今週の重賞</h3>${s.graded.map((x) => `<div class="wr-graded"><div><div class="wr-graded__race">${esc(x.raceName)}・${x.courseName}</div><div class="wr-graded__winner">${esc(x.winnerName)}</div></div><div class="wr-graded__jockey">${esc(x.jockeyName)}<br>${x.popularity}番人気</div></div>`).join("")}</section>
+    <div class="wr-foot"><span class="wk-btn">次の週へ</span></div>`;
+}
+
+// ── 並べる ──
+const W = DATA.w41, W39 = DATA.w39, W13 = DATA.w13;
+const openHorse = W.dump.days.sun.find((c) => c.courseId === "kyoto").races.find((r) => r.raceNumber === 3).rows[0];
+const picked = new Set(W.dump.picked.filter((id) => id !== openHorse.id));
+const debutRace = W39.dump.days.sat.find((c) => c.courseId === "kyoto").races.find((r) => r.raceNumber === 5);
+for (const el of document.querySelectorAll(".gallery")) {
+  const c = el.dataset.c;
+  el.innerHTML = `
+  <div class="shot"><p class="cap"><b>週の画面</b>（日曜・京都。4頭を決めて、3Rの行を開いたところ）<br>青い行＝乗ると決めた馬。薄い行＝同じレースで別の馬を決めたので選べない馬。</p>
+    <div class="frame is-tall ${c}">${weekScreen(c, W, "sun", "kyoto", picked, openHorse.id, 1)}</div></div>
+  <div class="shot"><p class="cap"><b>週の結果</b>（3Rも乗ると決めて「この週を進める」を押した後）<br>土曜→日曜、それぞれレース番号の順。見出しは週の画面と同じ書き方。</p>
+    <div class="frame is-tall ${c}">${resultScreen(c, W)}</div></div>
+  <div class="shot"><p class="cap"><b>初出走の馬</b>（週の画面。1994年10月1週・土曜の京都 5R）<br>増減の代わりに「初出走」。前走からの週数は出しません。</p>
+    <div class="frame ${c}">${weekRace(c, debutRace, () => ({}))}<div style="height:var(--s2)"></div></div>
+    <p class="cap"><b>初出走と落馬</b>（結果。同じ1994年10月1週）<br>落馬した鞍は人気と頭数を出しません（今の板と同じ）。</p>
+    <div class="frame ${c}">${resultRides(c, W39.summary)}<div style="height:var(--s2)"></div></div>
+    <p class="cap"><b>乗らなかった日</b>（結果。1994年4月1週：土曜だけ福島で5鞍）</p>
+    <div class="frame ${c}">${resultRides(c, W13.summary)}<div style="height:var(--s2)"></div></div></div>`;
+}
+const only = new URLSearchParams(location.search).get("only");
+if (only) { document.body.classList.add("only"); document.getElementById("cand-" + only)?.classList.add("is-only"); }
+</script>
+</body></html>

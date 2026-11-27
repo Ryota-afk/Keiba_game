@@ -62,8 +62,13 @@ const CARD_RAMP_SECONDS = 20;
  * 5番手ぶん前・直線入口1.0番手）。18頭が24mに並ぶので1番手あたり約1.3m。
  * ⭐**22mは16通り（道中4×直線4）を全部試して決めた値**——一番良い選び方70.0%／
  * 適当に選ぶ50.5%／一番悪い選び方21.0%で、目安（7〜8割／2〜3割）の内側に入る。
- * ⚠️18mだと66.0%／21.0%（上が足りない）、26mだと75.0%／17.0%（下が足りない）。 */
-const CARD_MOVE_METERS = 22;
+ * ⚠️18mだと66.0%／21.0%（上が足りない）、26mだと75.0%／17.0%（下が足りない）。
+ * ⚠️⚠️2026-11-27に22→50へ上げた（`devlog/wave13b.md`§26）。22は帯が0〜24mだったころの値で、
+ * 帯を0〜72mへ広げた後も据え置かれ、「まくっていく」が20秒で「内で待つ」より9.9mしか前に
+ * 出なかった（道中の隊列の幅の中央値55mの約1/5・実測）。50で21.7m。⭐**動く量を上げたら
+ * `MID_CARD_DRAIN`も上げる**（1.2のまま40mにすると中団で「まくっていく」が1着64%・
+ * 「内で待つ」28%の一択になった。実測）。 */
+const CARD_MOVE_METERS = 50;
 
 /** サンプル間隔(秒)。2400mなら約600ステップ。 */
 export const SIM_DT = 0.25;
@@ -109,7 +114,8 @@ export const FIELD_FACTOR_MAX = 1.05;
  * （`tools/measure-sim-times.mjs`。狙いとのずれが1%を超えたら`SIM_SPEED_EFFICIENCY`を
  * `現在値 ÷ ずれ率`に置き換える）。 */
 const SIM_START_OVERHEAD_SECONDS = 1.8;
-const SIM_SPEED_EFFICIENCY = 0.961;
+// ⚠️2026-11-27に0.961→1.0（直線の作り直しで勝ちタイムが狙いより約4%速くなったため。`devlog/wave13b.md`§26）。
+const SIM_SPEED_EFFICIENCY = 1.0;
 
 const DASH_SECONDS = 3.6; // 発走の加速区間（一番遅い馬が走行速度に届くまで）
 const STRETCH_METERS = 600; // 最終直線として扱う残り距離
@@ -129,6 +135,18 @@ const KICK_RAMP_SECONDS = 3.0; // 直線で追い出してから全開になる�
  * 24.0で**69.5%／一番悪い27.5%**。⚠️変更前（4fc07e7）は同じ測り方で59.5%／17.0%だったので、
  * この弾で目安（7〜8割／2〜3割）に近づいた（上は0.5ポイント足りない）。 */
 const STRETCH_CARD_DELAY_SPAN = 24.0;
+/** 直線の判断カードの3つの効き（2026-11-27に決めた。`devlog/wave13b.md`§26。
+ * `tools/measure-card-winrate.mjs 200`で一番良い選び方72.0%／適当に選ぶ54.4%／一番悪い選び方22.0%）。
+ * ⭐速さの上乗せと余分な脚の減りは**前へ出る側の択だけ**に掛ける。待つ側の択に速さの減点を掛けると
+ * 「もう少し待つ」が1着0〜3%の死に択になった（実測）。待つ側は脚の減りが抑えられるだけ。
+ * ⚠️`STRETCH_CARD_WAIT_SAVE`を大きくしすぎると、前にいる馬は「待つ」が一択になる
+ * （1.5で前の馬の97%の鞍で一番良い択だった。実測）。 */
+const STRETCH_CARD_SPEED = 0.14; // 追い出したときの速さに足す量（積極性の振れ1.0あたり・`vPar`に対する倍率）
+const STRETCH_CARD_DRAIN = 1.5; // 前へ出る側：脚の減りを`1 + この値 × 振れ`倍
+const STRETCH_CARD_WAIT_SAVE = 1.0; // 待つ側：脚の減りを`1 − この値 × 振れの大きさ`倍
+/** 道中の判断カードが脚の減りに掛ける量（`1 + この値 × 積極性の振れ`倍）。2026-11-27に1.2→1.8
+ * （`CARD_MOVE_METERS`を50mにしたのと組み）。 */
+const MID_CARD_DRAIN = 1.8;
 
 // 宣言脚質ごとの「先頭からの目標差(m)」の**帯**（`data/aptitudeCategories.js`のSTRATEGIESと同じ並び）。
 // ⭐2026-09-08に1点（逃げ3／先行9／差し19／追込29）から帯へ変えた（`devlog/wave05.md`§56）。
@@ -174,14 +192,56 @@ const STRETCH_ABILITY_SCALE = 0.30;
  * 0.825は実データの最遅の上り42.1秒（2016年）＝`vPar`の0.867倍を下回る値として置いた。 */
 const STRETCH_VMAX_FLOOR = 0.825;
 
-/** 直線で「脚が尽きて垂れる」境目。⚠️⚠️**0.25のまま動かさないこと**（2026-09-08に掃引して確定）。
- * ⭐ユーザーは案(a)「この境目を上げて前で行った馬を垂れさせる」を選んだが、実測すると
- * **判断カードが意味を失った**：0.25→0.70で「型に合わせる」68.3%→18.3%・「型を外す」も18.3%
- * ＝どちらを選んでも同じになる。理由は、境目を上げると`vMaxMul`の中で残りの脚の傾きが
- * 0.2→0.5になり、瞬発力(0.075)・スピード(0.045)・パワー(0.05)を飲み込むため。
- * ⭐**そして(a)は不要だった**——部品1〜5と目標差の圧縮(c)だけで、道中の位置と着順の関係は
- * ほぼ消えた（道中1〜3番手10.08着・16〜18番手10.42着）。詳細は`devlog/wave05.md`§56。 */
-const GASSED_THRESHOLD = 0.49;
+/** ⭐直線の「追い出したときの速さ」の、距離ごとの水準（レース傾向の終盤のペースに掛ける倍率）。
+ * 2026-11-27に入れた（`devlog/wave13b.md`§26）。⚠️⚠️それまでの直線の式は
+ * `巡航 + 追い出し × (vPar × 出せる速さ − 巡航)`で、出せる速さが巡航を下回っていたため
+ * **追い出すほど遅くなっていた**（5秒で「もう少し待つ」+6.4〜6.8m・「追い出す」+0.5〜1.1m）。
+ * ⭐実際のG1のラップ（`design/jra-race-order-and-pace.md`§2）：2000〜2500mは最後の600mが
+ * 中盤より速い／1600mはほぼ同じ／1200mは全体の平均より遅い。この表はその向きに合わせて置いた値。 */
+const STRETCH_KICK_BY_DISTANCE = Object.freeze([
+  [1000, 0.96], [1200, 0.97], [1600, 0.99], [2000, 1.018], [2400, 1.045], [3600, 1.045],
+]);
+/** 直線で残りの脚が出せる速さに効く傾き（直線入口の出走馬の脚の中央値との差に掛ける）。 */
+const STRETCH_ENERGY_SLOPE = 0.08;
+/** 残りの脚が「直線入口の中央値 × この値」を切ると垂れ始める。
+ * ⚠️2026-11-27まではこれが絶対値の0.49（`GASSED_THRESHOLD`）だった。直線入口の脚の中央値は
+ * 1200mで0.79・2400mで0.28（実測）なので、絶対値だと2400mは大半の馬が直線で垂れ、1200mは1頭も垂れなかった。
+ * ⭐0.7は夢のダービーの勝ち馬の脚質（先行・差し）の割合が直す前と同じになる値（0.5だと差しが150本中10勝）。
+ * ⚠️境目を上げすぎると判断カードの型の差が消える（`devlog/wave05.md`§56の0.70の実測）。 */
+const STRETCH_GASSED_FRAC = 0.7;
+/** 垂れ始めてからの落ち方の傾き。 */
+const STRETCH_GASSED_SLOPE = 0.55;
+/** 追い出す前（待っている間）の速さは、追い出したときの速さよりこれだけ低い（最低限の差）。
+ * ⭐これがあるので、1200mのように直線で全馬が減速するレースでも「追い出す＝減速が小さい」になる。 */
+const STRETCH_HOLD_GAP = 0.02;
+/** 追い出している間の脚の減り（`1 + この値 × 追い出しの強さ`倍）。 */
+const KICK_DRAIN = 0.5;
+
+/** その距離の直線の水準（`STRETCH_KICK_BY_DISTANCE`を線形につなぐ）。 */
+export function stretchKickLevelAt(distance) {
+  const a = STRETCH_KICK_BY_DISTANCE;
+  if (distance <= a[0][0]) return a[0][1];
+  for (let i = 1; i < a.length; i += 1) {
+    if (distance <= a[i][0]) {
+      const [d0, v0] = a[i - 1];
+      const [d1, v1] = a[i];
+      return v0 + (v1 - v0) * ((distance - d0) / (d1 - d0));
+    }
+  }
+  return a[a.length - 1][1];
+}
+
+/** 直線の水準が1.0でないぶんだけ、レース全体の平均の速さが変わる。その補正（調和平均）。
+ * ⭐これを`vPar`に掛けておくと、直線の水準を動かしても勝ちタイムが狙いからずれない。 */
+function stretchTimeCorrection(distance, kickLevel) {
+  const s = Math.min(STRETCH_METERS, distance);
+  return distance / (distance - s + s / kickLevel);
+}
+
+/** 直線で出せる速さのうち、能力の部分（瞬発力・スピード・勝負根性・パワー）。 */
+function stretchAbilityOf(ab) {
+  return STRETCH_ABILITY_SCALE * (0.075 * ab.sharpness + 0.045 * ab.speed + 0.03 * ab.grit + 0.05 * ab.power);
+}
 // 直線で追い出すまでの待ち時間(秒)。逃げほど早く、追込ほど遅い。
 const KICK_DELAY_BY_STRATEGY = Object.freeze({ nige: 0.5, senko: 1.2, sashi: 2.0, oikomi: 2.8 });
 
@@ -323,8 +383,12 @@ export function runRaceSim(input) {
   // 今は「その馬場・距離の基準タイム（史実）」を「出走馬の強さ」で割ったものを狙う。
   const fieldFactor = input.fieldFactor ?? fieldSpeedFactor(entries, surface, distance);
   const targetSeconds = parSecondsFor(surface, distance) / fieldFactor;
+  const kickLevel = stretchKickLevelAt(distance);
   const vPar =
-    distance / (SIM_SPEED_EFFICIENCY * Math.max(targetSeconds - SIM_START_OVERHEAD_SECONDS, 1));
+    distance /
+    (SIM_SPEED_EFFICIENCY *
+      stretchTimeCorrection(distance, kickLevel) *
+      Math.max(targetSeconds - SIM_START_OVERHEAD_SECONDS, 1));
   // ⭐ステップ数はこのレースの狙いのタイムから決める（距離が短いほど配列が小さくて済む）。
   // 打ち切りは`MAX_SIM_SECONDS`。1.6倍の余裕は、全馬が距離不足で垂れても届く幅として置いた。
   const steps = Math.ceil(Math.min(MAX_SIM_SECONDS, targetSeconds * 1.6) / dtRaw) + 1;
@@ -432,15 +496,35 @@ export function runRaceSim(input) {
   const moveStartT = new Float64Array(n * MAX_MOVES).fill(-1);
   let dRef = 0;
   let lastStep = steps - 1;
+  // 直線の基準になる「残りの脚」＝先頭が直線に入った瞬間の出走馬の中央値。
+  // ⭐脚の絶対量は距離で大きく違う（直線入口の中央値：1200mで0.79・2400mで0.28。実測）ので、
+  // 直線の伸びは「周りの馬より脚が残っているか」で決める。
+  let energyRef = null;
+  // 直線（残り600m）のペースの水準＝レース傾向の終盤の平均 × 距離ごとの水準。
+  const uStretch = dStretch / distance;
+  let stretchPace = 0;
+  for (let k = 0; k < 8; k += 1) {
+    stretchPace += paceMultiplierAt(trend, uStretch + ((1 - uStretch) * (k + 0.5)) / 8) / 8;
+  }
+  stretchPace *= kickLevel;
+  const abilityRef = traits.reduce((sum, tr) => sum + stretchAbilityOf(tr.ab), 0) / Math.max(1, n);
 
   for (let s = 0; s < steps; s += 1) {
     const t = s * dtRaw;
     let leaderD = -Infinity;
+    let allFinished = true;
     for (let i = 0; i < n; i += 1) {
       dist[i * steps + s] = d[i];
       if (d[i] > leaderD) leaderD = d[i];
+      if (finishTime[i] == null) allFinished = false;
     }
-    if (leaderD >= distance + 60) {
+    if (energyRef == null && leaderD >= dStretch) {
+      const sorted = Array.from(energy).sort((a, b) => a - b);
+      energyRef = sorted[Math.floor(n / 2)];
+    }
+    // ⚠️全馬がゴールするまで回す（先頭が60m先へ行った時点で切ると、それより後ろの馬の
+    // ゴールタイムが打ち切りの値になる）。
+    if (leaderD >= distance + 60 && allFinished) {
       lastStep = s;
       for (let k = s + 1; k < steps; k += 1) {
         for (let i = 0; i < n; i += 1) dist[i * steps + k] = dist[i * steps + s];
@@ -451,7 +535,8 @@ export function runRaceSim(input) {
     const uRef = clamp(dRef / distance, 0, 1);
     const paceMul = paceMultiplierAt(trend, uRef);
     const vField = vPar * paceMul;
-    const vCruise = vPar * paceMultiplierAt(trend, 0.78);
+    // 直線に入るときの巡航の速さ＝直線入口の共通ペース（追い出す前はこの速さで運ぶ）。
+    const vCruise = vPar * paceMultiplierAt(trend, uStretch);
 
     for (let i = 0; i < n; i += 1) {
       const tr = traits[i];
@@ -474,29 +559,35 @@ export function runRaceSim(input) {
         const delay = aggression != null ? 3.0 - STRETCH_CARD_DELAY_SPAN * swing : tr.kickDelay;
         const kickT = stretchEnterT[i] + Math.max(0, delay);
         const effort = clamp((t - kickT) / KICK_RAMP_SECONDS, 0, 1);
-        // ⭐直線で出せる速度＝基準＋瞬発力＋スピード＋**残りの脚**＋勝負根性。
-        // 脚の係数が一番大きい＝道中に溜まった消耗の差が、ここで着順に変わる。
-        // ⚠️パワーは坂で効く（`design/winning-post-race-model.md`「重馬場と坂」）。
+        // ⭐追い出したときの速さ＝直線の水準＋能力（出走馬の平均との差）＋**残りの脚**（直線入口の
+        // 中央値との差）−垂れ。⚠️パワーは坂で効く（`design/winning-post-race-model.md`「重馬場と坂」）。
         // 東京の直線には高低差2mの坂がある。これを入れないとパワーは発走の加速にしか
         // 使われず、1段動かしても平均着順が0.000しか動かない「飾りの軸」になる（実測）。
         const e = clamp(energy[i], 0, 1);
-        // ⭐脚が0.25を切ると落ち方が急になる（垂れる）。⚠️ここが線形だと「早く仕掛ける」の
+        const ref = energyRef ?? e;
+        // ⭐脚が直線入口の中央値の7割を切ると落ち方が急になる（垂れる）。⚠️ここが線形だと「早く仕掛ける」の
         // 損得が全ての馬で同じになり、直線の択が馬の状態と無関係な一択に潰れる（実測）。
-        const gassed = Math.max(0, GASSED_THRESHOLD - e);
+        const gassed = Math.max(0, STRETCH_GASSED_FRAC * ref - e);
         // ⚠️適正距離を下回るレースでは、道中ついていけないだけでなく直線の伸びそのものが
         // 足りない（`sim/stamina.js`の`shortfallOf`・`devlog/wave04.md`§40-2）。
-        const vMaxMul =
-          0.805 +
-          STRETCH_ABILITY_SCALE *
-            (0.075 * tr.ab.sharpness + 0.045 * tr.ab.speed + 0.03 * tr.ab.grit + 0.05 * tr.ab.power) +
-          0.10 * e -
-          0.55 * gassed +
-          0.02 * swing -
+        const kickMul =
+          stretchPace +
+          stretchAbilityOf(tr.ab) -
+          abilityRef +
+          STRETCH_ENERGY_SLOPE * (e - ref) -
+          STRETCH_GASSED_SLOPE * gassed +
+          STRETCH_CARD_SPEED * Math.max(0, swing) -
           SHORT_VMAX_LOSS * tr.shortfall;
-        vWant = vCruise + effort * (vPar * Math.max(STRETCH_VMAX_FLOOR, vMaxMul) - vCruise);
-        // ⚠️早く仕掛けるほど脚の減りが跳ね上がる（1.2倍の係数）。ここを小さくすると
-        // 「早く仕掛ける」が全部の位置で最善になり、直線の択が選択でなくなる（実測）。
-        if (aggression != null) effortMul = 1 + 0.7 * swing;
+        const vKick = vPar * Math.max(STRETCH_VMAX_FLOOR, kickMul);
+        // ⭐追い出す前は巡航の速さで運ぶ。ただし追い出したときの速さより必ず遅い
+        // （＝追い出すほど速い。1200mのように全馬が減速する直線では「減速が小さい」）。
+        const vHold = Math.min(vCruise, vKick * (1 - STRETCH_HOLD_GAP));
+        vWant = vHold + effort * (vKick - vHold);
+        // ⭐追い出すと脚が余分に減る。⚠️早く仕掛けるほど脚の減りが跳ね上がる（`STRETCH_CARD_DRAIN`）。
+        // ここを小さくすると「早く仕掛ける」が全部の位置で最善になり、直線の択が選択でなくなる（実測）。
+        effortMul = (1 + KICK_DRAIN * effort) * (aggression != null
+            ? 1 + STRETCH_CARD_DRAIN * Math.max(0, swing) + STRETCH_CARD_WAIT_SAVE * Math.min(0, swing)
+            : 1);
       } else if (t < DASH_SECONDS) {
         vWant = vField * clamp(t / tr.accelSeconds, 0, 1);
       } else {
@@ -528,7 +619,7 @@ export function runRaceSim(input) {
         // 画面上で1頭も動かなくなる**（実測：7頭が50秒間ぴったり0.00m差）。前に出る余地を残す。
         const err = dRef - Math.max(-8, targetGap) - d[i];
         vWant = clamp(vField + tr.posGain * err, vField * 0.86, vField * 1.13);
-        if (isSelf) effortMul = 1 + 1.2 * swing;
+        if (isSelf) effortMul = 1 + MID_CARD_DRAIN * swing;
       }
 
       // 道中の脚切れは「隊列から少しずつ落ちる」形にする（直線の垂れはvMaxMulが担う）。
