@@ -21,6 +21,7 @@ import { recordRide } from "./mainMount.js";
 import { attemptReveal } from "./disclosure.js";
 import { computeReputation } from "./reputation.js";
 import { injuryNotification, bigTrustChangeNotification, isBigTrustChange } from "./notifications.js";
+import { raceDayForm, horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 function gradedTierForRide(mount, year) {
   const race = gradedRaceById(year, mount.raceId);
@@ -69,6 +70,12 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     distance: mount.distance ?? null,
     classId: mount.classId ?? null,
     grade: mount.grade ?? null,
+    // ⭐⑭：性・馬齢・毛色と、当日の馬体重・前走比（`domain/horseForm.js`）。前走比は初出走・前走の体重が
+    // 記録に無いときnull。⚠️当日の体重はレースの前に量る値なので、落馬した鞍にも付ける。
+    gender: horse.gender ?? null,
+    age: horse.bornYear != null ? player.currentYear - horse.bornYear : null,
+    coat: horse.coat ?? null,
+    ...bodyKgFields(raceDayForm(horse, saveSeed, week, player.currentYear)),
   };
 
   // 落馬を先に判定する（落馬すればそのレースは走らない）。
@@ -168,6 +175,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     surface: mount.surface ?? null,
     distance: mount.distance ?? null,
     condition,
+    ...(result.selfDay ? bodyKgFields(result.selfDay) : {}),
   };
   let nextRecord;
   let prizeGain; // この鞍でその馬が稼いだ獲得賞金（円・`ride.prize`＝最多獲得賞金騎手の材料）
@@ -193,7 +201,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     prizeGain = nextRecord.earnings - horse.record.earnings;
   }
   nextHorse = {
-    ...nextHorse,
+    ...(result.selfDay ? horseAfterRace(nextHorse, result.selfDay) : nextHorse),
     plan: wasTarget ? null : horse.plan,
     // 通算成績：`domain/npcWeeklyRace.js`のNPC馬と同じ形で積む（2026-09-15までは
     // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
@@ -214,7 +222,14 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     income,
     prize: prizeGain, // その馬が稼いだ獲得賞金（円）。落馬した鞍は0
     // 重賞のとき：1着の馬（プレイヤーの馬を含む）のid。負けた重賞の勝ち馬を記録するため
-    ...(mount.raceName ? { winnerHorseId: result.finisherIds?.[0] ?? null, tier: gradedTierForRide(mount, player.currentYear) } : {}),
+    ...(mount.raceName
+      ? {
+          winnerHorseId: result.finisherIds?.[0] ?? null,
+          tier: gradedTierForRide(mount, player.currentYear),
+          // 勝ち馬の当日の状態（負けた重賞の勝ち馬の記録＝`yearGradedLog.js`の`applyLostPlayerRaceWinners`が使う）
+          winnerDay: result.dayById?.get(result.finisherIds?.[0]) ?? null,
+        }
+      : {}),
   };
 
   return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result, ride };

@@ -53,11 +53,8 @@ import { JockeyProfile } from "./JockeyProfile.jsx";
 import { Banzuke } from "./Banzuke.jsx";
 import "./WeekScreen.css";
 
-// 調教後の体重を出す関数（`domain/horseForm.js`の`trainingWeightFor(horse, year, week, seed)`）。
-// ⚠️まだ無いのでnull＝「調教後」の列ごと出さない。関数ができたら、下の1行を
-//   import { trainingWeightFor } from "../domain/horseForm.js";
-// に置き換えるだけで列が出る（`view/horseRowView.js`の`trainingWeightView`が受ける）。
-const trainingWeightFor = null;
+// 調教後の体重（`domain/horseForm.js`の`trainingWeightFor`。`view/horseRowView.js`の`trainingWeightView`が受ける）。
+import { trainingWeightFor } from "../domain/horseForm.js";
 const HAS_TRAINING_WEIGHT = typeof trainingWeightFor === "function";
 
 const DAY_LABEL = Object.freeze({ [DAY.SAT]: "土曜", [DAY.SUN]: "日曜" });

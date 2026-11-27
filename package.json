@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tools/test-horse-looks.mjs"
+    "test": "node --test tools/test-horse-looks.mjs tools/test-horse-form.mjs"
   },
   "dependencies": {
     "react": "18.2.0",

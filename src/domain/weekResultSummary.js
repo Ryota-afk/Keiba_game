@@ -108,6 +108,14 @@ export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster,
     popularity: ride.popularity,
     won: ride.won,
     income: ride.income,
+    // ⭐⑭（`domain/horseForm.js`）：性（"colt"|"filly"|"gelding"）・馬齢・毛色のid・当日の馬体重（kg）と前走比（kg）。
+    // 古い記録には無い（null）。⚠️前走比は画面との取り決めで、nullは初出走だけ・前走の体重が分からなければ
+    // 欄ごと無い（undefined）——`?? null`で潰さない。
+    gender: ride.gender ?? null,
+    age: ride.age ?? null,
+    coat: ride.coat ?? null,
+    bodyKg: ride.bodyKg ?? null,
+    ...(ride.bodyKgDiff !== undefined ? { bodyKgDiff: ride.bodyKgDiff } : {}),
   }));
 
   const mainMounts = [];

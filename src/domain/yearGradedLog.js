@@ -11,6 +11,7 @@ import { weekOfYear } from "../data/calendar.js";
 import { shutokuForGradedRace } from "../data/shutokuPrize.js";
 import { appendRaceResultWithEarnings } from "./horse.js";
 import { withReclassedClass } from "./horseClass.js";
+import { horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 /**
  * 1行ぶん：1つの重賞の結果。
@@ -43,8 +44,10 @@ export function applyLostPlayerRaceWinners(horses, rides, week, year, jockeyIdOf
     if (!race || !horse) continue;
     const age = horse.bornYear != null ? year - horse.bornYear : 4;
     const jockeyId = jockeyIdOf(horse);
+    // ⭐⑭：勝ち馬の当日の体重と調子の進み（`weekResults.js`が`ride.winnerDay`に添えた値）
+    const day = ride.winnerDay ?? null;
     let updated = {
-      ...horse,
+      ...(day ? horseAfterRace(horse, day) : horse),
       record: appendRaceResultWithEarnings(
         horse.record,
         {
@@ -58,6 +61,7 @@ export function applyLostPlayerRaceWinners(horses, rides, week, year, jockeyIdOf
           surface: race.surface,
           distance: race.distance,
           ...(jockeyId ? { jockeyId } : {}),
+          ...(day ? bodyKgFields(day) : {}),
         },
         race.prize1 ?? 0,
         true,

@@ -17,6 +17,7 @@ import { deriveFavoredStrategy } from "./strategy.js";
 import { isSidelined } from "./fall.js";
 import { computePopularity } from "./popularity.js";
 import { isAgeSexEligible } from "./horse.js";
+import { raceDayFormsFor } from "./horseForm.js";
 
 /** 馬の強さを1つの数値にまとめる（仮の指標。⑦の消耗式に置き換える）。 */
 export function horseStrengthScore(horse, declaredStrategy) {
@@ -115,7 +116,7 @@ export function assemblePlayerMountField(saveSeed, week, mount, horse, allHorses
  *     年齢を数えるのに使う（`devlog/wave11.md`§12）。渡さないと年齢の条件を見ない
  *     （`horse.js`の`isAgeSexEligible`の仕様どおり）
  * @returns {{ position: number, fieldSize: number, won: boolean, field: object[],
- *             popularity: number, finisherIds: string[] }} `finisherIds`＝着順に並べた出走馬のid
+ *             popularity: number, finisherIds: string[], selfDay: object|null, dayById: Map }} `finisherIds`＝着順に並べた出走馬のid
  *   （1着から。年末の画面が、プレイヤーが乗って負けた重賞の勝ち馬を記録するのに使う）
  */
 export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, options = {}) {
@@ -137,6 +138,8 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, opti
   );
   const popularity = popularityByHorseId.get(horse.id);
 
+  // ⭐調子と当日の馬体重（`domain/horseForm.js`・⑭ step2）。暦年が無い呼び出しでは掛けない（倍率1）。
+  const dayById = options.year != null ? raceDayFormsFor(field, saveSeed, week, options.year) : new Map();
   const entries = field.map((h, i) => ({
     num: i + 1,
     horse: h,
@@ -144,6 +147,7 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, opti
     jockey: getJockeyForHorse(h),
     // 疲労はプレイヤーの鞍にだけ乗る（NPC騎手の疲労は持っていない）。
     jockeyPenalty: h.id === horse.id ? options.jockeyPenalty ?? 1 : 1,
+    formFactor: dayById.get(h.id)?.factor ?? 1,
   }));
   const plan = buildPlan(entries, (e) =>
     e.isSelf && mount.declaredStrategy ? mount.declaredStrategy : deriveFavoredStrategy(e.horse)
@@ -162,5 +166,7 @@ export function runPlaceholderRace(saveSeed, week, mount, horse, allHorses, opti
   const selfEntryIndex = entries.findIndex((e) => e.isSelf);
   const position = sim.order.indexOf(selfEntryIndex) + 1;
   const finisherIds = sim.order.map((i) => entries[i].horse.id);
-  return { position, fieldSize, won: position === 1, field, popularity, finisherIds };
+  // `selfDay`＝プレイヤーの馬の当日の状態（体重・調子。`domain/horseForm.js`の`raceDayForm`）。
+  // `dayById`＝出走馬全頭の同じ値（負けた重賞の勝ち馬の記録に使う）。暦年が無いときは無し。
+  return { position, fieldSize, won: position === 1, field, popularity, finisherIds, selfDay: dayById.get(horse.id) ?? null, dayById };
 }

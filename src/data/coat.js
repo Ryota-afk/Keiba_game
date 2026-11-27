@@ -85,8 +85,8 @@ export const SEASONAL_PEAK_TROUGH_WEEK = Object.freeze({
 // 馬場の傾き：ダート寄りの馬は+6kg・芝寄りは−6kg（2024年の芝464.9kg・ダート477.1kgの差12kgの半分）。
 export const SURFACE_KG_OFFSET = 6;
 
-// ベスト体重の個体差（frameKg）の標準偏差。⚠️仮：`tools/measure-horse-looks.mjs`の実測で、
-// 同じ性×年齢の中のbestKgの標準偏差が2024年（25〜29kg）に合う値に置く。step2（調子・当日の揺れ）が
-// さらに足すので、そこで全体の標準偏差が2024年に合うよう再調整すること。
-export const FRAME_KG_SD = 27;
+// ベスト体重の個体差（frameKg）の標準偏差。⭐⑭ step2で27→26に下げた：当日の体重（ベスト体重＋太め−細さ＋
+// その日の揺れ・`domain/horseForm.js`）の同じ性×年齢の中の標準偏差が2024年（24.5〜29.0kg）に合う値
+// （52週×2本の実測25.1〜29.4kg・`devlog/wave13b.md`§28）。
+export const FRAME_KG_SD = 26;
 export const FRAME_KG_LIMIT_SD = 3; // 正規乱数を±3SDで切る

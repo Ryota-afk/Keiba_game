@@ -238,6 +238,12 @@ function stretchTimeCorrection(distance, kickLevel) {
   return distance / (distance - s + s / kickLevel);
 }
 
+/** 調子の倍率を3つの能力（スピード・瞬発力・勝負根性）に掛ける。1またはundefinedならそのまま返す。 */
+function withFormFactor(ab, factor) {
+  if (factor == null || factor === 1) return ab;
+  return { ...ab, speed: ab.speed * factor, sharpness: ab.sharpness * factor, grit: ab.grit * factor };
+}
+
 /** 直線で出せる速さのうち、能力の部分（瞬発力・スピード・勝負根性・パワー）。 */
 function stretchAbilityOf(ab) {
   return STRETCH_ABILITY_SCALE * (0.075 * ab.sharpness + 0.045 * ab.speed + 0.03 * ab.grit + 0.05 * ab.power);
@@ -400,7 +406,10 @@ export function runRaceSim(input) {
   // ===== 各馬の固定パラメータ =====
   const traits = entries.map((e, i) => {
     const rand01 = streamRandom(seed, RNG_STREAMS.SIM, raceKey, "horse", e.num);
-    const ab = normalizedAbilities(e.horse);
+    // ⭐調子と馬体重の倍率（`domain/horseForm.js`の`formFactorOf`・⑭ step2）は、スピード・瞬発力・
+    // 勝負根性の3つだけに掛ける（`arch/horse.md`「出来」）。渡されない（夢のダービー・古い呼び出し）なら1。
+    // ⚠️出走馬の強さ（`fieldLevelOf`・狙いのタイム）には掛けない——調子でレース全体のタイムは動かさない。
+    const ab = withFormFactor(normalizedAbilities(e.horse), e.formFactor);
     const staminaApt = staminaAptitude(e.horse, distance);
     const shortfall = shortfallOf(e.horse, distance);
     const adapt = trendAdaptationOf(e.horse, trend);

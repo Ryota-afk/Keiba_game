@@ -58,6 +58,8 @@ export const RNG_STREAMS = Object.freeze({
   // ⭐NPC騎手の騎乗の割り当て（`domain/jockeyBooking.js`。週×日×レース×馬idで固定）。
   // オープン以上の馬の主戦（`domain/jockeyAssignment.js`）も、馬idをキーにこの用途を使う。
   JOCKEY_BOOKING: "jockeyBooking",
+  // ⭐馬の調子と当日の馬体重（`domain/horseForm.js`・⑭ step2）。週×馬idで固定。既存の列の消費を変えないための別列。
+  FORM: "form",
 });
 
 /**

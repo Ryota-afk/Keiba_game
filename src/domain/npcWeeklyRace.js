@@ -27,6 +27,7 @@ import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
 import { rollFractureRetirement } from "./retirement.js";
 import { rollActualCondition } from "./weather.js";
 import { computePopularity } from "./popularity.js";
+import { raceDayFormsFor, horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 // 登録が集まらない週はレースが成立しない（`FIELD_SIZE_BUCKETS`の最小5頭に合わせる）。
 const MIN_FIELD_SIZE = 5;
@@ -164,7 +165,14 @@ export function runNpcWeeklyRaces(
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
     // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
-    const simEntries = field.map((h, i) => ({ num: i + 1, horse: h, jockey: getJockey?.(h) }));
+    // ⭐調子と当日の馬体重（`domain/horseForm.js`）：倍率をsimの入口で渡し、体重を戦績に残す。
+    const dayById = raceDayFormsFor(field, saveSeed, week, year);
+    const simEntries = field.map((h, i) => ({
+      num: i + 1,
+      horse: h,
+      jockey: getJockey?.(h),
+      formFactor: dayById.get(h.id).factor,
+    }));
     const plan = buildPlan(simEntries, (e) => deriveFavoredStrategy(e.horse), 1);
     const sim = runRaceSim({
       seed: saveSeed,
@@ -182,9 +190,10 @@ export function runNpcWeeklyRaces(
       // 時期から決め直す（`domain/horseClass.js`）。⚠️オープン特別は`race.classId`が`open`。
       const age = h.bornYear != null ? year - h.bornYear : 4;
       const wasTarget = h.plan?.targetRaceId === race.raceId;
+      const day = dayById.get(h.id);
 
       let updated = {
-        ...h,
+        ...horseAfterRace(h, day),
         record: appendRaceResult(
           h.record,
           h.classId,
@@ -198,6 +207,7 @@ export function runNpcWeeklyRaces(
             surface: race.surface,
             distance: race.distance,
             condition,
+            ...bodyKgFields(day),
           },
           null,
           shutokuForGeneralRace(race.classId, age, position)

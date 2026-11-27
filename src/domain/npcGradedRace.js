@@ -30,6 +30,7 @@ import { rollFractureRetirement } from "./retirement.js";
 import { PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
 import { rollActualCondition } from "./weather.js";
 import { computePopularity } from "./popularity.js";
+import { raceDayFormsFor, horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 // 出走頭数の上限（JRAの実際の上限。史実の1レースごとの実頭数はまだ取れていないため、
 // 「優先出走権→収得賞金の多い順で上限まで埋める」という仮の形にする）。
@@ -208,7 +209,14 @@ export function runNpcGradedRaces(
     const condition = rollActualCondition(saveSeed, week, race.courseId);
 
     // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
-    const simEntries = entries.map((h, i) => ({ num: i + 1, horse: h, jockey: getJockey?.(h) }));
+    // ⭐調子と当日の馬体重（`domain/horseForm.js`）：倍率をsimの入口で渡し、体重を戦績に残す。
+    const dayById = raceDayFormsFor(entries, saveSeed, week, year);
+    const simEntries = entries.map((h, i) => ({
+      num: i + 1,
+      horse: h,
+      jockey: getJockey?.(h),
+      formFactor: dayById.get(h.id).factor,
+    }));
     const plan = buildPlan(simEntries, (e) => deriveFavoredStrategy(e.horse), 1);
     const sim = runRaceSim({
       seed: saveSeed,
@@ -227,9 +235,10 @@ export function runNpcGradedRaces(
       const earningsGain = (race.prize1 ?? 0) * placePrizeShare(position);
       const age = h.bornYear != null ? year - h.bornYear : 4;
       const wasTarget = h.plan?.targetRaceId === race.id;
+      const day = dayById.get(h.id);
 
       let updated = {
-        ...h,
+        ...horseAfterRace(h, day),
         record: appendRaceResultWithEarnings(
           h.record,
           {
@@ -243,6 +252,7 @@ export function runNpcGradedRaces(
             surface: race.surface,
             distance: race.distance,
             condition,
+            ...bodyKgFields(day),
           },
           earningsGain,
           true,
