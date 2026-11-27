@@ -725,10 +725,14 @@ export function runRaceSim(input) {
   const last4F = winnerTime - (tAt(distance - 800) ?? winnerTime);
   const split1000 = tAt(1000) ?? 0;
 
-  // 着差(m)＝勝ち馬がゴールした瞬間の、勝ち馬との距離差（実際の競馬の定義そのもの）。
-  const marginMeters = entries.map((_, i) =>
-    Math.max(0, distance - distanceAtStepTime(i, winnerTime))
-  );
+  // 着差(m)＝**すぐ前に入線した馬**がゴールした瞬間の、その馬との距離差。1着は0。
+  // ⭐JRA「競馬用語辞典」の「着差」：「先に入線した馬の鼻先（鼻端）と次に入線した馬の鼻先（鼻端）の
+  // 間隔のこと」（2026-11-27に確認）。⚠️以前は全馬を「1着がゴールした瞬間の1着との差」で測っていた。
+  const marginMeters = new Array(n).fill(0);
+  for (let k = 1; k < order.length; k += 1) {
+    const i = order[k];
+    marginMeters[i] = Math.max(0, distance - distanceAtStepTime(i, scaledFinish[order[k - 1]]));
+  }
 
   return {
     dt,

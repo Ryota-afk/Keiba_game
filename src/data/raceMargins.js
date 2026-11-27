@@ -2,12 +2,13 @@
 // dream-derby-mock2.html（合意済みモック）のMARGIN_POOL/MARGIN_METERSをそのまま転記。
 
 export const MARGIN_POOL = [
-  "クビ", "アタマ", "1/2", "3/4", "1", "1.1/4", "1.1/2", "2", "2.1/2",
+  "ハナ", "クビ", "アタマ", "1/2", "3/4", "1", "1.1/4", "1.1/2", "2", "2.1/2",
   "3", "3.1/2", "4", "5", "6", "8", "10", "大差",
 ];
 
+// ⚠️ハナの0.1mは根拠なし（JRAの用語辞典にメートルの記述が無い。2026-11-27に置いた）。
 export const MARGIN_METERS = {
-  "クビ": 0.6, "アタマ": 0.3, "1/2": 1.2, "3/4": 1.8, "1": 2.4, "1.1/4": 3.0,
+  "ハナ": 0.1, "クビ": 0.6, "アタマ": 0.3, "1/2": 1.2, "3/4": 1.8, "1": 2.4, "1.1/4": 3.0,
   "1.1/2": 3.6, "2": 4.8, "2.1/2": 6.0, "3": 7.2, "3.1/2": 8.4, "4": 9.6,
   "5": 12.0, "6": 14.4, "8": 19.2, "10": 24.0, "大差": 30,
 };
@@ -17,8 +18,12 @@ const LABELS_BY_METERS = Object.keys(MARGIN_METERS).sort(
   (a, b) => MARGIN_METERS[a] - MARGIN_METERS[b]
 );
 
+// ⭐JRA「競馬用語辞典」の「着差」：「10馬身を超える場合は「大差」と表示する」。
+const TAISA_OVER_METERS = MARGIN_METERS["10"];
+
 export function marginLabelFor(meters) {
   if (meters <= 0) return "-";
+  if (meters > TAISA_OVER_METERS) return "大差";
   let closest = LABELS_BY_METERS[0];
   let closestDiff = Math.abs(MARGIN_METERS[closest] - meters);
   for (const label of LABELS_BY_METERS) {
