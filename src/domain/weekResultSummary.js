@@ -7,7 +7,7 @@
 // 持たないため）。`view/`側は`domain/`をimportしない一方通行を守ったままなので、
 // `domain → view`のこの1本の参照はサイクルにならない。
 
-import { formatWeekLabel } from "../view/weekOffersView.js";
+import { formatWeekLabel, raceHeadline, raceHeadlineText } from "../view/weekOffersView.js";
 import { findCourse } from "../data/courses.js";
 import { classDisplayName } from "../data/classes.js";
 import { gradedRacesForYear } from "../data/gradedRacesByYear.js";
@@ -88,10 +88,17 @@ export function buildWeekResultSummary({ beforePlayer, afterPlayer, afterRoster,
   const rideSummaries = rides.map((ride) => ({
     horseId: ride.horseId,
     horseName: ride.horseName,
+    day: ride.day ?? null, // "sat"/"sun"（古い記録には無い）
+    courseId: ride.courseId,
     courseName: findCourse(ride.courseId)?.name ?? ride.courseId,
+    raceId: ride.raceId ?? null,
     surface: ride.surface,
     distance: ride.distance,
     className: ride.raceName ?? classDisplayName(ride.classId),
+    // 週の画面と同じ見出し（`view/weekOffersView.js`）：`headline`＝芝ダ字・距離・格の部品、
+    // `headlineText`＝「ダート1700m 未勝利」の1行。
+    headline: raceHeadline(ride),
+    headlineText: raceHeadlineText(ride),
     fell: ride.fell,
     position: ride.position,
     fieldSize: ride.fieldSize,

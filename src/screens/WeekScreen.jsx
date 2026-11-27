@@ -13,6 +13,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
 import { writeSave } from "../state/saveGame.js";
+import { prepareWeek } from "../domain/weekPrepare.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
 import { isMainMount } from "../domain/mainMount.js";
 import { isSidelined } from "../domain/fall.js";
@@ -121,13 +122,16 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const sideOpen = sideTab != null; // 依頼一覧の代わりに別のタブが開いているか
   const rootRef = useRef(null);
 
-  const horsesById = useMemo(() => new Map(roster.horses.map((h) => [h.id, h])), [roster]);
+  // ⭐週の初めの処理（未勝利のまま3歳の9月を迎えた馬が地方へ移る等）を済ませた名簿。
+  // `advanceWeek`も同じ処理をしてから依頼を作るので、画面に出た依頼がそのまま走る。
+  const weekRoster = useMemo(() => prepareWeek(roster, player).roster, [roster, player]);
+  const horsesById = useMemo(() => new Map(weekRoster.horses.map((h) => [h.id, h])), [weekRoster]);
   const stablesById = useMemo(() => new Map(roster.stables.map((s) => [s.id, s])), [roster]);
 
   const week = player.currentWeek;
   const requests = useMemo(
-    () => generateWeeklyRequests(saveSeed, week, roster, player),
-    [saveSeed, week, roster, player]
+    () => generateWeeklyRequests(saveSeed, week, weekRoster, player),
+    [saveSeed, week, weekRoster, player]
   );
   const byDay = useMemo(() => groupRequestsByDay(requests), [requests]);
   const requestByHorseId = useMemo(() => new Map(requests.map((r) => [r.horseId, r])), [requests]);
@@ -275,7 +279,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         week={week}
         currentYear={player.currentYear}
         player={player}
-        roster={roster}
+        roster={weekRoster}
         horse={entryHorse}
         mount={entryListRequest}
         onClose={() => setEntryListRequest(null)}

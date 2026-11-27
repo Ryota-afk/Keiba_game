@@ -62,6 +62,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     horseName: horse.name,
     raceId: mount.raceId ?? null,
     raceName: mount.raceName ?? null,
+    day: mount.day ?? null,
     courseId: mount.courseId ?? null,
     surface: mount.surface ?? null,
     distance: mount.distance ?? null,

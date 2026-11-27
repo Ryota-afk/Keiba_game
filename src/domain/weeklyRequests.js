@@ -78,7 +78,6 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const year = player.currentYear;
   const card = buildWeeklyCard(saveSeed, week, year);
   const dueHorses = horsesDueThisWeek(roster.horses, week);
-  const rand01 = streamRandom(saveSeed, RNG_STREAMS.REQUESTS, week);
 
   const candidates = [];
   for (const horse of dueHorses) {
@@ -88,7 +87,7 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
     const stable = stableById.get(horse.stableId);
     const trust = trustFor(player.trainerTrust, horse.stableId);
     const quality =
-      requestQuality(stable, trust, player.jockey.rank) * (0.5 + rand01()); // 少しの揺らぎ
+      requestQuality(stable, trust, player.jockey.rank) * (0.5 + streamRandom(saveSeed, RNG_STREAMS.REQUESTS, week, horse.id)()); // 少しの揺らぎ（⭐第13弾：馬ごとに固定。他の馬が名簿から抜けても揺らぎが変わらない）
     candidates.push({
       horseId: horse.id,
       stableId: horse.stableId,

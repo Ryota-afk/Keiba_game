@@ -99,6 +99,34 @@ export function groupRequestsByDay(requests) {
 }
 
 /**
+ * 週の画面に並ぶ順（日→競馬場→レースの表→行）に、馬のidへ0から番号を振る。
+ * 結果画面が週の画面と同じ順に鞍を並べるために使う（`domain/weekLoop.js`の`rides`）。
+ * @param {object[]} requests - `generateWeeklyRequests`の戻り値
+ * @returns {Map<string, number>} horseId → 表示順
+ */
+export function requestDisplayOrder(requests) {
+  const grouped = groupRequestsByDay(requests);
+  const order = new Map();
+  for (const day of [DAY.SAT, DAY.SUN]) {
+    for (const course of grouped[day]) {
+      for (const race of course.races) {
+        for (const request of race.requests) order.set(request.horseId, order.size);
+      }
+    }
+  }
+  return order;
+}
+
+/**
+ * レースの見出し1行（「ダート1700m 未勝利」）。週の画面の見出し（`raceHeadline`の
+ * 芝ダ字・距離・格）と同じ書き方を1か所に持つ——結果画面もこれを使う。
+ */
+export function raceHeadlineText(race) {
+  const head = raceHeadline(race);
+  return `${head.surfaceLabel}${head.distanceLabel} ${head.classLabel}`;
+}
+
+/**
  * 「行けない競馬場」の説明文。1日1場なので、その日に別の競馬場で乗る馬を決めたら、
  * この競馬場の依頼には乗れない（見本：「土曜は京都へ行きます。中山の依頼には乗れません。」）。
  */

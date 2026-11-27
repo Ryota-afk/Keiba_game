@@ -29,7 +29,7 @@ import {
   jockeyIdForHorse,
 } from "./jockeyAssignment.js";
 import { isMainMount, loseMainMountToRival } from "./mainMount.js";
-import { reclassAndRetireMaidens } from "./horseClass.js";
+import { prepareWeek } from "./weekPrepare.js";
 import { trustFor, adjustTrust, withPlayerDefaults } from "./player.js";
 import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { DAY } from "../data/weekDays.js";
@@ -39,7 +39,6 @@ import {
   newRequestNotification,
   bigTrustChangeNotification,
 } from "./notifications.js";
-import { withJockeyDefaults } from "./jockey.js";
 import { applyRideExperience } from "./aptitudeGrowth.js";
 import { applyRideToRecord } from "./playerRecord.js";
 import { checkRankPromotions } from "./jockeyRank.js";
@@ -55,6 +54,7 @@ import { buildYearEndSummary, buildRetiredHorses } from "./yearEnd.js";
 import { buildBanzuke } from "../view/banzukeView.js";
 import { processYearBoundary } from "./yearBoundary.js";
 import { distanceBandOf } from "../data/aptitudeCategories.js";
+import { requestDisplayOrder } from "../view/weekOffersView.js";
 
 // 主戦の座を持つが今週乗らなかった馬に、他騎手が勝つ確率（暫定。仮simの平均勝率
 // （約1/12＝8.3%）に近い値を置く。ARCHITECTURE.md §15の数値の一つとして実測して調整する）。
@@ -142,24 +142,14 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
   // 毎週の入口で既定値を補う。CLAUDE.md §4「古いセーブでも動くこと」・`devlog/wave12.md`§9）。
   player = withPlayerDefaults(player);
   // ⭐第13弾：週の初めにクラスを収得賞金・馬齢・時期で決め直し、未勝利のまま3歳の9月7日を
-  // 迎えた馬を中央から外す（`domain/horseClass.js`）。依頼の一覧より前に行う——外れた馬には
-  // 依頼が来ない。プレイヤーの主戦だった馬は`leftForLocal`として返す（データだけ・画面はまだ使わない）。
-  const reclassed = reclassAndRetireMaidens(roster.horses, week, player.currentYear);
-  roster = { ...roster, horses: reclassed.horses, npcJockeys: roster.npcJockeys.map(withJockeyDefaults) };
-  const leftForLocal = reclassed.leftForLocal
-    .filter((h) => isMainMount(player.mainMounts ?? {}, h.id))
-    .map((h) => ({ horseId: h.id, horseName: h.name }));
-  // ⭐年の最後の週に「引退した馬」の画面へ載せるため、その年に地方へ移った主戦の馬を年の終わりまで貯める
-  // （`player.leftForLocalThisYear`・年末に空へ戻す。`domain/yearEnd.js`の`buildRetiredHorses`）。
-  if (leftForLocal.length > 0) {
-    player = {
-      ...player,
-      leftForLocalThisYear: [
-        ...(player.leftForLocalThisYear ?? []),
-        ...leftForLocal.map((x) => ({ ...x, year: player.currentYear, week })),
-      ],
-    };
-  }
+  // 迎えた馬を中央から外す（`domain/weekPrepare.js`。週の画面も同じ関数を呼んで同じ名簿から依頼を作る）。
+  // 依頼の一覧より前に行う——外れた馬には依頼が来ない。プレイヤーの主戦だった馬は`leftForLocal`として返す。
+  // 年の最後の週に「引退した馬」の画面へ載せるため、その年に地方へ移った主戦の馬は
+  // `player.leftForLocalThisYear`へ年の終わりまで貯める（年末に空へ戻す）。
+  const prepared = prepareWeek(roster, player);
+  roster = prepared.roster;
+  player = prepared.player;
+  const leftForLocal = prepared.leftForLocal;
   const notifications = [];
   const horsesById = new Map(roster.horses.map((h) => [h.id, h]));
   // ⭐本物のsimは騎手の適性も見る（`devlog/wave08.md`§2）。相手馬にも必ず騎手を乗せる
@@ -302,6 +292,11 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
       }),
     };
   }
+
+  // ⭐第13弾：結果の並びは週の画面と同じ（曜日→競馬場→レースの表の順→行の順。
+  // `view/weekOffersView.js`の`requestDisplayOrder`）。処理した順（上のループ）は変えず、返す配列だけ並べ替える。
+  const displayOrder = requestDisplayOrder(requests);
+  rides.sort((a, b) => (displayOrder.get(a.horseId) ?? 0) - (displayOrder.get(b.horseId) ?? 0));
 
   // ⭐断るコスト（`DECLINE_MAIN_MOUNT_TRUST_LOSS`のコメント参照）：
   // 主戦を張っている馬の依頼が来たのに乗らなかった（＝断った）場合だけ、

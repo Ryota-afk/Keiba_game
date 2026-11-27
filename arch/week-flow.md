@@ -97,9 +97,16 @@ afterRoster, rides, week, year })`が画面用データを組み、`state`（`we
 `weekResult`がある間は週の画面の代わりに`screens/WeekResultScreen.jsx`を出し、
 「次の週へ」で`weekResult`を`null`に戻す（月曜の画面へ）。
 
+⭐**週の画面と結果画面は同じ名簿・同じ依頼・同じ並びを使う**（第13弾・`devlog/wave13.md`§17）：
+- 週の初めの処理（クラスの決め直し・未勝利のまま3歳の9月7日を迎えた馬を中央から外す）は`domain/weekPrepare.js`の`prepareWeek(roster, player)`（決定的・処理済みへ再度呼んでも何も起きない）。
+  `WeekScreen`が依頼を作る前に呼び（`weekRoster`）、`advanceWeek`も入口で呼ぶ。⚠️依頼の乱数は馬ごとに固定（`generateWeeklyRequests`の質の揺らぎは`streamRandom(seed, REQUESTS, week, horse.id)`）。
+  週の画面に出した依頼＝`advanceWeek`の依頼。触るなら両方が同じ名簿を見ることを保つ。
+- `rides`の各`ride`は`day`（"sat"/"sun"）を持ち、`advanceWeek`は返す前に`view/weekOffersView.js`の`requestDisplayOrder(requests)`（日→競馬場→レースの表→行＝週の画面の並び）で並べ替える（処理順は変えない）。
+- 見出しは`raceHeadline`（部品）と`raceHeadlineText`（「ダート1700m 未勝利」）を週の画面・結果画面で共有する。`summary.rides[]`に`headline`・`headlineText`・`day`・`courseId`・`raceId`を載せてある。
+
 渡すデータの形（画面はこれ以上計算しない）：
-`{ weekLabel, moneyGained, moneyAfter, rides:[{horseId,horseName,courseName,surface,
-distance,className,fell,position,fieldSize,popularity,won,income}], mainMounts:[{horseId,
+`{ weekLabel, moneyGained, moneyAfter, rides:[{horseId,horseName,day,courseId,courseName,raceId,surface,
+distance,className,headline,headlineText,fell,position,fieldSize,popularity,won,income}], mainMounts:[{horseId,
 horseName,status:"became"|"progress",ridesLeft,needsWin}], trust:[{stableId,trainerName,
 delta,change:"bigUp"|"up"|"down"|"bigDown"}], graded:[{raceName,courseName,surface,
 distance,winnerName,jockeyName,popularity,fieldSize}] }`。
