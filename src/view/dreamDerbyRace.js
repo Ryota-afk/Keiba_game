@@ -19,6 +19,8 @@ import {
   TRACK_W,
   N_SEG,
   CURVE_SECTIONS,
+  FINISH_CAM_ANCHOR,
+  FINISH_CAM_OMEGA,
 } from "../data/dreamDerbyCourse.js";
 
 /** 演出専用の疑似乱数ハッシュ（結果RNGとは別ストリーム。0以上1未満）。 */
@@ -100,6 +102,29 @@ export function stepCamera(prevState, target, dtSeconds) {
     rendered: { distance: target.distance + offset, anchor: target.anchor + anchorOffset },
     next: { distance: target.distance, anchor: target.anchor, base: target.base, offset, anchorOffset },
   };
+}
+
+/**
+ * 1着がゴールした後のカメラ：それまで追っていた位置から、ゴール板に固定した構図へ寄せる。
+ * ⭐追っていた馬の速度（約17m/秒）のまま動いていたカメラを急に止めると、画面全体が1フレームで
+ * 流れ出して跳んで見える。**初速を引き継いだ臨界減衰のばね**で減速させる（行き過ぎて揺れない）。
+ * 画面左端が指すコース上の位置`p = distance - anchor * VIEW_SPAN`をばねで動かし、
+ * `anchor`は別に初速0で寄せる（`distance`は上部の隊列表示の中心にも使うので、両方を滑らかに動かす）。
+ * @param {{distance:number,anchor:number,velocity:number}} from - 切り替えた瞬間のカメラ
+ *   （`velocity`＝追っていた馬の速度 m/秒）
+ * @param {number} elapsed - 切り替えてからの秒（レース内時計）
+ * @param {number} goalDistance - ゴール板の距離(m)
+ * @returns {{distance:number,anchor:number}}
+ */
+export function finishCameraAt(from, elapsed, goalDistance) {
+  const t = Math.max(0, elapsed);
+  const w = FINISH_CAM_OMEGA;
+  const decay = Math.exp(-w * t);
+  const p1 = goalDistance - FINISH_CAM_ANCHOR * VIEW_SPAN;
+  const c1 = from.distance - from.anchor * VIEW_SPAN - p1;
+  const p = p1 + (c1 + (from.velocity + w * c1) * t) * decay;
+  const anchor = FINISH_CAM_ANCHOR + (from.anchor - FINISH_CAM_ANCHOR) * (1 + w * t) * decay;
+  return { distance: p + anchor * VIEW_SPAN, anchor };
 }
 
 /** コース上に固定された物（ゲート・距離標識・ゴール標識）の画面上の位置（0..1）。範囲外はnull。 */

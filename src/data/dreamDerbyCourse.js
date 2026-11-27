@@ -42,6 +42,15 @@ export const VIEW_SPAN = 32;
 export const ANCHOR_SELF = 0.34;
 export const ANCHOR_LEADER = 0.78;
 export const PRESTART_GATE_X = 0.08;
+// 1着がゴールした後、カメラはゴール板に固定する（2026-11-27にユーザーが決定・`devlog/wave13b.md`§31）。
+// `FINISH_CAM_ANCHOR`＝ゴールの距離（2400m）を置く画面上の横位置（0..1）。0.6だと手前に19.2m・
+// 奥に12.8mが映る（`VIEW_SPAN`=32m）。馬は約1.1秒かけて画面左端からゴールへ入ってくる。
+// ⚠️ゴール板の絵（`.goal-post`）は左端をこの位置に合わせて描くので、黒い柱は23px右（画面の約0.66）に立つ。
+// ⚠️根拠は理屈ではなく実見：iPhone 13の画面で、入ってくる馬と板の両方が見えることを
+// スクリーンショットで確かめた値。
+// `FINISH_CAM_OMEGA`＝固定位置へ寄せるばねの強さ(1/秒・レース内時計)。6だと約1秒で止まる。
+export const FINISH_CAM_ANCHOR = 0.6;
+export const FINISH_CAM_OMEGA = 6;
 
 // SVG境界（茶の地・柵・生垣・芝・芝の縞）の描画座標定数。
 // 全レイヤーが同じ湾曲 dy(u) を共有する1枚のSVG座標系。

@@ -545,7 +545,15 @@ true（またはwhen無し）の行だけの中から選ぶ。**条件を満た�
   （2026-09-06に`GAP_T`を削除した際、参照元が無くなった）。
 - ⚠️⚠️**局面の節目は「自分の馬のsim上の通過距離」で判定する**（`milestones`の`atD`）。
   ⚠️**固定の秒に戻さないこと**——simのペースはレースごとに変わり、勝ちタイムは142〜147秒で動く。
-  ゴールの節目だけは`sim.winnerTime`と比べる（`isFinish`）。
+  ゴールの節目は2つ：1着のゴール（`isWinner`＝`sim.winnerTime`。`callWinner`が「ゴール」の実況を出し、
+  カメラをゴール板に固定する）と、最後の馬のゴール（`isFinish`＝`raceEndTime()`＝`sim.finishTime`の最大。
+  `doFinish`が掲示板→暗転を予約する）。⚠️`raceEndTime()`を1着の時刻に戻すと2着以下がゴール前で止まる。
+- ⚠️**時計は最後の馬のゴールでも止めない**（`wakeUpSequence`の暗転で止める）。simの時系列は最後の馬の
+  ゴールで終わるので、その先はエンジンの`distanceOf`がゴール時の速度で延ばして描く（絵だけ。着順には使わない）。
+  画面の時計（`updateHudDom`）は勝ちタイムで止まる。
+- **1着ゴール後のカメラ**＝`view/dreamDerbyRace.js`の`finishCameraAt`（初速を引き継ぐ臨界減衰のばね。
+  定数は`data/dreamDerbyCourse.js`の`FINISH_CAM_ANCHOR`=0.6・`FINISH_CAM_OMEGA`=6）。
+  この間は「自分／先頭」ボタンを押してもカメラは動かない。
 - ⚠️**エンジンは各馬の距離を自分で作らない。** `sim.distanceOf(馬番, 秒)`だけを読む。
   判断カードを選んだ瞬間に`forkDreamDerbySim`でsimを差し替える（フォーク前の数値は変わらない）。
 - **`.screen-stack`（`styles/motion.css`）は黒地。** 自分の背景色を持たない画面をここに置くと黒地に

@@ -47,6 +47,7 @@ import {
   isCurvingAt,
   cameraTargetFor,
   stepCamera,
+  finishCameraAt,
   worldFixedFraction,
   curveY,
   curveRow,
@@ -125,7 +126,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     stretchSituationId: null,
     stretchEarly: null,
   };
-  let finished = false; // ゴール処理（doFinish）が既に走ったか。連打対策（devlog参照）
+  let clockStopped = false; // 暗転に入って時計を止め切ったか（以後は再開しない）
+  let winnerCalled = false; // 1着のゴール（callWinner）が既に走ったか
+  let finished = false; // 全馬のゴール処理（doFinish）が既に走ったか。連打対策（devlog参照）
+  // 1着がゴールした後のカメラ（ゴール板に固定）。{ from:{distance,anchor,velocity}, t0 }。それまではnull。
+  let finishCam = null;
+  let lastCam = null; // 直前のフレームで描いたカメラ { distance, anchor }
+  let endCache = { sim: null, time: 0 }; // raceEndTime()の控え（simを差し替えたら取り直す）
   let lastPositions = {};
   const sprites = new Map(); // 馬番 -> HTMLElement
   const chips = new Map(); // 馬番 -> HTMLElement
@@ -142,13 +149,35 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   }
 
   // ===== 距離・カメラ =====
-  /** 馬番numのt秒時点の通過距離(m)。⭐出どころはレースsimの時系列ただ1つ。 */
+  /**
+   * 馬番numのt秒時点の通過距離(m)。⭐出どころはレースsimの時系列ただ1つ。
+   * ⚠️simの時系列は最後の馬がゴールした時刻で終わる（それ以降は同じ値が続く）。掲示板が出るまでの
+   * あいだ馬がゴール板の先で止まって見えないよう、その先はゴール時の速度のまま延ばして描く
+   * （着順・着差・タイムには使わない。絵だけ）。
+   */
   function distanceOf(num, t) {
-    return sim.distanceOf(num, t);
+    const end = raceEndTime();
+    if (t <= end) return sim.distanceOf(num, t);
+    const dEnd = sim.distanceOf(num, end);
+    return dEnd + ((dEnd - sim.distanceOf(num, end - 0.2)) / 0.2) * (t - end);
   }
-  /** レースが終わる時刻(秒)＝勝ち馬のゴール時刻。フォークで動くので毎回simから読む。 */
+  /**
+   * レースが終わる時刻(秒)＝**最後の馬**のゴール時刻（2026-11-27にユーザーが決定。それまでは1着の時刻で、
+   * 2着以下がゴール前で止まっていた）。ゴールまで走り切れなかった馬（落馬など）は数えない。
+   * ⚠️フォークで動くので必ず今の`sim`から読む（控えはsimが替わったら取り直す）。
+   */
   function raceEndTime() {
-    return sim.winnerTime;
+    if (endCache.sim !== sim) {
+      let last = sim.winnerTime;
+      entries.forEach((e, i) => {
+        const ft = sim.finishTime[i];
+        if (!Number.isFinite(ft) || ft <= last) return;
+        if (sim.distanceOf(e.num, ft) < TOTAL_DISTANCE - 0.5) return; // ゴールしていない
+        last = ft;
+      });
+      endCache = { sim, time: last };
+    }
+    return endCache.time;
   }
   function currentLeaderNum(t) {
     let best = selfEntry.num;
@@ -179,6 +208,10 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     camState = null;
   }
   function currentCameraState(t) {
+    if (finishCam) {
+      lastCam = finishCameraAt(finishCam.from, t - finishCam.t0, TOTAL_DISTANCE);
+      return lastCam;
+    }
     const now = performance.now();
     const target = cameraTargetFor(cameraMode, {
       raceStarted,
@@ -189,6 +222,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     camLastNow = now;
     const { rendered, next } = stepCamera(camState, target, dt);
     camState = next;
+    lastCam = rendered;
     return rendered;
   }
 
@@ -348,8 +382,10 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   function updateHudDom() {
     const d = distanceOf(selfEntry.num, raceSeconds);
     refs.raceDistance.textContent = `残り${Math.max(0, Math.round(TOTAL_DISTANCE - d))}m`;
-    const min = Math.floor(raceSeconds / 60);
-    const sec = (raceSeconds % 60).toFixed(1).padStart(4, "0");
+    // 時計は1着のゴールで止める（その後も馬は走り続けるが、表示するのは勝ちタイム）。
+    const shown = Math.min(raceSeconds, sim.winnerTime);
+    const min = Math.floor(shown / 60);
+    const sec = (shown % 60).toFixed(1).padStart(4, "0");
     refs.raceTime.textContent = `${min}:${sec}`;
   }
 
@@ -358,7 +394,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     clockRunning = false;
   }
   function resumeClock() {
-    if (raceStarted) {
+    if (raceStarted && !clockStopped) {
       lastTick = performance.now();
       clockRunning = true;
     }
@@ -368,11 +404,13 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     const selfDistance = distanceOf(selfEntry.num, raceSeconds);
     for (const m of milestones) {
       if (m.fired) continue;
-      const reached = m.isFinish
-        ? raceSeconds >= raceEndTime()
-        : m.atD != null
-          ? selfDistance >= m.atD
-          : raceSeconds >= m.at;
+      const reached = m.isWinner
+        ? raceSeconds >= sim.winnerTime
+        : m.isFinish
+          ? raceSeconds >= raceEndTime()
+          : m.atD != null
+            ? selfDistance >= m.atD
+            : raceSeconds >= m.at;
       if (!reached) continue;
       m.fired = true;
       m.fn();
@@ -382,7 +420,8 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
   function tickClock(now) {
     if (clockRunning) {
       const deltaSec = (now - lastTick) / 1000;
-      raceSeconds = Math.min(raceEndTime(), raceSeconds + deltaSec * speedScale);
+      // ⚠️最後の馬のゴールで時計を止めない（掲示板が出るまで馬を走らせ続ける。`wakeUpSequence`で止める）。
+      raceSeconds += deltaSec * speedScale;
       updateHudDom();
       renderWorld(raceSeconds);
       if (pendingSpreadWait && lastSpreadM >= CROWDED_SPREAD_M) {
@@ -622,22 +661,41 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
       delay: Math.random() * 400,
     }));
   }
+  /**
+   * 1着がゴールした瞬間。実況の「ゴール」はここで出す（時計は止めない）。
+   * カメラは追うのをやめ、ゴール板に固定して残りの馬が通るのを映す。
+   */
+  function callWinner() {
+    if (winnerCalled) return;
+    winnerCalled = true;
+    const tWin = sim.winnerTime;
+    const followed = cameraMode === "leader" ? currentLeaderNum(tWin) : selfEntry.num;
+    const cam = lastCam || currentCameraState(tWin);
+    finishCam = {
+      from: {
+        distance: cam.distance,
+        anchor: cam.anchor,
+        velocity: (sim.distanceOf(followed, tWin) - sim.distanceOf(followed, tWin - 0.2)) / 0.2,
+      },
+      t0: tWin,
+    };
+    callbacks.setRaceStageLabel("ゴール");
+    say("finish", tWin);
+    const finalResult = dreamDerbyResult(sim, entries);
+    if (finalResult.won) {
+      say(viewHash01(tWin * 3 + 11) < 0.6 ? "homageWin" : "finishSelfWin", tWin);
+    } else {
+      // ⚠️着順は1着がゴールした瞬間の並びではなく、全馬が走り切った後の確定の着順（掲示板と同じ）を言う。
+      // 1着のゴール後も全馬を走らせるので、最後の数mで入れ替わると掲示板と食い違うため（2026-11-27）。
+      say("finishSelfLose", tWin, { selfRank: String(finalResult.position), selfRankNum: finalResult.position });
+    }
+  }
+  /** 最後の馬がゴールした瞬間。ここから掲示板→暗転へ進む。 */
   function doFinish() {
     if (finished) return;
     finished = true;
-    clockRunning = false;
-    raceSeconds = raceEndTime();
-    updateHudDom();
-    renderWorld(raceSeconds);
-    callbacks.setRaceStageLabel("ゴール");
-    say("finish", raceSeconds);
-    const raceResult = dreamDerbyResult(sim, entries);
-    if (raceResult.won) {
-      say(viewHash01(raceSeconds * 3 + 11) < 0.6 ? "homageWin" : "finishSelfWin", raceSeconds);
-    } else {
-      say("finishSelfLose", raceSeconds);
-    }
-    const result = raceResult;
+    callWinner();
+    const result = dreamDerbyResult(sim, entries);
     const boardRows = result.rows.slice(0, 5).map((r) => ({
       pos: r.pos,
       num: numByHorseId.get(r.horseId),
@@ -660,6 +718,8 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
 
   // ===== 暗転 → 家の室内で親に起こされる =====
   function wakeUpSequence() {
+    clockStopped = true;
+    clockRunning = false;
     callbacks.setResultActive(false);
     callbacks.setBlackoutActive(true);
     raceTimeout(() => {
@@ -692,6 +752,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     { atD: D_FINAL_STRETCH, fired: false, fn: milestoneCardStretch },
     { atD: 2050, fired: false, fn: () => say("homage", raceSeconds) },
     { atD: 2200, fired: false, fn: () => say("stretchMid", raceSeconds) },
+    { at: 0, fired: false, isWinner: true, fn: callWinner },
     { at: 0, fired: false, isFinish: true, fn: doFinish },
   ];
 
