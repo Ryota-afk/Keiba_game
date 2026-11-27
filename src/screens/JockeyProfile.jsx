@@ -1,7 +1,8 @@
 // 自分の能力の画面（週の画面の「自分」タブの中身。2026-09-27・Fable）。
 // 見本：`design/mocks/jockey-profile-v1.html`「案C 梯子」（ユーザーが選んだ）。
 // 主役＝適性10個の梯子（G〜S+の16段。卒業式の成績表と同じ形）。次の段は、たまった分だけ薄く埋まる。
-// 合計がランクの上限に届いていれば、種類ごとに次に下がる段を黄色の枠にする。
+// 梯子の上に、同じマスを上限の数だけ並べて合計を見せる（見本：`design/mocks/aptitude-cap-v1.html`「案B」・2026-11-27）。
+// 合計がランクの上限に届いていれば、マスが全部黄色になり、種類ごとに次に下がる段を黄色の枠にする。
 // データは`view/jockeyProfileView.js`の`buildJockeyProfile`が組む（この画面は計算しない）。
 // ⚠️週の画面（`WeekScreen.jsx`）の中で出すので、<main>・上部の週の見出し・下の帯は持たない。
 
@@ -56,18 +57,36 @@ export function JockeyProfile({ player, stables }) {
         </div>
       </div>
 
-      <div className="jp-total">
-        <div className={["jp-total__n", p.isFull ? "is-full" : ""].join(" ").trim()}>
-          <b>{p.total}</b>
-          <span>／{p.cap}</span>
+      {p.hasCap && (
+        <div className="jp-sum">
+          <div className="jp-sum__h">
+            <span>適性の合計</span>
+            <span className={["jp-sum__n", p.isFull ? "is-full" : ""].join(" ").trim()}>
+              <b>{p.total}</b>
+              <span>／{p.cap}</span>
+            </span>
+          </div>
+          <div className={["jp-sum__cells", p.isFull ? "is-full" : ""].join(" ").trim()}>
+            {p.gaugeGroups.map((cells, gi) => (
+              <div key={gi}>
+                {cells.map((on, i) => (
+                  <i key={i} className={on ? "is-on" : undefined} />
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="jp-sum__f">
+            <span>{p.freeLabel}</span>
+            <span>{p.capLabel}</span>
+          </div>
         </div>
-        <div className="jp-scale">
-          <span>G</span>
-          <i />
-          <span>S+</span>
-        </div>
+      )}
+      {p.fullNote && <div className="jp-note">{p.fullNote}</div>}
+      <div className="jp-scale">
+        <span>G</span>
+        <i />
+        <span>S+</span>
       </div>
-      <div className={["jp-note", p.isFull ? "is-full" : ""].join(" ").trim()}>{p.capNote}</div>
 
       {p.groups.map((g) => (
         <section className="jp-grp" key={g.category}>
@@ -77,7 +96,7 @@ export function JockeyProfile({ player, stables }) {
               <div className="jp-row__l1">
                 <span className="jp-row__nm">
                   {row.label}
-                  {row.willDrop && <small>次に上がると下がります</small>}
+                  {row.dropNote && <small>{row.dropNote}</small>}
                 </span>
                 <span>{row.recordLabel}</span>
               </div>

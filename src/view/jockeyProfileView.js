@@ -4,8 +4,10 @@
 // DOM無し・JSX無し（Node単体で検証できる）。`domain/`はimportしない
 // （CLAUDE.md §5「data→core/sim→domain/state/view→…」）。
 //
+// 合計の見せ方の見本：`design/mocks/aptitude-cap-v1.html`「案B マスで見せる」（2026-11-27にユーザーが選んだ）。
+//
 // ⚠️ここは読むだけ——段が上がる・下がる計算そのものは`domain/aptitudeGrowth.js`が持つ。
-// 「次に上がると下がります」の印は、あちらの`pickDowngradeCandidate`と同じ並べ方
+// 黄色い枠（次に下がるもの）の印は、あちらの`pickDowngradeCandidate`と同じ並べ方
 // （同じ種類の中で最後に乗った週が一番古いもの・一度も乗っていなければ最古・同じなら
 // `APTITUDE_KEYS`の順）で選ぶ。⚠️あちらは「上がるもの自身」を除いて選ぶが、どれが上がるかは
 // 乗るまで決まらないので、画面では種類ごとに一番古いものへ印を付ける（見本どおり）。
@@ -25,6 +27,24 @@ export const APTITUDE_GROUPS = Object.freeze([
   { category: "distance", label: "距離", keys: DISTANCE_BANDS.map((d) => `distance:${d}`) },
   { category: "surface", label: "馬場", keys: SURFACES.map((s) => `surface:${s}`) },
 ]);
+
+/** 合計のマスを何個ずつ区切るか（梯子と同じマスを10個で1かたまり）。 */
+export const GAUGE_GROUP_SIZE = 10;
+
+/**
+ * 合計のマス。上限の数だけマスを並べ、合計の数だけ塗る（10個ずつのかたまり。端数は最後のかたまり）。
+ * 上限が決まっていない（知らないランク）なら空＝画面はマスを出さない。
+ * @returns {boolean[][]} かたまりごとの「塗ってあるか」
+ */
+export function buildGaugeGroups(total, cap) {
+  if (!Number.isFinite(cap) || cap <= 0) return [];
+  const groups = [];
+  for (let start = 0; start < cap; start += GAUGE_GROUP_SIZE) {
+    const size = Math.min(GAUGE_GROUP_SIZE, cap - start);
+    groups.push(Array.from({ length: size }, (_, i) => start + i < total));
+  }
+  return groups;
+}
 
 /** 適性キー（`strategy:nige`）の画面表記（「逃げ」「1400〜1800m」「芝」）。 */
 export function aptitudeLabel(key) {
@@ -117,6 +137,8 @@ export function buildJockeyProfile({ player, stables }) {
         step,
         isTop: step === top,
         willDrop: dropMarks.get(group.category) === key,
+        // 黄色い枠の行の添え書き。下がるのは「同じ種類のほかのものが上がったとき」だけなので、種類の名前で言う
+        dropNote: dropMarks.get(group.category) === key ? `ほかの${group.label}が上がると下がります` : null,
         progress: nextStepProgress(grade, xp),
         ridesLeft,
         nextLabel: ridesLeft == null ? "これ以上上がりません" : `あと${ridesLeft}鞍`,
@@ -141,9 +163,11 @@ export function buildJockeyProfile({ player, stables }) {
     total,
     cap,
     isFull,
-    capNote: isFull
-      ? `${rankLabel}のあいだは、これ以上増えません`
-      : `${rankLabel}のあいだに、あと ${cap - total} 増やせます`,
+    hasCap: Number.isFinite(cap),
+    gaugeGroups: buildGaugeGroups(total, cap),
+    freeLabel: isFull ? "" : `空き ${cap - total}`,
+    capLabel: `${rankLabel}は${cap}まで`,
+    fullNote: isFull ? "どれかが1つ上がると、黄色い枠のものが1つ下がります" : null,
     groups,
   };
 }
@@ -175,7 +199,7 @@ export function buildGrowthLines(growth) {
       from: m.from,
       to: m.to,
       up,
-      reason: down ? "これ以上は増やせないため" : null,
+      reason: down ? "適性の合計がいっぱいのため" : null,
     });
   }
   lines.sort((a, b) => (a.up === b.up ? 0 : a.up ? -1 : 1));
