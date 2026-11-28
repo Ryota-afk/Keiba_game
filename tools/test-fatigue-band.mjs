@@ -11,7 +11,7 @@ import { fatigueBandView } from "../src/view/fatigueBandView.js";
 const view = (now, rides, stamina = 50) => {
   const next = fatigueAfterRides(now, rides, stamina);
   return fatigueBandView({
-    now, next, penalty: 1 - fatiguePenaltyFactor(next),
+    now, next, nowPenalty: 1 - fatiguePenaltyFactor(now), penalty: 1 - fatiguePenaltyFactor(next),
     penaltyStart: FATIGUE_PENALTY_START, dangerThreshold: FATIGUE_DANGER_THRESHOLD, max: FATIGUE_MAX,
   });
 };
@@ -54,4 +54,55 @@ test("帯の上の位置は上限に対する割合（境目は50%と70%）", ()
   assert.equal(v.dangerPct, 70);
   assert.equal(v.nowPct, 62);
   assert.ok(v.nextPct > 74 && v.nextPct < 76);
+});
+
+// ── 今週の値（`devlog/wave14.md`§16・見本`design/mocks/fatigue-week-v2.html`案A） ──
+test("今週62・6鞍：今週は「−5%」で危険ではない、来週75は「−10%」で危険。下の言葉は両方つく", () => {
+  const v = view(62, 6);
+  assert.equal(v.nowText, "62");
+  assert.equal(v.nowPenaltyText, "−5%");
+  assert.equal(v.isNowDanger, false);
+  assert.equal(v.penaltyText, "−10%");
+  assert.equal(v.isDanger, true);
+  assert.equal(v.isAnyPenaltyZone, true);
+  assert.equal(v.isAnyDanger, true);
+});
+
+test("今週75・0鞍：今週は「−10%」で危険、来週40は能力の項目なし。「落馬しやすい」は今週のぶんでつく", () => {
+  const v = view(75, 0);
+  assert.equal(v.nowPenaltyText, "−10%");
+  assert.equal(v.isNowDanger, true);
+  assert.equal(v.nextText, "40");
+  assert.equal(v.penaltyText, "");
+  assert.equal(v.isDanger, false);
+  assert.equal(v.isAnyDanger, true);
+  assert.equal(v.isAnyPenaltyZone, false);
+});
+
+test("今週40・6鞍：今週は能力の項目なし、来週53は「−1%」で「能力が落ちる」だけつく", () => {
+  const v = view(40, 6);
+  assert.equal(v.nowPenaltyText, "");
+  assert.equal(v.isNowPenalized, false);
+  assert.equal(v.nextText, "53");
+  assert.equal(v.penaltyText, "−1%");
+  assert.equal(v.isAnyPenaltyZone, true);
+  assert.equal(v.isAnyDanger, false);
+});
+
+test("今週の境目：ちょうど50は出さない、51は「−1%」＋「未満」、ちょうど70は危険、100は上限の下がり幅", () => {
+  const at = (now) => fatigueBandView({
+    now, next: 0, nowPenalty: 1 - fatiguePenaltyFactor(now), penalty: 0,
+    penaltyStart: FATIGUE_PENALTY_START, dangerThreshold: FATIGUE_DANGER_THRESHOLD, max: FATIGUE_MAX,
+  });
+  assert.equal(at(FATIGUE_PENALTY_START).nowPenaltyText, "");
+  const just = at(FATIGUE_PENALTY_START + 1);
+  assert.equal(just.nowPenaltyNum, "−1%");
+  assert.equal(just.nowPenaltyTail, "未満");
+  assert.equal(just.nowPenaltyText, "−1%未満");
+  assert.equal(at(FATIGUE_DANGER_THRESHOLD).isNowDanger, true);
+  assert.equal(at(FATIGUE_DANGER_THRESHOLD - 0.4).isNowDanger, false);
+  assert.equal(at(FATIGUE_MAX).nowPenaltyText, `−${Math.round(FATIGUE_MAX_PENALTY * 100)}%`);
+  assert.equal(at(0).nowText, "0");
+  assert.equal(at(0).isAnyDanger, false);
+  assert.equal(at(0).isAnyPenaltyZone, false);
 });

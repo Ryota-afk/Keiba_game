@@ -14,7 +14,7 @@
 //   2段目＝主戦・戦績・走り方・芝ダの相性／調教師。レースの見出しの上に「京都 6R」。レースは番号順。
 // 乗る馬・行く競馬場はプレイヤーの選択をそのまま`advanceWeek`へ渡す（`chooseMounts`・
 // `chooseCourse`）。何も決めなければ、その日はどこへも行かない。
-// 疲労の帯（`design/mocks/fatigue-week-v1.html`案A・2026-11-28のユーザー決定）：先週の知らせの下・
+// 疲労の帯（`design/mocks/fatigue-week-v2.html`案A・2026-11-28のユーザー決定。文字の行の左＝今週、右＝来週）：先週の知らせの下・
 //   土日のタブの上。帯の中身＝選んだ鞍数で来週いくつになるか、上の三角＝今の疲労。一覧を下へ送っても
 //   画面の上に残る。「自分」「番付」を開いているあいだも出す（見出しの「あと◯件」と同じ扱い）。
 //   計算は`domain/fatigue.js`、文字づくりは`view/fatigueBandView.js`。
@@ -350,6 +350,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer, 
   const fatigue = fatigueBandView({
     now: player.fatigue,
     next: fatigueNext,
+    nowPenalty: 1 - fatiguePenaltyFactor(player.fatigue),
     penalty: 1 - fatiguePenaltyFactor(fatigueNext),
     penaltyStart: FATIGUE_PENALTY_START,
     dangerThreshold: FATIGUE_DANGER_THRESHOLD,
@@ -385,27 +386,35 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer, 
         }}
       >
         <div className="wk-ft__row">
-          <span>疲労</span>
-          <span>
-            今<b>{fatigue.nowText}</b>
+          <span className="wk-ft__k">疲労</span>
+          <span className={fatigue.isNowDanger ? "is-now is-danger" : "is-now"}>
+            <i className="wk-ft__key" aria-hidden="true" />
+            今週<b>{fatigue.nowText}</b>
           </span>
+          {fatigue.nowPenaltyText && (
+            <span>
+              能力<b>{fatigue.nowPenaltyNum}</b>
+              {fatigue.nowPenaltyTail}
+            </span>
+          )}
           <span className={fatigue.isDanger ? "is-next is-danger" : "is-next"}>
             来週<b>{fatigue.nextText}</b>
           </span>
           {fatigue.penaltyText && (
-            <span className="wk-ft__pen">
-              能力<b>{fatigue.penaltyText}</b>
+            <span>
+              能力<b>{fatigue.penaltyNum}</b>
+              {fatigue.penaltyTail}
             </span>
           )}
         </div>
         <div className="wk-ft__bar">
-          <i className="wk-ft__now" aria-hidden="true" />
+          <i className={fatigue.isNowDanger ? "wk-ft__now is-danger" : "wk-ft__now"} aria-hidden="true" />
           <span className="wk-ft__track" aria-hidden="true">
             <i className="wk-ft__fill" />
           </span>
           <span className="wk-ft__lab">
-            <span className={fatigue.isPenalized && !fatigue.isDanger ? "is-in" : ""}>能力が落ちる</span>
-            <span className={fatigue.isDanger ? "is-in" : ""}>落馬しやすい</span>
+            <span className={fatigue.isAnyPenaltyZone ? "is-in" : ""}>能力が落ちる</span>
+            <span className={fatigue.isAnyDanger ? "is-in" : ""}>落馬しやすい</span>
           </span>
         </div>
       </div>

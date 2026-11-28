@@ -294,3 +294,25 @@ scratchpadの`m117/run.mjs`。疲労は§7の新しい式。「能力の位置�
 ⚠️**§11の「世界の側が主因」は言い過ぎだった**（§11の`resetplayer`は疲労を戻していなかった）。⚠️§11の「能力の位置」も、実際の相手（`raceOutcome.js`の`assembleRealField`：同じクラスで獲得賞金の多い馬・距離は問わない）とは別の馬で測っていた。
 **着順を一番決めているのは「脚の総量」**（0.4＋0.6×スタミナ×距離適性×芝ダ係数×騎手×疲労×レース傾向への適応）。芝ダ係数は◎1.0／○0.5／△0.27と差が大きい。
 **別件（棚上げへ）**：自分の鞍の28%は馬場の適性が△の馬で勝率0.5%（計画`rotation.js`が◎と○を同じ扱いにし△も選ぶ）／プレイヤーの鞍の相手は距離を問わず、向いた馬場の馬を先に入れる絞り込みも通っていない（相手の芝ダ係数の平均0.56）。
+
+## 16. 疲労の帯に今週の値（案A）の実装（2026-11-28・Fableサブエージェント）
+§15で選ばれた見本`design/mocks/fatigue-week-v2.html`案A「1行のまま」を週の画面へ入れた。計算式と定数（8・35・50・70）は動かしていないので、§10のバランス計測の対象は無い（表示だけ）。
+
+**変えたファイル**
+- `src/view/fatigueBandView.js`：引数に`nowPenalty`（今週の下がり幅。画面が`1 − fatiguePenaltyFactor(player.fatigue)`を渡す）を足した。戻り値に今週のぶん（`isNowDanger`・`isNowPenalized`・`nowPenaltyText`・`nowPenaltyNum`・`nowPenaltyTail`）、来週の`penaltyNum`・`penaltyTail`、帯の下の言葉用の`isAnyPenaltyZone`・`isAnyDanger`を足した。これまでの戻り値（`penaltyText`・`isDanger`ほか）は同じ値のまま。式や境目の値は持たせていない。
+- `src/screens/WeekScreen.jsx`：文字の行を「疲労／▼今週◯／能力−◯%／来週◯／能力−◯%」に組み替え。帯の上の三角に`is-danger`。帯の下の言葉は`isAnyPenaltyZone`・`isAnyDanger`で色を変える。
+- `src/screens/WeekScreen.css`：`.wk-ft__k`・`.wk-ft__key`（「今週」の前の三角）・`.wk-ft__now.is-danger`を足し、`.wk-ft__pen`を消した（右寄せは`.is-next`の`margin-left: auto`）。級数は`--fs-caption`と`--fs-body`だけ。
+- `tools/test-fatigue-band.mjs`：今週の値のテスト4本を足した（`npm test`は64本→68本、全部通過）。
+- `arch/week-flow.md`：疲労の帯の行。
+
+**決めたこと**
+1. 「−1%未満」は、見本どおり「−1%」を数字の大きさ、「未満」をラベルの大きさで出す（§9の実装は全部を数字の大きさで出していた）。今週・来週とも同じ。
+2. 帯の上の三角の色を`--muted`から`--fg`へ（見本どおり。「今週」の前の三角と同じ色にするため）。今週が70以上なら両方`accent`。
+3. 帯の下の「能力が落ちる」は、今週か来週のどちらかが50超〜70未満なら明るくする（見本の作りに合わせた。§9は来週だけで決めていた）。「落馬しやすい」は今週か来週のどちらかが70以上で`accent`。
+4. **幅320pxのはみ出しの直し方**：言葉・数字・級数はそのままで、画面の幅が359px以下のときだけ、項目のあいだのすき間を8px→4px、「疲労」の後ろを16px→8px、数字の前のすき間を4px→2pxにした（`@media (max-width: 359px)`で`--ft-row-gap`・`--ft-num-gap`を差し替え。値は`--s1`からの計算で、生のpxは書いていない）。折り返しは使っていない（帯の高さが変わるため）。実測（ビルド版・Playwright）：幅320pxで文字の行が一番長くなる「今週100 能力−20%／来週100 能力−20%」でも、今週の側と来週の側のあいだに10.6pxの空きが残る。今週90・来週100では19.4px。幅360px（すき間は元のまま）の同じ文字では24.6px。
+5. 帯の高さは前と同じ60.6px（8通り全部で実測）。
+
+**確認**（ビルド版を`devices['iPhone 13']`と幅320pxで。疲労62・6鞍（来週75）／75・0鞍（来週40）／40・6鞍（来週53）／90・6鞍（来週100）の8枚。JSエラー0件・横スクロールなし・帯の外へ出た要素0個。絵を見て確かめた）
+- スクリーンショット：`/tmp/claude-0/-home-user/8710e87f-1c8d-5dd1-beac-9ef7f5207b91/scratchpad/fatigue-impl2/iphone13-f62-6rides.png`・`iphone13-f75-0rides.png`・`iphone13-f40-6rides.png`・`iphone13-f90-6rides.png`・`w320-f62-6rides.png`・`w320-f75-0rides.png`・`w320-f40-6rides.png`・`w320-f90-6rides.png`（同じ名前に`-band`が付くのは帯のまわりの切り抜き）。下へ送った状態は`iphone13-f62-6rides-scrolled.png`・`w320-f62-6rides-scrolled.png`。文字が一番長い場合は`extra-100-6-320.png`（今週100・来週100）・`extra-50.6-5-320.png`（今週51「−1%未満」）。撮影スクリプトは`/tmp/claude-0/-home-user/8710e87f-1c8d-5dd1-beac-9ef7f5207b91/scratchpad/fatigue-impl2/shots2.mjs`。
+- 色の実測：疲労75・0鞍では今週の数字・2つの三角・「落馬しやすい」が`accent`（rgb(255, 216, 61)）、来週の数字は`--fg`。疲労40・6鞍では`accent`は1つも付かず「能力が落ちる」だけ明るい。
+- 確認できていないこと：実機のSafariでの見え方（Playwrightの中のChromiumで見ただけ）／人間が遊んで、左右の2組を読み違えないか。

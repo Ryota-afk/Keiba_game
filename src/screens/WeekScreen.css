@@ -90,18 +90,21 @@
   color: var(--accent);
 }
 
-/* ── 疲労の帯（design/mocks/fatigue-week-v1.html 案A・2026-11-28に合意） ──
+/* ── 疲労の帯（design/mocks/fatigue-week-v2.html 案A・2026-11-28に合意） ──
    先週の知らせの下・土日のタブの上。一覧を下へ送っても画面の上に残る
    （縦に流れる器は`.screen-pane--week`。その中で張り付く）。
-   文字の行：「疲労　今 62　来週 75　……　能力 −10%」。ラベルはcaption、数字はbody。
-   帯：中身＝来週の疲労、上の三角＝今の疲労。地は「能力が落ちる」「落馬しやすい」の境目で
-   明るさが変わる（線は引かない）。境目の位置（--ft-start・--ft-danger）と今・来週の位置
+   文字の行：左に「疲労　▼今週 62　能力 −5%」、右寄せで「来週 75　能力 −10%」。
+   ラベルはcaption、数字はbody。「今週」の前の三角は、帯の上の三角と同じ形。
+   帯：中身＝来週の疲労、上の三角＝今週の疲労。地は「能力が落ちる」「落馬しやすい」の境目で
+   明るさが変わる（線は引かない）。境目の位置（--ft-start・--ft-danger）と今週・来週の位置
    （--ft-now・--ft-next）は`WeekScreen.jsx`が`domain/fatigue.js`の値から渡す。
-   来週の数字は「落馬しやすい」に入ったときだけaccent（読むものの色）。
+   数字と三角は、その週が「落馬しやすい」に入ったときだけaccent（読むものの色）。
    動き：帯と三角は`--m-bar-dur`／`--m-bar-ease`（styles/motion.css。動きを減らす設定では0ms）。
    数字は動かさず、その場で入れ替える。 */
 .wk-ft {
   --ft-gap: calc(var(--s1) / 2);
+  --ft-row-gap: var(--s1);
+  --ft-num-gap: var(--ft-gap);
   --ft-zone0: rgba(255, 255, 255, 0.05);
   --ft-zone1: rgba(255, 255, 255, 0.1);
   --ft-zone2: rgba(255, 255, 255, 0.17);
@@ -115,27 +118,51 @@
 .wk-ft__row {
   display: flex;
   align-items: baseline;
-  gap: var(--s2);
+  gap: var(--ft-row-gap);
   font-size: var(--fs-caption);
   color: var(--muted);
   line-height: 1.5;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.wk-ft__k {
+  margin-right: var(--ft-row-gap);
+}
 .wk-ft__row b {
   font-size: var(--fs-body);
   font-weight: 500;
   color: var(--fg);
-  margin-left: var(--ft-gap);
+  margin-left: var(--ft-num-gap);
+}
+.wk-ft__row .is-next {
+  margin-left: auto;
 }
 .wk-ft__row .is-next b {
   font-weight: 700;
 }
-.wk-ft__row .is-next.is-danger b {
+.wk-ft__row .is-danger b {
   color: var(--accent);
 }
-.wk-ft__pen {
-  margin-left: auto;
+/* 「今週」の字の前に置く、帯の上の三角（.wk-ft__now）と同じ形の印 */
+.wk-ft__key {
+  display: inline-block;
+  width: 8px;
+  height: 5px;
+  margin-right: var(--ft-num-gap);
+  background: var(--fg);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  vertical-align: 1px;
+}
+.is-danger > .wk-ft__key {
+  background: var(--accent);
+}
+/* 幅の狭い画面（320px）では、今週・来週とも3桁の下がり幅が付くと文字の行が帯より長くなる。
+   言葉と数字は削らず、項目のあいだと数字の前のすき間を半分にして収める */
+@media (max-width: 359px) {
+  .wk-ft {
+    --ft-row-gap: var(--ft-gap);
+    --ft-num-gap: calc(var(--ft-gap) / 2);
+  }
 }
 .wk-ft__bar {
   display: block;
@@ -149,9 +176,12 @@
   width: 8px;
   height: 5px;
   margin-left: -4px;
-  background: var(--muted);
+  background: var(--fg);
   clip-path: polygon(0 0, 100% 0, 50% 100%);
   transition: left var(--m-bar-dur) var(--m-bar-ease);
+}
+.wk-ft__now.is-danger {
+  background: var(--accent);
 }
 .wk-ft__track {
   display: block;
