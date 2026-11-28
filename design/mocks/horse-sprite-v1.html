@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>レース画面の馬 毛色と白い模様 候補v1</title>
+<style>
+:root{
+  --fs-s:11px; --fs-m:13px; --fs-l:17px; --fs-xl:24px;
+  --turf:#57a24b; --turf2:#4c9142;
+  --page:#0f0c0a; --fg:#f2ede0; --muted:#9fb896; --panel:#1a2a18;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font-family:"M PLUS 1p","Hiragino Sans","Noto Sans JP",sans-serif;font-size:var(--fs-m);line-height:1.5}
+.wrap{width:min(430px,100vw);margin:0 auto;padding:12px 16px 40px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs a{flex:1;text-align:center;padding:8px 0;color:var(--fg);text-decoration:none;background:var(--panel);font-size:var(--fs-l);font-weight:700}
+.tabs a.on{background:var(--fg);color:var(--page)}
+h1{font-size:var(--fs-xl);margin:0 0 2px}
+h2{font-size:var(--fs-l);margin:26px 0 6px}
+p{margin:0 0 8px;color:var(--muted);font-size:var(--fs-m)}
+.cap{font-size:var(--fs-s);color:var(--muted)}
+.turf{background:repeating-linear-gradient(90deg,var(--turf) 0 64px,var(--turf2) 64px 128px);position:relative}
+.crowd{height:176px;overflow:hidden;margin-bottom:4px}
+.crowd .hs{position:absolute;transform:translate(-50%,-50%)}
+.hs{width:36px;height:33px;position:relative;flex:none}
+.hs.x2{width:72px;height:66px}
+.hs svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;display:block}
+.hs .g{transform-box:fill-box;transform-origin:50% 60%;animation:gal .3s linear infinite;animation-delay:var(--ph,0s)}
+@keyframes gal{0%{transform:translateY(0)}35%{transform:translateY(-1.5px)}70%{transform:translateY(.3px)}100%{transform:translateY(0)}}
+.hs .f1,.hs .f2,.hs .f3{opacity:0;animation:.3s steps(1,end) infinite;animation-delay:var(--ph,0s)}
+.hs .f1{animation-name:f1}.hs .f2{animation-name:f2}.hs .f3{animation-name:f3}
+@keyframes f1{0%,33.2%{opacity:1}33.3%,100%{opacity:0}}
+@keyframes f2{0%,33.2%{opacity:0}33.3%,66.5%{opacity:1}66.6%,100%{opacity:0}}
+@keyframes f3{0%,66.5%{opacity:0}66.6%,100%{opacity:1}}
+.still .g{animation:none}
+.still .f1,.still .f3{animation:none;opacity:0}
+.still .f2{animation:none;opacity:1}
+.coatrow{padding:8px 10px 6px;margin-bottom:2px}
+.coatrow .name{font-size:var(--fs-l);font-weight:700;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.45)}
+.coatrow .name small{font-size:var(--fs-s);font-weight:400;margin-left:8px}
+.line{display:flex;align-items:flex-end;gap:10px;margin-top:6px}
+.line .sp{flex:1}
+.vcap{display:flex;gap:10px;justify-content:flex-end;font-size:var(--fs-s);color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.45)}
+.vcap span{width:72px;text-align:center}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.cell{padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.cell .lab{font-size:var(--fs-m);font-weight:700;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.45);text-align:center}
+.cell .sub{font-size:var(--fs-s);color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.45);text-align:center;min-height:16px}
+.head{width:72px;height:72px;position:relative}
+.head svg{width:100%;height:100%;display:block;overflow:hidden}
+.sw{display:flex;gap:0;height:10px;margin-top:6px;width:120px}
+.sw i{flex:1}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+// ===== 今の実装の形（src/view/dreamDerbySprite.js から写した） =====
+const HOOF="#221a14", EYE="#111";
+const TAIL=[[2,13,4,9],[1,20,3,3]];
+// [x,y,w,h,股関節x,股関節y, markings.legsの添字]。右向き＝手前に見えるのは馬の右側。
+// 太く長い脚(幅4・高さ9)が手前＝右脚、細く短い脚が奥＝左脚。legs=[左前,右前,左後,右後]
+const LEGS=[[7,23,4,9,9,23,3],[11,23,3,8,12.5,23,2],[21,23,4,9,23,23,1],[25,23,3,8,26.5,23,0]];
+const WAKU=["#ffffff","#1c1712","#d0342c","#2f6fe0","#f2c230","#2f9e52","#ef8a1e","#e0399a"];
+const FRAME_SIZES=[2,2,2,3,3,2,2,2];
+const SILKS=["#f28c1e","#f2d21e","#2f6fe0","#2fb2a6","#d0342c","#3aa64a","#8e44ad","#f5f5f5","#1c1c1c","#7ad6de","#ff7ab6","#a0522d"];
+const OLD=[["#8a5a32","#5a3a1e"],["#4a3020","#2e1c12"],["#b0682f","#7a4520"],["#dedcd4","#a8a49c"],["#2e2420","#1a1410"]];
+const h01=s=>{const x=Math.sin(s*12.9898)*43758.5453;return x-Math.floor(x)};
+const frameFor=n=>{let a=0;for(let f=0;f<8;f++){a+=FRAME_SIZES[f];if(n<=a)return f}return 7};
+const silkFor=(n,self)=>self?"#e0399a":SILKS[Math.floor(h01(n*13+9)*12)%12];
+const R=(f,x,y,w,h)=>`<rect fill="${f}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const A=p(a),B=p(b);
+  return "#"+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,"0")).join("")}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const COAT_LABEL={bay:"鹿毛",darkBay:"黒鹿毛",brown:"青鹿毛",black:"青毛",chestnut:"栗毛",liverChestnut:"栃栗毛",gray:"芦毛",white:"白毛"};
+const FACE_LABEL={none:"なし",star:"星",blaze:"流星",strip:"作",starSnip:"星鼻白",snip:"鼻白",bald:"白面"};
+const WHITE="#f6f3ec";
+
+// ===== 毛色の色（案ごと）。body=胴 shade=腹の影・耳 mane=たてがみ tail=尾 leg=脚の下半分(nullは胴と同じ) muzzle=鼻先 =====
+const PAL={
+ A:{
+  bay:{body:"#8a5a32",shade:"#5a3a1e",mane:"#1e1612",tail:"#1e1612",leg:"#1e1612",muzzle:"#2a1c14"},
+  darkBay:{body:"#4f3322",shade:"#301e13",mane:"#120d0a",tail:"#120d0a",leg:"#120d0a",muzzle:"#3a2618"},
+  brown:{body:"#2b211c",shade:"#1a1310",mane:"#0d0a09",tail:"#0d0a09",leg:"#0d0a09",muzzle:"#6b4a30"},
+  black:{body:"#1d1b1e",shade:"#0e0d10",mane:"#0a090b",tail:"#0a090b",leg:null,muzzle:"#0e0d10"},
+  chestnut:{body:"#b0682f",shade:"#7a4520",mane:"#c98f52",tail:"#c98f52",leg:null,muzzle:"#7a4520"},
+  liverChestnut:{body:"#6e4126",shade:"#4a2a16",mane:"#5a3520",tail:"#5a3520",leg:null,muzzle:"#4a2a16"},
+  white:{body:"#f3f0e9",shade:"#cfc9bd",mane:"#fbfaf6",tail:"#fbfaf6",leg:null,muzzle:"#e6b3a6",hoof:"#cdbfa8"},
+ },
+ B:{
+  bay:{body:"#a45c2a",shade:"#6e3a18",mane:"#15100d",tail:"#15100d",leg:"#15100d",muzzle:"#15100d"},
+  darkBay:{body:"#5c3520",shade:"#3a2012",mane:"#0c0908",tail:"#0c0908",leg:"#0c0908",muzzle:"#2a1a10"},
+  brown:{body:"#2a1e1a",shade:"#5a3a24",mane:"#060505",tail:"#060505",leg:"#060505",muzzle:"#96633a"},
+  black:{body:"#15161c",shade:"#08090c",mane:"#08090c",tail:"#08090c",leg:null,muzzle:"#08090c",hi:"#343a4e"},
+  chestnut:{body:"#cc7a2e",shade:"#8e4c1a",mane:"#e3b06a",tail:"#e3b06a",leg:null,muzzle:"#8e4c1a"},
+  liverChestnut:{body:"#7b3b24",shade:"#522312",mane:"#93543a",tail:"#93543a",leg:null,muzzle:"#522312"},
+  white:{body:"#fbf9f4",shade:"#d8d2c6",mane:"#ffffff",tail:"#ffffff",leg:null,muzzle:"#eaa99c",hoof:"#d6c7ae"},
+ },
+};
+PAL.C=JSON.parse(JSON.stringify(PAL.A));
+for(const k in PAL.C){PAL.C[k].hi=mix(PAL.C[k].body,"#ffffff",k==="white"?0.6:0.2)}
+PAL.C.black.hi="#33313a";
+
+function grayPal(c,age,genes){
+  if(c==="A"){
+    if(age<=3) return {body:"#7e8086",shade:"#56585e",mane:"#3c3d42",tail:"#3c3d42",leg:"#45464b",muzzle:"#3a3a3e"};
+    if(age<=6) return {body:"#b8b7b3",shade:"#8c8b87",mane:"#7c7b78",tail:"#7c7b78",leg:"#8e8d8a",muzzle:"#4a4a4e"};
+    return {body:"#e6e4de",shade:"#b6b2aa",mane:"#dcd9d2",tail:"#dcd9d2",leg:null,muzzle:"#5c5c60"};
+  }
+  const t=clamp((age-2)/6,0,1);
+  if(c==="B"){
+    const body=mix("#5c6878","#eef0f2",t);
+    return {body,shade:mix("#3c4654","#bcc0c6",t),mane:mix("#262c36","#e2e5e8",t),tail:mix("#262c36","#e2e5e8",t),
+      leg:t<0.8?mix("#262c36",body,t):null,muzzle:"#30343a"};
+  }
+  // C：元の毛色（coatGenes.e===0なら栗毛系＝赤みのある灰）＋斑
+  const red=genes&&genes.e===0;
+  const d=red?"#8f6f62":"#6c6f76", m=red?"#5e4338":"#35363b";
+  const body=mix(d,"#ebe9e4",t);
+  return {body,shade:mix(mix(d,"#000000",0.3),"#b8b4ac",t),mane:mix(m,"#e0ddd6",t),tail:mix(m,"#e0ddd6",t),
+    leg:t<0.8?mix(m,body,t):null,muzzle:"#3e3e42",hi:mix(body,"#ffffff",0.25),
+    dapple:t<0.75?mix(body,"#ffffff",0.5):null};
+}
+function palFor(c,look){
+  if(look.coat==="gray") return grayPal(c,look.age??3,look.coatGenes);
+  return PAL[c][look.coat]||PAL[c].bay;
+}
+
+// ===== 顔の白（今の頭の形：頭=30..39×6..13、鼻先=36..40×9..13、目=34,8） =====
+const FACE={
+ A:{ // 実寸・7種を別の絵で描く
+  none:[], star:[[33,6,2,1.5]],
+  blaze:[[33,6,2,1.5],[35,6,2.5,1]],
+  strip:[[33,6,6,1.2],[38.7,7.2,1.3,2.8]],
+  snip:[[38.5,9,1.5,2]],
+  starSnip:[[33,6,2,1.5],[38.5,9,1.5,2]],
+  bald:[[32.5,6,6.5,2.5],[36,8.5,4,3.5]],
+ },
+ B:{ // 誇張・5つの絵にまとめる（流星・作・星鼻白は同じ絵）
+  none:[], star:[[32,6,3,2.5]],
+  blaze:[[32,6,7,2],[37.5,8,2.5,3]],
+  strip:[[32,6,7,2],[37.5,8,2.5,3]],
+  starSnip:[[32,6,7,2],[37.5,8,2.5,3]],
+  snip:[[37,9,3,3]],
+  bald:[[31.5,6,7.5,3.5],[35.5,9,4.5,4]],
+ },
+ C:{ // 頭を大きく描き直した形（頭=28..39×4..13、鼻先=35..40×8..13、目=33,7）
+  none:[], star:[[31,4,2.5,2]],
+  blaze:[[31,4,2.5,2],[33.5,4,3,1.2],[36.5,4.6,1.5,1]],
+  strip:[[31,4,8,1.5],[38.5,5.5,1.5,3.5]],
+  snip:[[38,8,2,2.5]],
+  starSnip:[[31,4,2.5,2],[38,8,2,2.5]],
+  bald:[[30.5,4,8.5,3.2],[35,7.2,5,4.3]],
+ },
+};
+const SOCK={A:[0,1.5,3,5],B:[0,2.5,4.5,7],C:[0,1.5,3.2,5.5]};
+const LEGLOW={A:4.5,B:5,C:4.5};
+
+function legSvg(c,l,ang,p,look){
+  const [x,y,w,h,px,py,mi]=l;
+  const wh=SOCK[c][(look.markings?.legs||[0,0,0,0])[mi]||0];
+  const hoofTop=y+h-1.5;
+  let s=`<g transform="rotate(${ang} ${px} ${py})">`+R(p.body,x,y,w,h);
+  if(p.leg) s+=R(p.leg,x,y+h-LEGLOW[c],w,LEGLOW[c]);
+  if(wh) s+=R(WHITE,x,hoofTop-wh,w,wh);
+  s+=R(wh&&c==="C"?"#c9b89c":(p.hoof||HOOF),x,hoofTop,w,2)+`</g>`;
+  return s;
+}
+function pose(c,cls,angs,p,look){return `<g class="${cls}">`+LEGS.map((l,i)=>legSvg(c,l,angs[i],p,look)).join("")+`</g>`}
+
+function horseSvg(c,look,o={}){
+  const p=palFor(c,look), num=o.num??1;
+  const silk=o.silk||silkFor(num,o.self), cap=WAKU[frameFor(num)];
+  const face=(FACE[c][look.markings?.face||"none"]||[]).map(r=>R(WHITE,...r)).join("");
+  const pink=look.markings?.face==="bald"||look.coat==="white";
+  let body="";
+  body+=TAIL.map(r=>R(p.tail,...r)).join("");
+  if(c==="B") body+=R(p.tail,0,21,3,3);
+  body+=pose(c,"f1",[42,26,-42,-26],p,look)+pose(c,"f2",[6,-4,-6,4],p,look)+pose(c,"f3",[-32,-16,32,16],p,look);
+  body+=R(p.body,5,13,22,11)+R(p.shade,7,22,18,2);
+  if(p.hi) body+=R(p.hi,6,13,6,1.5);
+  if(p.dapple) body+=[[7,15.5,2,2],[10,18,1.5,1.5],[6.5,19.5,1.5,1.5],[23,14,1.5,1.5],[24.5,17,2,2]].map(r=>R(p.dapple,...r)).join("");
+  body+=R(p.body,24,7,7,10);
+  if(c==="C"){
+    body+=R(p.body,27,4,6,7)+R(p.mane,24,4,4,6)+R(p.mane,22,9,3,3);
+    body+=R(p.body,28,4,11,9)+R(p.muzzle,35,9,5,4)+R(p.body,35,8,5,1.5)+R(p.shade,28,1,3,3);
+    if(p.hi) body+=R(p.hi,29,10.5,5,1.2);
+    body+=face;
+    if(pink) body+=R("#e6a89c",38.5,10.5,1.5,2.5);
+    body+=R(EYE,33,7,2,2);
+  }else{
+    body+=R(p.body,27,5,6,6);
+    if(c==="B") body+=R(p.mane,23,4.5,5,6)+R(p.mane,21,9,4,5); else body+=R(p.mane,24,5,4,5)+R(p.mane,22,9,3,3);
+    body+=R(p.body,30,6,9,7)+R(p.muzzle,36,9,4,4)+R(p.shade,30,3,3,3);
+    if(p.hi) body+=R(p.hi,6,13,10,1.2);
+    body+=face;
+    if(pink&&look.markings?.face==="bald") body+=R("#e6a89c",38.5,11,1.5,2);
+    body+=R(EYE,34,8,2,2);
+  }
+  body+=R("#1d3fb0",14,15,7,7)+`<text x="17.5" y="20.6" font-size="5.5" font-weight="700" font-family="monospace" fill="#fff" text-anchor="middle">${num}</text>`;
+  body+=R("#222",12,19,3,5)+R(silk,11,8,7,8)+R(silk,16,5,6,6)+R(silk,21,7,5,3)+R(cap,17,1,7,5)+R("#f0c8a0",23,3,2,3);
+  const ring=o.self?`<ellipse cx="19" cy="34" rx="17" ry="4.5" fill="none" stroke="#e0399a" stroke-width="2"/>`:"";
+  return `<svg viewBox="${o.vb||"0 0 40 36"}" aria-hidden="true">`+(o.noShadow?"":`<ellipse cx="19" cy="34" rx="15" ry="3" fill="rgba(6,60,6,.5)"/>`)+ring+`<g class="g">${body}</g></svg>`;
+}
+function oldSvg(num,self){
+  const [coat,dark]=OLD[Math.min(4,Math.floor(h01(num*31+5)*5))];
+  const p={body:coat,shade:dark,mane:dark,tail:dark,leg:null,muzzle:dark};
+  const look={coat:"x",markings:{face:"none",legs:[0,0,0,0]}};
+  const save=PAL.A.x; PAL.A.x=p; const s=horseSvg("A",look,{num,self}); PAL.A.x=save; return s;
+}
+const hs=(svg,cls="",ph=0)=>`<div class="hs ${cls}" style="--ph:${ph}s">${svg}</div>`;
+
+// ===== 見せる馬 =====
+const M=(face,legs)=>({face,legs:legs||[0,0,0,0]});
+const VARIANTS={ // 毛色ごとに3頭（1頭目は白い模様なし）
+  bay:[M("none"),M("star",[0,0,2,0]),M("blaze",[3,3,3,3])],
+  darkBay:[M("none"),M("strip",[0,1,0,2]),M("snip",[0,0,0,3])],
+  brown:[M("none"),M("star",[0,2,0,0]),M("bald",[2,2,0,0])],
+  black:[M("none"),M("starSnip",[0,0,0,1]),M("blaze",[0,3,0,3])],
+  chestnut:[M("none"),M("blaze",[0,0,3,3]),M("bald",[3,3,3,3])],
+  liverChestnut:[M("none"),M("star",[0,0,0,2]),M("strip",[0,2,0,0])],
+  gray:[M("none"),M("star",[0,0,0,2]),M("blaze",[0,3,0,3])],
+  white:[M("none"),M("none"),M("none")],
+};
+const legText=l=>{const n=["左前","右前","左後","右後"],hh=["","微白","中","長白"];
+  if(l.every(v=>v===l[0]&&v>0)) return "四本 "+hh[l[0]];
+  const t=l.map((v,i)=>v?n[i]+hh[v]:"").filter(Boolean);return t.length?t.join("・"):""};
+const markText=m=>[m.face!=="none"?FACE_LABEL[m.face]:"",legText(m.legs)].filter(Boolean).join("／")||"白い模様なし";
+
+// 18頭（日本ダービー・全馬3歳）。毛色の頭数は2024年の出走の割合に近づけた：鹿毛8・黒鹿毛4・栗毛3・青鹿毛1・芦毛1・青毛1
+const FIELD=[
+ ["bay","none",[0,0,0,0]],["chestnut","blaze",[0,0,3,3]],["darkBay","star",[0,0,0,0]],["bay","star",[0,0,0,2]],
+ ["gray","none",[0,0,0,0]],["bay","blaze",[0,3,0,3]],["darkBay","none",[0,1,0,0]],["bay","none",[0,0,0,0]],
+ ["chestnut","none",[0,0,0,0]],["brown","strip",[0,0,0,0]],["bay","snip",[0,0,0,0]],["darkBay","blaze",[3,3,3,3]],
+ ["bay","star",[0,2,0,0]],["chestnut","bald",[0,3,0,3]],["black","none",[0,0,0,0]],["bay","starSnip",[0,0,0,3]],
+ ["darkBay","none",[0,0,0,0]],["bay","none",[0,0,2,2]],
+].map(([coat,face,legs],i)=>({num:i+1,look:{coat,age:3,markings:{face,legs}}}));
+function crowd(fn){
+  const W=358,items=FIELD.map(e=>{
+    const x=46+h01(e.num*17+2)*200+(e.num%5===0?60:0), y=52+h01(e.num*23+10)*92;
+    return {e,x,y}}).sort((a,b)=>a.y-b.y);
+  return `<div class="turf crowd">`+items.map(({e,x,y})=>
+    `<div class="hs" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;--ph:${(-h01(e.num*7+3)*.24).toFixed(3)}s">${fn(e)}</div>`).join("")+`</div>`;
+}
+
+const INFO={
+ A:{t:"案A 今の形のまま、JRAの定義どおりに塗る",
+    d:"馬の形は変えません。鹿毛の仲間はたてがみ・尾・脚の下半分を黒に、栗毛の仲間はたてがみを胴より少し明るくします。白い模様は実際の大きさに近い寸法で、顔の7種を別々の絵にします。",
+    face:"7種を別々の絵で描きます。実寸では「星」と「流星」、「鼻白」と「星鼻白」の差は1〜2ドットです。",
+    gray:"3段階（3歳まで・4〜6歳・7歳から）。",legs:"蹄の上から 1.5／3／5マス。"},
+ B:{t:"案B 遠くから見分けることを優先して強調する",
+    d:"馬の形は変えません。毛色どうしの明るさと色みの差を広げ、たてがみを太くします。白い模様は実際より大きく描き、顔は5つの絵にまとめます。",
+    face:"「流星」「作」「星鼻白」は同じ絵（額から鼻先まで白）にまとめます。絵は5つです。",
+    gray:"年齢で連続的に白くなります（2歳でいちばん濃く、8歳でほぼ白）。青みのある灰色にして青毛と区別します。",legs:"蹄の上から 2.5／4.5／7マス。"},
+ C:{t:"案C 頭を大きく描き直して、7種を描き分ける",
+    d:"頭を今の約1.5倍の面積に描き直します。顔の7種を別々の絵にし、背と頬に明るい色を1段足します。白い脚は蹄も薄い色にします。芦毛には斑を入れ、元の毛色が栗毛系なら赤みのある灰色にします。",
+    face:"7種を別々の絵で描きます。頭が大きいぶん、実寸でも「星」と「流星」の長さの差が出ます。",
+    gray:"年齢で連続的に白くなり、6歳ごろまで白い斑が入ります。元の毛色（栗毛系かどうか）で色みが変わります。",legs:"蹄の上から 1.5／3.2／5.5マス。白い脚は蹄も薄い色。"},
+};
+
+function render(c){
+  const I=INFO[c];
+  let h=`<div class="tabs">`+["A","B","C"].map(k=>`<a href="?c=${k}" class="${k===c?"on":""}">案${k}</a>`).join("")+`</div>`;
+  h+=`<h1>${I.t}</h1><p>${I.d}</p>`;
+  h+=`<h2>18頭が固まったとき（日本ダービー・全馬3歳）</h2>`;
+  h+=crowd(e=>horseSvg(c,e.look,{num:e.num,self:e.num===7}));
+  h+=`<div class="cap">この案。鹿毛8・黒鹿毛4・栗毛3・青鹿毛1・芦毛1・青毛1（7番が自分の馬）</div>`;
+  h+=`<div style="height:10px"></div>`+crowd(e=>oldSvg(e.num,e.num===7));
+  h+=`<div class="cap">今の実装（毛色は馬番から5色を割り当て）</div>`;
+
+  h+=`<h2>毛色8種</h2><p>左の3頭がレース画面の実寸、右の2頭が2倍です。</p>`;
+  for(const coat of Object.keys(COAT_LABEL)){
+    const vs=VARIANTS[coat], age=3;
+    const look=m=>({coat,age,markings:m,coatGenes:{e:1}});
+    const p=palFor(c,look(vs[0]));
+    h+=`<div class="turf coatrow"><div class="name">${COAT_LABEL[coat]}${coat==="gray"?"<small>3歳</small>":""}</div><div class="line">`+
+      vs.map((m,i)=>hs(horseSvg(c,look(m),{num:i+1}),"",-i*.07)).join("")+`<div class="sp"></div>`+
+      vs.slice(1).map((m,i)=>hs(horseSvg(c,look(m),{num:i+2}),"x2 still")).join("")+`</div>`+
+      `<div class="vcap">`+vs.slice(1).map(m=>`<span>${coat==="white"?"":markText(m)}</span>`).join("")+`</div>`+
+      `<div class="sw">`+[p.body,p.shade,p.mane,p.leg||p.body,p.muzzle].map(x=>`<i style="background:${x}"></i>`).join("")+`</div></div>`;
+  }
+
+  h+=`<h2>顔の白 7種</h2><p>${I.face} 上が頭の拡大、下が実寸です。</p><div class="grid">`;
+  for(const f of Object.keys(FACE_LABEL)){
+    const look={coat:"bay",age:3,markings:M(f)};
+    h+=`<div class="turf cell"><div class="lab">${FACE_LABEL[f]}</div><div class="head still">${horseSvg(c,look,{num:1,vb:"26.2 0 14 14",noShadow:true})}</div>${hs(horseSvg(c,look,{num:1}),"still")}</div>`;
+  }
+  h+=`</div>`;
+
+  h+=`<h2>脚の白 高さ3段</h2><p>${I.legs} 黒い脚（鹿毛）と茶色の脚（栗毛）で並べます。</p><div class="grid">`;
+  for(const coat of ["bay","chestnut"]) for(const v of [0,1,2,3]){
+    const look={coat,age:3,markings:M("none",[v,v,v,v])};
+    h+=`<div class="turf cell"><div class="lab">${["白なし","微白","中","長白"][v]}</div>${hs(horseSvg(c,look,{num:1}),"x2 still")}${hs(horseSvg(c,look,{num:1}))}</div>`;
+  }
+  h+=`</div>`;
+
+  h+=`<h2>芦毛の年齢と、白毛</h2><p>${I.gray}</p><div class="grid">`;
+  const gl=[[2,1],[3,1],[4,1],[5,1],[6,1],[8,1],[3,0]];
+  for(const [age,e] of gl){
+    if(e===0&&c!=="C") continue;
+    const look={coat:"gray",age,markings:M("none"),coatGenes:{e}};
+    h+=`<div class="turf cell"><div class="lab">${age}歳</div><div class="sub">${e===0?"元が栗毛系":""}</div>${hs(horseSvg(c,look,{num:1}),"x2 still")}${hs(horseSvg(c,look,{num:1}))}</div>`;
+  }
+  const wl={coat:"white",age:3,markings:M("none")};
+  h+=`<div class="turf cell"><div class="lab">白毛</div><div class="sub">鼻先が桃色</div>${hs(horseSvg(c,wl,{num:1}),"x2 still")}${hs(horseSvg(c,wl,{num:1}))}</div>`;
+  h+=`</div>`;
+  document.getElementById("app").innerHTML=h;
+}
+render((new URLSearchParams(location.search).get("c")||"A").toUpperCase());
+</script>
+</body>
+</html>
