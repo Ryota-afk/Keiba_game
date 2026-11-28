@@ -61,6 +61,7 @@
 | 依頼のレース番号 | ⭐第13弾§22：依頼は`raceNumber`（その日の何レース目か・1〜12）を持ち、金曜の確定→`ride.raceNumber`→結果画面の`rides[].raceNumber/raceLabel`（「小倉 3R」・`view/raceNumberView.js`の`courseRaceLabel`）へそのまま渡る。週の画面の`groupRequestsByDay`の`races[]`・出馬表の`buildEntryListHeader`も同じ値を持つ（表示は別の担当）。決め方は`arch/race-program.md`§12 |
 | 乗る馬を決めるのは | ⭐**プレイヤー**（2026-09-17・`advanceWeek`の`options.chooseMounts`。`devlog/wave09.md`§12・`devlog/wave10.md`§9）。渡さなければ`defaultChooseMounts`（質の高い順の自動選択）——ヘッドレスの計測はこちら。同じレースは1頭・上限件数の2つは画面で押せなくするのが先で、`confirmMounts`側は安全網（先勝ちで1頭・超過は切り捨て） |
 | 月曜の画面 | ⭐**`src/screens/WeekScreen.jsx`＋`WeekScreen.css`＋`src/view/weekOffersView.js`**（2026-09-17・Fable・`devlog/wave10.md`§10）。見本は`design/mocks/week-offers-v3.html`案2（レースが主役・1レース＝1つの表）＋`week-offers-v4.html`案B（行を押すとその行の下に「乗る」と「出馬表」／「この週を進める」は一覧の末尾）。画面の決まり：あと◯件＝`RIDABLE_SLOTS_PER_WEEK`−決めた数／決めた表の残りは薄い／その日に別の場で決めると他の場のタブは薄く・押すと理由（`lockedCourseMessage`）／薄い行は押しても開かない／開く行は1つ／週を進めたら先頭へ戻す。⚠️**見本に無いのに置いたもの**：先週の出来事（怪我・主戦の喪失・信頼の大きな動き）を見出しの下に補足の段で出す（要否はユーザー確認待ち・§10） |
+| 疲労の帯 | 週の画面の見出し（と先週の知らせ）の下・土日のタブの上の`.wk-ft`（2026-11-28・`devlog/wave14.md`§9・見本`design/mocks/fatigue-week-v1.html`案A）。文字の行「疲労　今◯　来週◯　能力 −◯%」＋0〜100の帯（中身＝来週の疲労、上の三角＝今の疲労、地は50と70で明るさが変わり、下に「能力が落ちる」「落馬しやすい」）。来週＝`fatigueAfterRides(player.fatigue, pickedHorseIds.size, player.jockey.physicalStamina)`、下がり幅＝`1 − fatiguePenaltyFactor(来週)`、境目の位置＝`FATIGUE_PENALTY_START`・`FATIGUE_DANGER_THRESHOLD`÷`FATIGUE_MAX`（どれも`domain/fatigue.js`。CSSへは`--ft-now`・`--ft-next`・`--ft-start`・`--ft-danger`で渡す）。文字づくりは`view/fatigueBandView.js`（50以下は下がり幅を出さない・四捨五入で0%なら「−1%未満」・来週が70以上のときだけ数字がaccent）。`position: sticky; top: 0`で`.screen-pane--week`の中に張り付く。「自分」「番付」のタブでも出す。⚠️`.week-screen`や`.screen-pane--week`の途中に`overflow`を持つ親を挟むと張り付かなくなる。⚠️帯が知らせるのは来週の値。今週のレースに効くのは今の疲労（`weekLoop.js`は走ったあとに疲労を更新する） |
 | 馬の詳しい画面 | `src/screens/HorseDetail.jsx`＋`HorseDetail.css`＋`src/view/horseDetailView.js`の`buildHorseDetail`（2026-11-28・`devlog/wave13b.md`§33・見本`design/mocks/horse-detail-v1.html`案A）。週の画面の開いた行の「馬を見る」→`WeekScreen`の`detailHorseId`が立ち、週の画面の代わりに出る（出馬表と同じ）。「乗る／外す」は行と同じ`togglePick`、閉じると開く前のスクロール位置へ戻す。週を進めると閉じる。馬の絵は`view/dreamDerbySprite.js`の`standingHorseSvg(look)`（⚠️形の定数を走る絵と共有）。相性の線画は`screens/SurfaceMarkDefs.jsx`（週の画面と共用。idは`SURFACE_MARK_ID`）。⚠️domainの関数は画面が`deps`で渡す（viewはdomainをimportしない） |
 
 ⭐**年の最終週（`week % 52 === 0`）の末尾に年の区切りの処理が走る**（2026-10-12・`TODO.md` #122）。`advanceWeek`は結果処理・
@@ -125,7 +126,7 @@ distance,winnerName,jockeyName,popularity,fieldSize}] }`。
 - ⚠️`domain/weekResultSummary.js`は`view/weekOffersView.js`の`formatWeekLabel`を
   1本だけ参照する（週表記の書式を2箇所に持たないため）。`view/`側は`domain/`を
   importしない一方通行を保ったままなので、依存はサイクルにならない。
-- 「先週の出来事」（`WeekScreen.jsx`の`wk-notes`・怪我／主戦の喪失／疲れ／信頼の悪い知らせ）は
+- 「先週の出来事」（`WeekScreen.jsx`の`wk-notes`・怪我／主戦の喪失／疲労／信頼の悪い知らせ）は
   従来どおり月曜の画面に残す。結果画面は落馬を板に「落馬」と出すだけで、怪我の週数・
   主戦を失った知らせを言い直さない（CLAUDE.md §7「画面に既に出ている情報を言い直さない」）。
 

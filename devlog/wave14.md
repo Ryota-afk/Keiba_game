@@ -185,6 +185,32 @@ JRAの決まり（承認済みの出典）：
 - 1971〜75年は最下級の条件が「200万円下→300万円下→400万円下」と年ごとに上がった。1984年に「古馬1800万円以下」と平場オープンが廃止。
 - 1着の加算額は1995年以降の表しか確認できず（1995〜2000年：1着1,200万円以上は半額・400万〜1,200万円は400万円・400万円未満は全額）。⚠️1974・1984・1994年の年別のクラス表・降級の月・加算額は**確認できなかった**。⚠️年齢は旧表記（数え年）なので、今の満年齢では1歳下になる。
 
+## 9. 疲労の帯（週の画面）の実装（2026-11-28・Fableサブエージェント）
+§8で決まった案A「帯」を週の画面へ入れた。sim・バランスの数値は変えていない（出すだけ）。
+
+**変えたファイル**
+- `src/view/fatigueBandView.js`（新規・純関数）：`fatigueBandView({ now, next, penalty, penaltyStart, dangerThreshold, max })`→今・来週の数字（四捨五入）、「落馬しやすい」に入ったか、能力の下がり幅の文字（50以下は空文字、四捨五入で0%になるときは「−1%未満」）、帯の上の位置（%）。⚠️`view/`は`domain/`をimportしないので、境目の値と下がり幅は画面が渡す。
+- `src/screens/WeekScreen.jsx`：`domain/fatigue.js`の`fatigueAfterRides(player.fatigue, pickedHorseIds.size, player.jockey.physicalStamina)`・`fatiguePenaltyFactor`・`FATIGUE_PENALTY_START`・`FATIGUE_DANGER_THRESHOLD`・`FATIGUE_MAX`で計算し、帯（`.wk-ft`）を出す。知らせの文を「疲労がたまっています。落馬しやすくなっています。」へ（コメントも「疲労」）。
+- `src/screens/WeekScreen.css`：`.wk-ft`の節を足した。級数は`--fs-caption`（ラベル・境目の言葉）と`--fs-body`（数字）だけ。動きは`--m-bar-dur`／`--m-bar-ease`（動きを減らす設定では`motion.css`側で0msになる）。縦線なし（帯の地は境目で明るさが変わるだけ）。
+- `tools/test-fatigue-band.mjs`（新規・4本）を`npm test`へ足した（49本→53本）。`arch/week-flow.md`に「疲労の帯」の行。
+
+**決めたこと**
+1. **置き場所**：見出し →（先週の知らせ）→ 疲労の帯 → 土日のタブ。知らせがある週は知らせの下に帯が来る（帯とタブを離さない。知らせは下へ送ると流れ、帯だけ残る）。
+2. **「自分」「番付」を開いているあいだも帯を出す**。理由：見出しの「あと◯件」と一番下の「この週を進める」はどのタブでも出ている（選んだ鞍はタブを替えても残る）ので、帯だけ消すとタブを押すたびにタブの段が上下に動く。張り付きもそのまま。
+3. **能力の下がり幅は`1 − fatiguePenaltyFactor(来週の疲労)`**で出す（`FATIGUE_MAX_PENALTY`から式を画面側で組み直さない。レースで使う関数と同じものを通す）。
+4. **境目の位置（50%・70%）もCSSに数字で書かない**：`FATIGUE_PENALTY_START`・`FATIGUE_DANGER_THRESHOLD`÷`FATIGUE_MAX`を`--ft-start`・`--ft-danger`として渡す。定数を変えれば帯も動く。
+5. **幅320pxで境目の言葉が重なった**（2つの境目のあいだ58pxに「能力が落ちる」66pxが入らない）ので、2つ目の言葉は1つ目の字の右端より左へ寄せない（`max(70%の位置, 50%の位置＋6.5em)`）。320pxでは「落馬しやすい」が境目より約14px右へずれる。390pxではずれない。
+6. 見本の`.frame`の390×720px、見本だけにあった`.week-screen{display:flex}`は持ち込んでいない。張り付きは`.screen-pane--week`（縦に流れる器）の中で`position: sticky; top: 0`。`src/index.html`に`viewport-fit=cover`が無いので、上の切り欠きぶんの余白は足していない（足すときは帯の`top`も直す）。
+7. 動きの参考（見本のまま）：モーションリファレンス `bar-chart-stagger`（`--m-bar-*`の元）・`width-reveal`（左端を固定して横幅だけ変える）。数字は動かさずその場で入れ替える。
+
+**確認**（ビルド版・Playwright `devices['iPhone 13']`・機種の既定の倍率）：`npm test` 53本合格／`npm run build` 成功／JSエラー0件。タイトル→夢のダービー→卒業式→週の画面をタップで通した（`flow.mjs`）。疲労0・62・95のセーブ（世界の種 fatigue-ui-1・体力50）で0・3・6鞍：62のとき来週27／51「−1%未満」／75「−10%」（数字がaccent・「落馬しやすい」がaccent）。下へ送ると帯の上端が画面の上端（`top` 0）に残る。横スクロールなし・帯の中身のはみ出し0件。帯の中身は決めた直後60msで途中の値（右の切り取り46.4%→終わり41.1%）、動きを減らす設定では`transition-duration` 0s。6鞍で進めた次の週に知らせ「疲労がたまっています。落馬しやすくなっています。」が帯の上に出る。
+スクリーンショット（`/tmp/claude-0/-home-user/8710e87f-1c8d-5dd1-beac-9ef7f5207b91/scratchpad/fatigue-impl/`）：`flow-0-title.png`・`flow-1-newgame-0rides.png`（新しいゲームの最初の週）／`f62-0rides.png`・`f62-3rides.png`・`f62-6rides.png`・`f62-6rides-scrolled.png`・`f62-6rides-bottom.png`・`f62-6rides-profile.png`・`f62-6rides-profile-scrolled.png`・`f62-6rides-banzuke.png`・`f62-next-week-notes.png`・`f62-next-week-notes-scrolled.png`／`f0-*.png`・`f95-*.png`（同じ並び）／`w320-*.png`（幅320px）。撮ったスクリプトは同じ場所の`flow.mjs`・`shots.mjs`。
+
+**気づいたこと（直していない）**
+- 今週のレースに効くのは**今の疲労**（`weekLoop.js`は走ったあとに`applyWeeklyFatigue`する）。帯が色と言葉で知らせるのは**来週**の値だけなので、今が75で来週が40の週（`f62-next-week-notes.png`）は、今週落馬しやすいのに帯の上では三角の位置でしか分からない（その週は上の知らせが出るが、70以上が2週続くと知らせは出ない——`crossedDangerThreshold`は入った週だけ）。
+- 新人の最初の14週を「乗れるだけ乗る」で進めても疲労は最大36だった（依頼が6件に届かない週が多い。1通り・1974年開始）。帯が動いて見える状態は、最初のうちはほぼ来ない。
+- 来週の疲労が69.6のような週は、数字は「70」と出るがaccentにはならない（判定は丸める前の値。`crossedDangerThreshold`と同じ側）。
+
 ## 10. 降級を入れたら#117が直るかの試算（2026-11-28・本体・ゲームのコードは変えていない）
 scratchpadの`m117/run.mjs`の`demote`：毎年6月1日の週（`THREE_YEAR_OLD_SUMMER_WEEK`）に、4歳馬の収得賞金を半分にする（2006〜2019年の方式を全年代に当てはめた場合）。疲労は§7の新しい式のまま。1974年開始・s1／s2・4年。
 

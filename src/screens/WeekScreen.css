@@ -193,8 +193,10 @@
 .wk-ft__lab span:nth-child(1) {
   left: var(--ft-start);
 }
+/* 幅の狭い画面（320px）では2つの境目のあいだが「能力が落ちる」の6文字より短くなり、字が重なる。
+   2つ目は、1つ目の字（6文字＋半文字のすき間）より左へは寄せない */
 .wk-ft__lab span:nth-child(2) {
-  left: var(--ft-danger);
+  left: max(var(--ft-danger), calc(var(--ft-start) + 6.5em));
 }
 .wk-ft__lab span.is-in {
   color: var(--fg);
