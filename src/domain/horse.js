@@ -221,10 +221,10 @@ export function growAdaptability(adaptability, raceTrendKey, amount) {
 // ⭐クラスは勝ち数の昇級ではなく、収得賞金・馬齢・時期で決める（第13弾・`domain/horseClass.js`・
 // `data/shutokuPrize.js`）。旧`classAfterWin`・`classAfterDebutLoss`・`nextClassAfterRace`は撤去した。
 
-// 着順ごとの賞金配分（1着を1とした比率）。⚠️仮（JRAの本賞金配分の目安を簡略化した値。
-// `PROVISIONAL_FIRST_PRIZE_1974`自体も収得賞金の順番付けにしか使わない仮の額——
-// `arch/race-program.md`§8）。
-const PLACE_PRIZE_SHARE = Object.freeze([1, 0.4, 0.25]);
+// 着順ごとの本賞の配分（1着を1とした比率）。JRA「競馬用語辞典」の「本賞」：1〜5着に交付され、
+// 2〜5着は1着本賞の40%・25%・15%・10%（`devlog/wave14.md`§1）。6着以下は0。
+// ⚠️`PROVISIONAL_FIRST_PRIZE_1974`（一般競走の1着賞金）自体は仮の額（`arch/race-program.md`§8）。
+const PLACE_PRIZE_SHARE = Object.freeze([1, 0.4, 0.25, 0.15, 0.1]);
 
 // 引退判定②で見る直近走数（`arch/horse.md`「②成績：直近6走で1度も5着以内が無ければ引退」）。
 export const RECENT_FINISHES_WINDOW = 6;

@@ -3,7 +3,7 @@
 
 import { GRADED_CLASSES } from "../data/classes.js";
 import { MOUNT_ALLOWANCE } from "../data/mountAllowance.js";
-import { PLACEHOLDER_PURSE_BY_CLASS, JOCKEY_PRIZE_SHARE } from "../data/prizeMoney.js";
+import { JOCKEY_PRIZE_SHARE } from "../data/prizeMoney.js";
 
 /** 騎乗手当（着順に関係なく乗れば出る）。 */
 export function mountAllowanceFor(classId) {
@@ -12,14 +12,16 @@ export function mountAllowanceFor(classId) {
   return MOUNT_ALLOWANCE.other;
 }
 
-/** 進上金（本賞金の5%。勝ったときだけ）。⚠️暫定の賞金額を使用（`data/prizeMoney.js`）。 */
-export function prizeShareFor(classId, won) {
-  if (!won) return 0;
-  const purse = PLACEHOLDER_PURSE_BY_CLASS[classId] ?? 0;
-  return Math.round(purse * JOCKEY_PRIZE_SHARE);
+/**
+ * 進上金（その鞍で馬が取った本賞の5%。1〜5着に出る。6着以下・落馬は本賞0なので0）。
+ * @param {number} horsePrizeGain - その鞍で馬の獲得賞金へ積んだ額（円）。`domain/weekResults.js`の`prizeGain`
+ *   （一般競走は`earningsForResult`・重賞は実際の`prize1`×着順の配分）をそのまま渡す。
+ */
+export function prizeShareFor(horsePrizeGain) {
+  return Math.round(horsePrizeGain * JOCKEY_PRIZE_SHARE);
 }
 
-/** その鞍でその週に得る収入の合計。 */
-export function rideIncome(classId, won) {
-  return mountAllowanceFor(classId) + prizeShareFor(classId, won);
+/** その鞍でその週に得る収入の合計（騎乗手当＋進上金）。 */
+export function rideIncome(classId, horsePrizeGain) {
+  return mountAllowanceFor(classId) + prizeShareFor(horsePrizeGain);
 }

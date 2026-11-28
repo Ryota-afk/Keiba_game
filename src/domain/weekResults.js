@@ -116,8 +116,8 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     year: player.currentYear,
   });
 
-  const income = rideIncome(horse.classId, result.won); // この鞍1件ぶんの騎乗料（画面へも渡す）
-  let nextPlayer = { ...player, money: player.money + income };
+  // ⭐収入（騎乗手当＋進上金）は、馬の獲得賞金（`prizeGain`）が決まった後に積む（下）。
+  let nextPlayer = { ...player };
 
   // 調教師への信頼：乗るだけで少し、勝てばさらに（§6「調教師への信頼」＝日常の鞍）。
   const trainerBefore = trustFor(nextPlayer.trainerTrust, horse.stableId);
@@ -201,6 +201,9 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     nextRecord = appendRaceResult(horse.record, horse.classId, historyEntry, null, shutokuGain);
     prizeGain = nextRecord.earnings - horse.record.earnings;
   }
+  // この鞍1件ぶんの収入（画面・年間成績へも渡す）。進上金＝馬が今取った本賞（`prizeGain`）の5%
+  const income = rideIncome(horse.classId, prizeGain);
+  nextPlayer = { ...nextPlayer, money: nextPlayer.money + income };
   nextHorse = {
     ...(result.selfDay ? horseAfterRace(nextHorse, result.selfDay) : nextHorse),
     plan: wasTarget ? null : horse.plan,
