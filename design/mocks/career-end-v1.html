@@ -1,0 +1,571 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>騎手人生のまとめ v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 騎手人生のまとめ（30年目の年末の画面のあとに出る）——候補を3案。2026-11-28・Fable。
+ * 要素の全列挙・取得元・空のときの見え方：design/mocks/career-end-v1-spec.md
+ * 値は view/careerSummaryView.js の buildCareerSummary が返したものだけ（このページは実データから書き出した）。
+ * 色は年末のまとめ（src/screens/YearEndScreen.css）と同じ。accent（黄）＝読むもの、action（青）＝押すもの・選択中。
+ * 注意：モックの都合の値（.frame の 390px 幅・min-height、--bar-* の秒数）は実装へ持ち込まない
+ *   （秒数とイージングは src/styles/motion.css のトークンにする）。
+ * 級数・余白はトークンだけ。縦線なし。絵文字なし。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --panel:#1a2a18; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff;
+  --rule:rgba(255,255,255,.1);
+  --sel:#5b9bea;               /* グラフで選んでいる年の印（actionの青を暗い面で見える明るさにしたもの） */
+  --bar:#4f6f47;               /* 重賞を勝っていない年の棒（面の明暗だけで区別する） */
+  --col-year:4.2em;            /* 年の列の幅（級数ではなく置き場所の幅） */
+  --m-list-dur:400ms; --m-list-gap:40ms; --m-list-ease:cubic-bezier(.33,1,.68,1); --m-list-shift:6px;
+  --m-bar-dur:400ms; --m-bar-gap:24ms; --m-bar-ease:cubic-bezier(.33,1,.68,1);   /* bar-chart-stagger：29×24＋400＝1096ms */
+  --m-count-dur:900ms;                                                            /* dv-stat */
+}
+@media (prefers-reduced-motion:reduce){:root{--m-list-gap:0ms;--m-list-shift:0px;--m-bar-dur:0ms;--m-bar-gap:0ms;--m-count-dur:0ms}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6);line-break:strict;word-break:auto-phrase}
+.wrap{max-width:1260px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:62em;margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:500}
+.cand{padding:0 var(--s1) var(--s3)}
+.cand>h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s5);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+.cand>h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7;max-width:60em}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:54px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;min-height:720px;box-shadow:0 0 0 1px #000;display:flex}
+/* 1枚だけをスマホの画面いっぱいに出す（?only=A-1994。スクリーンショット用） */
+body.only{padding:0;background:var(--panel)}
+body.only h1,body.only .intro,body.only .cand>h2,body.only .cap{display:none}
+body.only .cand{padding:0}
+body.only .cand:not(.is-on),body.only .shot:not(.is-on){display:none}
+body.only .gallery{margin:0;display:block}
+body.only .shot,body.only .frame{width:100%}
+body.only .frame{min-height:100dvh;box-shadow:none}
+body.only .ce{min-height:100dvh}
+
+/* ── 画面の共通部品（年末のまとめと同じ作り） ── */
+.ce{width:100%;min-height:720px;display:flex;flex-direction:column;background:var(--panel);color:var(--fg);padding-bottom:var(--s2);font-variant-numeric:tabular-nums}
+.ce-hd{padding:var(--s2) var(--s2) var(--s2)}
+.ce-hd__nm{font-size:var(--fs-lead);font-weight:700;line-height:1.3}
+.ce-hd__sub{margin-top:2px;font-size:var(--fs-caption);color:var(--muted)}
+.ce-hd__sub b{margin-right:var(--s1);color:var(--accent);font-weight:700}
+.sec{padding:var(--s3) var(--s2) 0}
+.sec--tight{padding-top:var(--s1)}
+.sec h3{padding-bottom:var(--s1);font-size:var(--fs-caption);font-weight:500;letter-spacing:.08em;color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+.foot{margin-top:auto;padding:var(--s4) var(--s2) 0}
+.btn{display:block;width:100%;min-height:var(--s6);line-height:var(--s6);text-align:center;background:var(--action);color:var(--on-action);font-size:var(--fs-body);font-weight:700}
+.mk{font-size:var(--fs-caption);font-weight:400;color:var(--accent);margin-left:var(--s1);white-space:nowrap}
+.none{color:var(--muted);font-weight:400}
+.note{padding:var(--s2) var(--s2) 0;font-size:var(--fs-body);color:var(--muted)}
+.board{margin:0 var(--s2);padding:var(--s2);background:var(--board)}
+.board__k{font-size:var(--fs-caption);letter-spacing:.08em;color:var(--muted)}
+.in{animation:in var(--m-list-dur) var(--m-list-ease) both;animation-delay:calc(min(var(--i,0),10)*var(--m-list-gap))}
+@keyframes in{from{opacity:0;transform:translateY(var(--m-list-shift))}to{opacity:1;transform:none}}
+
+/* 項目と値の行（通算・勝率・重賞・稼いだお金） */
+.tr{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.tr:last-of-type{box-shadow:none}
+.tr__k{font-size:var(--fs-caption);color:var(--muted)}
+.tr__v{font-size:var(--fs-body);font-weight:700;text-align:right}
+.tr__v span{margin-left:var(--s1);font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+
+/* よく乗った馬の行 */
+.mt{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.mt:last-child{box-shadow:none}
+.mt__nm{font-size:var(--fs-body);font-weight:700;overflow-wrap:anywhere}
+.mt__v{font-size:var(--fs-body);white-space:nowrap}
+.mt__v span{margin-left:var(--s1);font-size:var(--fs-caption);color:var(--accent)}
+
+/* 重賞の行：年・レース名・馬名 */
+.gw{display:grid;grid-template-columns:var(--col-year) minmax(0,1fr) auto;gap:0 var(--s1);align-items:baseline;padding:6px 0;box-shadow:inset 0 -1px 0 var(--rule);font-size:var(--fs-caption);line-height:1.5}
+.gw:last-child{box-shadow:none}
+.gw__y,.gw__h{color:var(--muted)}
+.gw__h{max-width:10.5em;text-align:right}
+.gw.is-strong{padding:var(--s1) 0}
+.gw.is-strong .gw__r{font-size:var(--fs-body);font-weight:700;color:var(--accent)}
+.gw.is-strong .gw__h{color:var(--fg)}
+
+/* ── 棒グラフ ── */
+.ch{margin-top:var(--s2)}
+.ch__plot{position:relative;height:200px;margin-right:var(--s3);touch-action:pan-y}
+.ch__rules i{position:absolute;left:0;right:0;bottom:calc(var(--v)/var(--max)*100%);height:1px;background:var(--rule)}
+.ch__rules span{position:absolute;left:100%;top:-.8em;width:var(--s3);text-align:right;font-size:var(--fs-caption);font-style:normal;color:var(--muted)}
+.ch__bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:2px;box-shadow:0 1px 0 var(--muted)}
+.ch__bars i{position:relative;flex:1;height:calc(var(--v)/var(--max)*100%);background:var(--bar);transform-origin:bottom;animation:bar var(--m-bar-dur) var(--m-bar-ease) both;animation-delay:calc(var(--i)*var(--m-bar-gap))}
+.ch__bars i.is-gr{background:var(--fg)}
+.ch__bars i.is-g1{background:var(--accent)}
+/* 選んでいる年：棒の下に青い印（選択中＝action） */
+.ch__bars i.is-sel::after{content:"";position:absolute;left:0;right:0;top:calc(100% + 3px);height:3px;background:var(--sel)}
+.ch__bars i.is-off.is-sel{height:0}
+@keyframes bar{from{transform:scaleY(0)}to{transform:none}}
+.ch__x{position:relative;height:1.6em;margin:var(--s1) var(--s3) 0 0;font-size:var(--fs-caption);color:var(--muted)}
+.ch__x span{position:absolute;left:calc((var(--i) + .5)/var(--n)*100%);transform:translateX(-50%)}
+.ch__x span.is-first{left:0;transform:none}
+.ch__x span.is-last{left:auto;right:0;transform:none}
+.ch__lg{display:flex;gap:var(--s2);margin-top:2px;font-size:var(--fs-caption);color:var(--muted)}
+.ch__lg i{display:inline-block;width:var(--s1);height:var(--s1);margin-right:4px;background:var(--fg)}
+.ch__lg i.is-g1{background:var(--accent)}
+/* 読み取り行（選んだ年） */
+.rd{margin-top:var(--s2);padding-top:var(--s2);box-shadow:inset 0 1px 0 var(--rule)}
+.rd__k{font-size:var(--fs-caption);color:var(--muted)}
+.rd__v{margin-top:2px;display:flex;align-items:baseline;gap:var(--s2);font-size:var(--fs-body)}
+.rd__v b{font-size:var(--fs-lead);font-weight:700}
+.rd__v b.none{font-weight:400}
+.rd__v span:last-child{color:var(--accent)}
+/* 案Bの低い帯 */
+.strip{margin-top:var(--s1)}
+.ch--strip .ch__plot{height:var(--s6);margin-right:0}
+.ch--strip .ch__x{margin-right:0}
+.ch--strip .ch__bars i{animation:none}
+
+/* ── 案B：レースごとの札 ── */
+.hero-h{display:flex;align-items:baseline;gap:var(--s1);padding:0 var(--s2) var(--s1)}
+.hero-h span{font-size:var(--fs-body);color:var(--muted)}
+.hero-h b{font-size:var(--fs-title);font-weight:700;line-height:1.2}
+.plq-list{display:grid;gap:var(--s1);padding:0 var(--s2)}
+.plq{min-width:0;padding:var(--s2);background:var(--board)}
+.plq__k{font-size:var(--fs-caption);letter-spacing:.08em;color:var(--muted);margin-bottom:var(--s1)}
+.plq__top{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1)}
+.plq__nm{font-size:var(--fs-lead);font-weight:700;line-height:1.35;color:var(--accent);overflow-wrap:anywhere}
+.plq__n{font-size:var(--fs-body);font-weight:700;white-space:nowrap}
+.plq__w{display:grid;grid-template-columns:7.5em minmax(0,1fr);gap:0 var(--s1);align-items:baseline;margin-top:var(--s1);font-size:var(--fs-body);line-height:1.4}
+.plq__sub{margin-top:2px;font-size:var(--fs-caption);color:var(--muted)}
+.plq__w span{font-size:var(--fs-caption);color:var(--muted)}
+.plq__w b{font-weight:500;overflow-wrap:anywhere}
+
+/* ── 案C：通算の数字・板3枚・1年ごとの成績表 ── */
+.big__n{margin-top:var(--s1);display:flex;align-items:baseline;gap:4px;line-height:1.1}
+.big__n b{font-size:var(--fs-display);font-weight:700}
+.big__n span{font-size:var(--fs-lead);font-weight:700}
+.big__sub{margin-top:var(--s1);font-size:var(--fs-body);color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s1);margin:var(--s1) var(--s2) 0}
+.tile{min-width:0;padding:var(--s1);background:var(--board)}
+.tile__k{font-size:var(--fs-caption);color:var(--muted)}
+.tile__v{margin-top:2px;font-size:var(--fs-lead);font-weight:700;line-height:1.3}
+.tile__v.is-hot{color:var(--accent)}
+.tile__p{min-height:1.5em;font-size:var(--fs-caption);line-height:1.5;color:var(--muted)}
+.yr{display:grid;grid-template-columns:var(--col-year) 2.6em minmax(0,1fr) 3.6em 3.2em;gap:0 var(--s1);align-items:baseline;padding:6px 0;box-shadow:inset 0 -1px 0 var(--rule);font-size:var(--fs-body);line-height:1.5}
+.yr:last-child{box-shadow:none}
+.yr__y{font-size:var(--fs-caption);color:var(--muted)}
+.yr__a{font-size:var(--fs-caption);color:var(--muted)}
+.yr__s{text-align:right;color:var(--muted)}
+.yr__w{text-align:right;font-weight:700}
+.yr__w.is-best{color:var(--accent)}
+.yr__g{font-size:var(--fs-caption);color:var(--accent)}
+.yr__off{grid-column:3 / 6;text-align:right;font-size:var(--fs-caption);color:var(--muted)}
+.yr__gw{grid-column:1 / 6;display:grid;grid-template-columns:var(--col-year) minmax(0,1fr) auto;gap:0 var(--s1);align-items:baseline;font-size:var(--fs-caption);line-height:1.6;color:var(--muted)}
+.yr__gw i{font-style:normal;text-align:right}
+.yr__gw em{font-style:normal;max-width:10.5em;text-align:right}
+.yr__gw.is-g1 i,.yr__gw.is-g1 span{color:var(--accent)}
+.yr__gw.is-g1 span{font-weight:700}
+.yr__gw.is-g1 em{color:var(--fg)}
+</style></head><body>
+<div class="wrap">
+<h1>騎手人生のまとめ　候補3案（v1）</h1>
+<p class="intro">30年目の年末の画面を閉じたあとに出る画面。値はどれも <b>buildCareerSummary</b> が返したもの。各案とも左から、1994年に始めた30年・1974年に始めた30年・重賞を1つも勝てなかった30年（合成）。押すものは下の「タイトルへ」だけ（案Aはグラフをなぞれる）。</p>
+<section class="cand" data-cand="A"><h2>案A　30年の勝ち数のグラフが主役<small>画面の上半分を30本の棒グラフにする。棒を指でなぞると、その年の戦績が下の1行に出る（最初は最も勝った年）。重賞はグラフの下に格ごとの一覧で全部並べる。動き：棒が左（18歳）から順に伸びる（モーションリファレンス bar-chart-stagger・全体1100ms・easeOutCubic）。</small></h2>
+<div class="gallery"><div class="shot" data-shot="A-1994"><div class="cap"><b>1994年に始めた30年</b>（実データ。8,065戦556勝・重賞39勝）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1994年〜2023年　18歳〜48歳</div></div>
+<div class="board"><div class="board__k">1年ごとの勝ち数</div><div class="ch ch--full" style="--max:40;--n:30" data-chart='[[1994,18,279,10,0,0],[1995,19,278,9,0,0],[1996,20,276,8,0,0],[1997,21,274,16,1,0],[1998,22,275,17,1,0],[1999,23,259,16,1,0],[2000,24,262,12,0,0],[2001,25,271,13,2,1],[2002,26,281,19,1,0],[2003,27,267,21,0,0],[2004,28,265,37,4,2],[2005,29,258,11,1,0],[2006,30,269,12,5,2],[2007,31,262,21,3,1],[2008,32,279,15,2,0],[2009,33,271,15,0,0],[2010,34,277,13,0,0],[2011,35,269,22,1,0],[2012,36,270,16,2,0],[2013,37,266,25,2,0],[2014,38,271,14,3,0],[2015,39,261,17,0,0],[2016,40,264,20,0,0],[2017,41,278,16,0,0],[2018,42,272,23,2,1],[2019,43,267,17,2,1],[2020,44,253,26,1,1],[2021,45,264,36,2,1],[2022,46,267,26,1,0],[2023,47,260,33,2,1]]' data-best="2004" data-g1="G1" id="ch-0">
+<div class="ch__plot"><div class="ch__rules"><i style="--v:10"><span>10</span></i><i style="--v:20"><span>20</span></i><i style="--v:30"><span>30</span></i><i style="--v:40"><span>40</span></i></div><div class="ch__bars"><i class="" style="--v:10;--i:0"></i><i class="" style="--v:9;--i:1"></i><i class="" style="--v:8;--i:2"></i><i class="is-gr" style="--v:16;--i:3"></i><i class="is-gr" style="--v:17;--i:4"></i><i class="is-gr" style="--v:16;--i:5"></i><i class="" style="--v:12;--i:6"></i><i class="is-g1" style="--v:13;--i:7"></i><i class="is-gr" style="--v:19;--i:8"></i><i class="" style="--v:21;--i:9"></i><i class="is-g1 is-sel" style="--v:37;--i:10"></i><i class="is-gr" style="--v:11;--i:11"></i><i class="is-g1" style="--v:12;--i:12"></i><i class="is-g1" style="--v:21;--i:13"></i><i class="is-gr" style="--v:15;--i:14"></i><i class="" style="--v:15;--i:15"></i><i class="" style="--v:13;--i:16"></i><i class="is-gr" style="--v:22;--i:17"></i><i class="is-gr" style="--v:16;--i:18"></i><i class="is-gr" style="--v:25;--i:19"></i><i class="is-gr" style="--v:14;--i:20"></i><i class="" style="--v:17;--i:21"></i><i class="" style="--v:20;--i:22"></i><i class="" style="--v:16;--i:23"></i><i class="is-g1" style="--v:23;--i:24"></i><i class="is-g1" style="--v:17;--i:25"></i><i class="is-g1" style="--v:26;--i:26"></i><i class="is-g1" style="--v:36;--i:27"></i><i class="is-gr" style="--v:26;--i:28"></i><i class="is-g1" style="--v:33;--i:29"></i></div></div>
+<div class="ch__x"><span class="is-first" style="--i:0">1994</span><span class="" style="--i:10">2004</span><span class="" style="--i:20">2014</span><span class="is-last" style="--i:29">2023</span></div><div class="ch__lg"><span><i class="is-g1"></i>G1を勝った年</span><span><i class="is-gr"></i>重賞を勝った年</span></div></div><div class="rd"><div class="rd__k">2004年・28歳<span class="mk">最も勝った年</span></div>
+<div class="rd__v"><b>37勝</b><span>265戦</span><span>重賞4勝（G1 2勝）</span></div></div></div>
+<div class="sec sec--tight"><div class="tr"><span class="tr__k">通算</span><span class="tr__v">8,065戦 556勝</span></div><div class="tr"><span class="tr__k">勝率</span><span class="tr__v">6.9%</span></div><div class="tr"><span class="tr__k">重賞</span><span class="tr__v">39勝<span>G1 11勝</span></span></div><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">3億7,558万円</span></div></div>
+<div class="sec"><h3>G1　11勝</h3><div class="gw is-strong"><span class="gw__y">2001年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">ヴィクトリーオペラ</span></div><div class="gw is-strong"><span class="gw__y">2004年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">ブランサンダー</span></div><div class="gw is-strong"><span class="gw__y">2004年</span>
+<span class="gw__r">優駿牝馬（オークス）</span><span class="gw__h">フィオーレジュエル</span></div><div class="gw is-strong"><span class="gw__y">2006年</span>
+<span class="gw__r">天皇賞（春）</span><span class="gw__h">ワルツラピッド</span></div><div class="gw is-strong"><span class="gw__y">2006年</span>
+<span class="gw__r">ヴィクトリアマイル</span><span class="gw__h">アクセルワルツ</span></div><div class="gw is-strong"><span class="gw__y">2007年</span>
+<span class="gw__r">桜花賞</span><span class="gw__h">ドリームビアンコ</span></div><div class="gw is-strong"><span class="gw__y">2018年</span>
+<span class="gw__r">ヴィクトリアマイル</span><span class="gw__h">ヘリオスエール</span></div><div class="gw is-strong"><span class="gw__y">2019年</span>
+<span class="gw__r">東京優駿（日本ダービー）</span><span class="gw__h">フラッグエコー</span></div><div class="gw is-strong"><span class="gw__y">2020年</span>
+<span class="gw__r">東京優駿（日本ダービー）</span><span class="gw__h">アンバーソレイユ</span></div><div class="gw is-strong"><span class="gw__y">2021年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">ゼファーメロディ</span></div><div class="gw is-strong"><span class="gw__y">2023年</span>
+<span class="gw__r">朝日杯フューチュリティステークス</span><span class="gw__h">プレアデスアロー</span></div></div><div class="sec"><h3>G2　13勝</h3><div class="gw"><span class="gw__y">1997年</span>
+<span class="gw__r">京都新聞杯 （菊花賞トライアル）</span><span class="gw__h">ペリドットイリス</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">京都新聞杯 （菊花賞トライアル）</span><span class="gw__h">サンダープラチナ</span></div><div class="gw"><span class="gw__y">1999年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">ウィングミネルバ</span></div><div class="gw"><span class="gw__y">2005年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">フォースセイル</span></div><div class="gw"><span class="gw__y">2006年</span>
+<span class="gw__r">報知杯 フィリーズレビュー （桜花賞トライアル）</span><span class="gw__h">ルーチェバラード</span></div><div class="gw"><span class="gw__y">2006年</span>
+<span class="gw__r">京王杯2歳ステークス</span><span class="gw__h">パルスワルツ</span></div><div class="gw"><span class="gw__y">2007年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">アメジストギフト</span></div><div class="gw"><span class="gw__y">2011年</span>
+<span class="gw__r">産経大阪杯</span><span class="gw__h">フラッグスパーク</span></div><div class="gw"><span class="gw__y">2013年</span>
+<span class="gw__r">報知杯 弥生賞 （皐月賞トライアル）</span><span class="gw__h">クリムゾンラピッド</span></div><div class="gw"><span class="gw__y">2014年</span>
+<span class="gw__r">京王杯スプリングカップ</span><span class="gw__h">ルミエールノヴァ</span></div><div class="gw"><span class="gw__y">2019年</span>
+<span class="gw__r">サンケイスポーツ賞 フローラステークス （オークストライアル）</span><span class="gw__h">ネロマッハ</span></div><div class="gw"><span class="gw__y">2021年</span>
+<span class="gw__r">東海テレビ杯 東海ステークス</span><span class="gw__h">ストームミスティ</span></div><div class="gw"><span class="gw__y">2023年</span>
+<span class="gw__r">デイリー杯2歳ステークス</span><span class="gw__h">プレアデスアロー</span></div></div><div class="sec"><h3>G3　15勝</h3><div class="gw"><span class="gw__y">2001年</span>
+<span class="gw__r">ユニコーンステークス</span><span class="gw__h">ラピッドブロッサム</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">阪急杯</span><span class="gw__h">コバルトアリア</span></div><div class="gw"><span class="gw__y">2004年</span>
+<span class="gw__r">根岸ステークス</span><span class="gw__h">ノヴァミストラル</span></div><div class="gw"><span class="gw__y">2004年</span>
+<span class="gw__r">シルクロードステークス</span><span class="gw__h">ヴィオラシロッコ</span></div><div class="gw"><span class="gw__y">2006年</span>
+<span class="gw__r">トヨタ賞 中京記念</span><span class="gw__h">フォルテトロフィー</span></div><div class="gw"><span class="gw__y">2007年</span>
+<span class="gw__r">シリウスステークス</span><span class="gw__h">ガーベラショコラ</span></div><div class="gw"><span class="gw__y">2008年</span>
+<span class="gw__r">デイリー杯 クイーンカップ</span><span class="gw__h">アレグロフラッグ</span></div><div class="gw"><span class="gw__y">2008年</span>
+<span class="gw__r">ダービー卿チャレンジトロフィー</span><span class="gw__h">ステラエニグマ</span></div><div class="gw"><span class="gw__y">2012年</span>
+<span class="gw__r">平安ステークス</span><span class="gw__h">フリージアチャージ</span></div><div class="gw"><span class="gw__y">2012年</span>
+<span class="gw__r">東海テレビ杯 プロキオンステークス</span><span class="gw__h">フロストシャドウ</span></div><div class="gw"><span class="gw__y">2013年</span>
+<span class="gw__r">農林水産省賞典 新潟記念</span><span class="gw__h">ラベンダーランタン</span></div><div class="gw"><span class="gw__y">2014年</span>
+<span class="gw__r">レパードステークス</span><span class="gw__h">プラチナソナタ</span></div><div class="gw"><span class="gw__y">2014年</span>
+<span class="gw__r">いちょうステークス</span><span class="gw__h">フォルテラベンダー</span></div><div class="gw"><span class="gw__y">2018年</span>
+<span class="gw__r">葵ステークス</span><span class="gw__h">ジュエルノワール</span></div><div class="gw"><span class="gw__y">2022年</span>
+<span class="gw__r">毎日杯</span><span class="gw__h">シエロクエスト</span></div></div><div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">エンブレムメロディ<span class="mk">主戦</span></div>
+<div class="mt__v">51回</div></div><div class="mt"><div class="mt__nm">キャロルヴァラー</div>
+<div class="mt__v">43回</div></div><div class="mt"><div class="mt__nm">ハートグリフォン</div>
+<div class="mt__v">42回</div></div><div class="mt"><div class="mt__nm">イリスフロスト</div>
+<div class="mt__v">42回</div></div><div class="mt"><div class="mt__nm">アテナスピネル</div>
+<div class="mt__v">39回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div><div class="shot" data-shot="A-1974"><div class="cap"><b>1974年に始めた30年</b>（実データ。8,259戦634勝・重賞42勝。1983年までの大レースを4つ含む）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1974年〜2003年　18歳〜48歳</div></div>
+<div class="board"><div class="board__k">1年ごとの勝ち数</div><div class="ch ch--full" style="--max:40;--n:30" data-chart='[[1974,18,279,15,0,0],[1975,19,277,31,1,0],[1976,20,281,29,0,0],[1977,21,274,20,1,1],[1978,22,283,22,0,0],[1979,23,281,24,3,2],[1980,24,268,22,1,0],[1981,25,271,17,1,0],[1982,26,278,16,1,0],[1983,27,265,22,2,1],[1984,28,264,25,2,0],[1985,29,275,16,0,0],[1986,30,269,25,0,0],[1987,31,271,21,2,1],[1988,32,282,22,2,1],[1989,33,278,21,2,0],[1990,34,271,18,0,0],[1991,35,274,14,0,0],[1992,36,283,18,2,0],[1993,37,279,21,1,1],[1994,38,281,18,4,1],[1995,39,280,17,0,0],[1996,40,269,18,1,0],[1997,41,281,22,1,1],[1998,42,279,25,5,1],[1999,43,267,23,2,0],[2000,44,266,20,0,0],[2001,45,281,22,2,0],[2002,46,268,20,3,0],[2003,47,284,30,3,1]]' data-best="1975" data-g1="大レース・G1" id="ch-1">
+<div class="ch__plot"><div class="ch__rules"><i style="--v:10"><span>10</span></i><i style="--v:20"><span>20</span></i><i style="--v:30"><span>30</span></i><i style="--v:40"><span>40</span></i></div><div class="ch__bars"><i class="" style="--v:15;--i:0"></i><i class="is-gr is-sel" style="--v:31;--i:1"></i><i class="" style="--v:29;--i:2"></i><i class="is-g1" style="--v:20;--i:3"></i><i class="" style="--v:22;--i:4"></i><i class="is-g1" style="--v:24;--i:5"></i><i class="is-gr" style="--v:22;--i:6"></i><i class="is-gr" style="--v:17;--i:7"></i><i class="is-gr" style="--v:16;--i:8"></i><i class="is-g1" style="--v:22;--i:9"></i><i class="is-gr" style="--v:25;--i:10"></i><i class="" style="--v:16;--i:11"></i><i class="" style="--v:25;--i:12"></i><i class="is-g1" style="--v:21;--i:13"></i><i class="is-g1" style="--v:22;--i:14"></i><i class="is-gr" style="--v:21;--i:15"></i><i class="" style="--v:18;--i:16"></i><i class="" style="--v:14;--i:17"></i><i class="is-gr" style="--v:18;--i:18"></i><i class="is-g1" style="--v:21;--i:19"></i><i class="is-g1" style="--v:18;--i:20"></i><i class="" style="--v:17;--i:21"></i><i class="is-gr" style="--v:18;--i:22"></i><i class="is-g1" style="--v:22;--i:23"></i><i class="is-g1" style="--v:25;--i:24"></i><i class="is-gr" style="--v:23;--i:25"></i><i class="" style="--v:20;--i:26"></i><i class="is-gr" style="--v:22;--i:27"></i><i class="is-gr" style="--v:20;--i:28"></i><i class="is-g1" style="--v:30;--i:29"></i></div></div>
+<div class="ch__x"><span class="is-first" style="--i:0">1974</span><span class="" style="--i:10">1984</span><span class="" style="--i:20">1994</span><span class="is-last" style="--i:29">2003</span></div><div class="ch__lg"><span><i class="is-g1"></i>大レース・G1を勝った年</span><span><i class="is-gr"></i>重賞を勝った年</span></div></div><div class="rd"><div class="rd__k">1975年・19歳<span class="mk">最も勝った年</span></div>
+<div class="rd__v"><b>31勝</b><span>277戦</span><span>重賞1勝</span></div></div></div>
+<div class="sec sec--tight"><div class="tr"><span class="tr__k">通算</span><span class="tr__v">8,259戦 634勝</span></div><div class="tr"><span class="tr__k">勝率</span><span class="tr__v">7.7%</span></div><div class="tr"><span class="tr__k">重賞</span><span class="tr__v">42勝<span>大レース・G1 11勝</span></span></div><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">4億184万円</span></div></div>
+<div class="sec"><h3>大レース・G1　11勝</h3><div class="gw is-strong"><span class="gw__y">1977年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">テンペストパルス</span></div><div class="gw is-strong"><span class="gw__y">1979年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">オリーブプレスト</span></div><div class="gw is-strong"><span class="gw__y">1979年</span>
+<span class="gw__r">宝塚記念</span><span class="gw__h">スピリットネーヴェ</span></div><div class="gw is-strong"><span class="gw__y">1983年</span>
+<span class="gw__r">朝日杯3歳ステークス</span><span class="gw__h">カメリアマグノリア</span></div><div class="gw is-strong"><span class="gw__y">1987年</span>
+<span class="gw__r">東京優駿（日本ダービー）</span><span class="gw__h">アリアシエロ</span></div><div class="gw is-strong"><span class="gw__y">1988年</span>
+<span class="gw__r">農林水産省賞典 安田記念</span><span class="gw__h">ネロアルバ</span></div><div class="gw is-strong"><span class="gw__y">1993年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">ステラトパーズ</span></div><div class="gw is-strong"><span class="gw__y">1994年</span>
+<span class="gw__r">桜花賞</span><span class="gw__h">コンパスメロディ</span></div><div class="gw is-strong"><span class="gw__y">1997年</span>
+<span class="gw__r">朝日杯3歳ステークス</span><span class="gw__h">メイプルジャスミン</span></div><div class="gw is-strong"><span class="gw__y">1998年</span>
+<span class="gw__r">皐月賞</span><span class="gw__h">ステララグーン</span></div><div class="gw is-strong"><span class="gw__y">2003年</span>
+<span class="gw__r">天皇賞（春）</span><span class="gw__h">パレードソレイユ</span></div></div><div class="sec"><h3>G2　11勝</h3><div class="gw"><span class="gw__y">1984年</span>
+<span class="gw__r">読売マイラーズカップ</span><span class="gw__h">ラピスノワール</span></div><div class="gw"><span class="gw__y">1984年</span>
+<span class="gw__r">サンケイスポーツ賞 4歳牝馬特別 （オークストライアル）</span><span class="gw__h">オパールアクセル</span></div><div class="gw"><span class="gw__y">1987年</span>
+<span class="gw__r">報知杯 4歳牝馬特別 （桜花賞トライアル）</span><span class="gw__h">ダッシュブロッサム</span></div><div class="gw"><span class="gw__y">1989年</span>
+<span class="gw__r">報知杯 弥生賞</span><span class="gw__h">メロディブラン</span></div><div class="gw"><span class="gw__y">1992年</span>
+<span class="gw__r">報知杯 4歳牝馬特別 （桜花賞トライアル）</span><span class="gw__h">アリアマッハ</span></div><div class="gw"><span class="gw__y">1994年</span>
+<span class="gw__r">フェブラリーステークス</span><span class="gw__h">フォルテブラン</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">報知杯 4歳牝馬特別 （桜花賞トライアル）</span><span class="gw__h">ミモザラピス</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">ルーナロッソ</span></div><div class="gw"><span class="gw__y">1999年</span>
+<span class="gw__r">京都新聞杯 （菊花賞トライアル）</span><span class="gw__h">スターネビュラ</span></div><div class="gw"><span class="gw__y">2001年</span>
+<span class="gw__r">京都新聞杯</span><span class="gw__h">ブレイブミント</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">ビートゼファー</span></div></div><div class="sec"><h3>G3　20勝</h3><div class="gw"><span class="gw__y">1975年</span>
+<span class="gw__r">読売杯マイラーズカップ</span><span class="gw__h">リボンビート</span></div><div class="gw"><span class="gw__y">1979年</span>
+<span class="gw__r">CBC賞</span><span class="gw__h">ラピッドタイタン</span></div><div class="gw"><span class="gw__y">1980年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">フォースラグーン</span></div><div class="gw"><span class="gw__y">1981年</span>
+<span class="gw__r">トヨタ賞 中京記念</span><span class="gw__h">イーグルペリドット</span></div><div class="gw"><span class="gw__y">1982年</span>
+<span class="gw__r">京成杯3歳ステークス</span><span class="gw__h">バラードミーティア</span></div><div class="gw"><span class="gw__y">1983年</span>
+<span class="gw__r">第50回日本ダービー記念 NHK杯</span><span class="gw__h">バトンブリッツ</span></div><div class="gw"><span class="gw__y">1988年</span>
+<span class="gw__r">ラジオたんぱ賞</span><span class="gw__h">クエストルミエール</span></div><div class="gw"><span class="gw__y">1989年</span>
+<span class="gw__r">中日スポーツ賞4歳ステークス</span><span class="gw__h">レインボーパルス</span></div><div class="gw"><span class="gw__y">1992年</span>
+<span class="gw__r">京成杯</span><span class="gw__h">イリスインパクト</span></div><div class="gw"><span class="gw__y">1994年</span>
+<span class="gw__r">クリスタルカップ</span><span class="gw__h">ウルフソレイユ</span></div><div class="gw"><span class="gw__y">1994年</span>
+<span class="gw__r">京阪杯</span><span class="gw__h">ベルベットビアンコ</span></div><div class="gw"><span class="gw__y">1996年</span>
+<span class="gw__r">シーサイドステークス</span><span class="gw__h">リボンアレグロ</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">日刊スポーツ賞 シンザン記念</span><span class="gw__h">クローバーセイル</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">NHK賞 きさらぎ賞</span><span class="gw__h">アズールエニグマ</span></div><div class="gw"><span class="gw__y">1999年</span>
+<span class="gw__r">平安ステークス</span><span class="gw__h">ウェーブコバルト</span></div><div class="gw"><span class="gw__y">2001年</span>
+<span class="gw__r">スポーツニッポン賞 京都金杯</span><span class="gw__h">ホライズンオペラ</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">共同通信杯（トキノミノル記念）</span><span class="gw__h">イーグルスパーク</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">富士ステークス</span><span class="gw__h">オリーブジェット</span></div><div class="gw"><span class="gw__y">2003年</span>
+<span class="gw__r">スポーツニッポン賞 京都金杯</span><span class="gw__h">フォルテソレイユ</span></div><div class="gw"><span class="gw__y">2003年</span>
+<span class="gw__r">日刊スポーツ賞 シンザン記念</span><span class="gw__h">メイプルルーチェ</span></div></div><div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">リリーネーヴェ</div>
+<div class="mt__v">64回</div></div><div class="mt"><div class="mt__nm">オンダグロウ<span class="mk">主戦</span></div>
+<div class="mt__v">52回</div></div><div class="mt"><div class="mt__nm">アステルブーケ</div>
+<div class="mt__v">52回</div></div><div class="mt"><div class="mt__nm">ノヴァバラード<span class="mk">主戦</span></div>
+<div class="mt__v">48回</div></div><div class="mt"><div class="mt__nm">シルバーアテナ</div>
+<div class="mt__v">46回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div><div class="shot" data-shot="A-empty"><div class="cap"><b>重賞を1つも勝てなかった30年</b>（合成。1994年の実データから重賞の勝ちを消し、2005年を「1度も乗らなかった年」にし、乗った馬を3頭に減らした）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1994年〜2023年　18歳〜48歳</div></div>
+<div class="board"><div class="board__k">1年ごとの勝ち数</div><div class="ch ch--full" style="--max:40;--n:30" data-chart='[[1994,18,279,10,0,0],[1995,19,278,9,0,0],[1996,20,276,8,0,0],[1997,21,274,16,0,0],[1998,22,275,17,0,0],[1999,23,259,16,0,0],[2000,24,262,12,0,0],[2001,25,271,13,0,0],[2002,26,281,19,0,0],[2003,27,267,21,0,0],[2004,28,265,37,0,0],[2005,29,0,0,0,0],[2006,30,269,12,0,0],[2007,31,262,21,0,0],[2008,32,279,15,0,0],[2009,33,271,15,0,0],[2010,34,277,13,0,0],[2011,35,269,22,0,0],[2012,36,270,16,0,0],[2013,37,266,25,0,0],[2014,38,271,14,0,0],[2015,39,261,17,0,0],[2016,40,264,20,0,0],[2017,41,278,16,0,0],[2018,42,272,23,0,0],[2019,43,267,17,0,0],[2020,44,253,26,0,0],[2021,45,264,36,0,0],[2022,46,267,26,0,0],[2023,47,260,33,0,0]]' data-best="2004" data-g1="G1" id="ch-2">
+<div class="ch__plot"><div class="ch__rules"><i style="--v:10"><span>10</span></i><i style="--v:20"><span>20</span></i><i style="--v:30"><span>30</span></i><i style="--v:40"><span>40</span></i></div><div class="ch__bars"><i class="" style="--v:10;--i:0"></i><i class="" style="--v:9;--i:1"></i><i class="" style="--v:8;--i:2"></i><i class="" style="--v:16;--i:3"></i><i class="" style="--v:17;--i:4"></i><i class="" style="--v:16;--i:5"></i><i class="" style="--v:12;--i:6"></i><i class="" style="--v:13;--i:7"></i><i class="" style="--v:19;--i:8"></i><i class="" style="--v:21;--i:9"></i><i class="is-sel" style="--v:37;--i:10"></i><i class="is-off" style="--v:0;--i:11"></i><i class="" style="--v:12;--i:12"></i><i class="" style="--v:21;--i:13"></i><i class="" style="--v:15;--i:14"></i><i class="" style="--v:15;--i:15"></i><i class="" style="--v:13;--i:16"></i><i class="" style="--v:22;--i:17"></i><i class="" style="--v:16;--i:18"></i><i class="" style="--v:25;--i:19"></i><i class="" style="--v:14;--i:20"></i><i class="" style="--v:17;--i:21"></i><i class="" style="--v:20;--i:22"></i><i class="" style="--v:16;--i:23"></i><i class="" style="--v:23;--i:24"></i><i class="" style="--v:17;--i:25"></i><i class="" style="--v:26;--i:26"></i><i class="" style="--v:36;--i:27"></i><i class="" style="--v:26;--i:28"></i><i class="" style="--v:33;--i:29"></i></div></div>
+<div class="ch__x"><span class="is-first" style="--i:0">1994</span><span class="" style="--i:10">2004</span><span class="" style="--i:20">2014</span><span class="is-last" style="--i:29">2023</span></div></div><div class="rd"><div class="rd__k">2004年・28歳<span class="mk">最も勝った年</span></div>
+<div class="rd__v"><b>37勝</b><span>265戦</span><span></span></div></div></div>
+<div class="sec sec--tight"><div class="tr"><span class="tr__k">通算</span><span class="tr__v">7,807戦 545勝</span></div><div class="tr"><span class="tr__k">勝率</span><span class="tr__v">7.0%</span></div><div class="tr"><span class="tr__k">重賞</span><span class="tr__v">0勝</span></div><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">3億6,629万円</span></div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">エンブレムメロディ<span class="mk">主戦</span></div>
+<div class="mt__v">51回</div></div><div class="mt"><div class="mt__nm">キャロルヴァラー</div>
+<div class="mt__v">43回</div></div><div class="mt"><div class="mt__nm">ハートグリフォン</div>
+<div class="mt__v">42回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div></div></section>
+<section class="cand" data-cand="B"><h2>案B　大きなレースの勝ちが主役<small>いちばん格の高い勝ちを、レースごとの札にまとめて画面の頭に置く（同じレースを何度も勝っていれば1枚に並ぶ）。通算の数字とグラフは下へ小さく回す。重賞を1つも勝っていなければ、札は「最も勝った年」の1枚になる。動き：札が上から順に現れる（既存の --m-list-*＝t-stagger-seq）。</small></h2>
+<div class="gallery"><div class="shot" data-shot="B-1994"><div class="cap"><b>1994年に始めた30年</b>（実データ。8,065戦556勝・重賞39勝）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1994年〜2023年　18歳〜48歳</div></div>
+<div class="hero-h"><span>G1</span><b>11勝</b></div>
+<div class="plq-list"><div class="plq in" style="--i:0"><div class="plq__top"><div class="plq__nm">皐月賞</div><div class="plq__n">3勝</div></div>
+<div class="plq__w"><span>2001年・25歳</span><b>ヴィクトリーオペラ</b></div><div class="plq__w"><span>2004年・28歳</span><b>ブランサンダー</b></div><div class="plq__w"><span>2021年・45歳</span><b>ゼファーメロディ</b></div></div><div class="plq in" style="--i:1"><div class="plq__top"><div class="plq__nm">ヴィクトリアマイル</div><div class="plq__n">2勝</div></div>
+<div class="plq__w"><span>2006年・30歳</span><b>アクセルワルツ</b></div><div class="plq__w"><span>2018年・42歳</span><b>ヘリオスエール</b></div></div><div class="plq in" style="--i:2"><div class="plq__top"><div class="plq__nm">東京優駿（日本ダービー）</div><div class="plq__n">2勝</div></div>
+<div class="plq__w"><span>2019年・43歳</span><b>フラッグエコー</b></div><div class="plq__w"><span>2020年・44歳</span><b>アンバーソレイユ</b></div></div><div class="plq in" style="--i:3"><div class="plq__top"><div class="plq__nm">優駿牝馬（オークス）</div></div>
+<div class="plq__w"><span>2004年・28歳</span><b>フィオーレジュエル</b></div></div><div class="plq in" style="--i:4"><div class="plq__top"><div class="plq__nm">天皇賞（春）</div></div>
+<div class="plq__w"><span>2006年・30歳</span><b>ワルツラピッド</b></div></div><div class="plq in" style="--i:5"><div class="plq__top"><div class="plq__nm">桜花賞</div></div>
+<div class="plq__w"><span>2007年・31歳</span><b>ドリームビアンコ</b></div></div><div class="plq in" style="--i:6"><div class="plq__top"><div class="plq__nm">朝日杯フューチュリティステークス</div></div>
+<div class="plq__w"><span>2023年・47歳</span><b>プレアデスアロー</b></div></div></div><div class="sec"><h3>G2　13勝</h3><div class="gw"><span class="gw__y">1997年</span>
+<span class="gw__r">京都新聞杯 （菊花賞トライアル）</span><span class="gw__h">ペリドットイリス</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">京都新聞杯 （菊花賞トライアル）</span><span class="gw__h">サンダープラチナ</span></div><div class="gw"><span class="gw__y">1999年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">ウィングミネルバ</span></div><div class="gw"><span class="gw__y">2005年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">フォースセイル</span></div><div class="gw"><span class="gw__y">2006年</span>
+<span class="gw__r">報知杯 フィリーズレビュー （桜花賞トライアル）</span><span class="gw__h">ルーチェバラード</span></div><div class="gw"><span class="gw__y">2006年</span>
+<span class="gw__r">京王杯2歳ステークス</span><span class="gw__h">パルスワルツ</span></div><div class="gw"><span class="gw__y">2007年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">アメジストギフト</span></div><div class="gw"><span class="gw__y">2011年</span>
+<span class="gw__r">産経大阪杯</span><span class="gw__h">フラッグスパーク</span></div><div class="gw"><span class="gw__y">2013年</span>
+<span class="gw__r">報知杯 弥生賞 （皐月賞トライアル）</span><span class="gw__h">クリムゾンラピッド</span></div><div class="gw"><span class="gw__y">2014年</span>
+<span class="gw__r">京王杯スプリングカップ</span><span class="gw__h">ルミエールノヴァ</span></div><div class="gw"><span class="gw__y">2019年</span>
+<span class="gw__r">サンケイスポーツ賞 フローラステークス （オークストライアル）</span><span class="gw__h">ネロマッハ</span></div><div class="gw"><span class="gw__y">2021年</span>
+<span class="gw__r">東海テレビ杯 東海ステークス</span><span class="gw__h">ストームミスティ</span></div><div class="gw"><span class="gw__y">2023年</span>
+<span class="gw__r">デイリー杯2歳ステークス</span><span class="gw__h">プレアデスアロー</span></div></div><div class="sec"><h3>G3　15勝</h3><div class="gw"><span class="gw__y">2001年</span>
+<span class="gw__r">ユニコーンステークス</span><span class="gw__h">ラピッドブロッサム</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">阪急杯</span><span class="gw__h">コバルトアリア</span></div><div class="gw"><span class="gw__y">2004年</span>
+<span class="gw__r">根岸ステークス</span><span class="gw__h">ノヴァミストラル</span></div><div class="gw"><span class="gw__y">2004年</span>
+<span class="gw__r">シルクロードステークス</span><span class="gw__h">ヴィオラシロッコ</span></div><div class="gw"><span class="gw__y">2006年</span>
+<span class="gw__r">トヨタ賞 中京記念</span><span class="gw__h">フォルテトロフィー</span></div><div class="gw"><span class="gw__y">2007年</span>
+<span class="gw__r">シリウスステークス</span><span class="gw__h">ガーベラショコラ</span></div><div class="gw"><span class="gw__y">2008年</span>
+<span class="gw__r">デイリー杯 クイーンカップ</span><span class="gw__h">アレグロフラッグ</span></div><div class="gw"><span class="gw__y">2008年</span>
+<span class="gw__r">ダービー卿チャレンジトロフィー</span><span class="gw__h">ステラエニグマ</span></div><div class="gw"><span class="gw__y">2012年</span>
+<span class="gw__r">平安ステークス</span><span class="gw__h">フリージアチャージ</span></div><div class="gw"><span class="gw__y">2012年</span>
+<span class="gw__r">東海テレビ杯 プロキオンステークス</span><span class="gw__h">フロストシャドウ</span></div><div class="gw"><span class="gw__y">2013年</span>
+<span class="gw__r">農林水産省賞典 新潟記念</span><span class="gw__h">ラベンダーランタン</span></div><div class="gw"><span class="gw__y">2014年</span>
+<span class="gw__r">レパードステークス</span><span class="gw__h">プラチナソナタ</span></div><div class="gw"><span class="gw__y">2014年</span>
+<span class="gw__r">いちょうステークス</span><span class="gw__h">フォルテラベンダー</span></div><div class="gw"><span class="gw__y">2018年</span>
+<span class="gw__r">葵ステークス</span><span class="gw__h">ジュエルノワール</span></div><div class="gw"><span class="gw__y">2022年</span>
+<span class="gw__r">毎日杯</span><span class="gw__h">シエロクエスト</span></div></div>
+<div class="sec"><h3>30年の成績</h3><div class="tr"><span class="tr__k">通算</span><span class="tr__v">8,065戦 556勝</span></div><div class="tr"><span class="tr__k">勝率</span><span class="tr__v">6.9%</span></div><div class="tr"><span class="tr__k">重賞</span><span class="tr__v">39勝<span>G1 11勝</span></span></div><div class="tr"><span class="tr__k">最も勝った年</span><span class="tr__v">37勝<span>2004年・28歳</span></span></div><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">3億7,558万円</span></div>
+<div class="strip"><div class="ch ch--strip" style="--max:40;--n:30" id="ch-3">
+<div class="ch__plot"><div class="ch__rules"></div><div class="ch__bars"><i class="" style="--v:10;--i:0"></i><i class="" style="--v:9;--i:1"></i><i class="" style="--v:8;--i:2"></i><i class="is-gr" style="--v:16;--i:3"></i><i class="is-gr" style="--v:17;--i:4"></i><i class="is-gr" style="--v:16;--i:5"></i><i class="" style="--v:12;--i:6"></i><i class="is-g1" style="--v:13;--i:7"></i><i class="is-gr" style="--v:19;--i:8"></i><i class="" style="--v:21;--i:9"></i><i class="is-g1" style="--v:37;--i:10"></i><i class="is-gr" style="--v:11;--i:11"></i><i class="is-g1" style="--v:12;--i:12"></i><i class="is-g1" style="--v:21;--i:13"></i><i class="is-gr" style="--v:15;--i:14"></i><i class="" style="--v:15;--i:15"></i><i class="" style="--v:13;--i:16"></i><i class="is-gr" style="--v:22;--i:17"></i><i class="is-gr" style="--v:16;--i:18"></i><i class="is-gr" style="--v:25;--i:19"></i><i class="is-gr" style="--v:14;--i:20"></i><i class="" style="--v:17;--i:21"></i><i class="" style="--v:20;--i:22"></i><i class="" style="--v:16;--i:23"></i><i class="is-g1" style="--v:23;--i:24"></i><i class="is-g1" style="--v:17;--i:25"></i><i class="is-g1" style="--v:26;--i:26"></i><i class="is-g1" style="--v:36;--i:27"></i><i class="is-gr" style="--v:26;--i:28"></i><i class="is-g1" style="--v:33;--i:29"></i></div></div>
+<div class="ch__x"><span class="is-first" style="--i:0">1994</span><span class="" style="--i:10">2004</span><span class="" style="--i:20">2014</span><span class="is-last" style="--i:29">2023</span></div></div></div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">エンブレムメロディ<span class="mk">主戦</span></div>
+<div class="mt__v">51回</div></div><div class="mt"><div class="mt__nm">キャロルヴァラー</div>
+<div class="mt__v">43回</div></div><div class="mt"><div class="mt__nm">ハートグリフォン</div>
+<div class="mt__v">42回</div></div><div class="mt"><div class="mt__nm">イリスフロスト</div>
+<div class="mt__v">42回</div></div><div class="mt"><div class="mt__nm">アテナスピネル</div>
+<div class="mt__v">39回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div><div class="shot" data-shot="B-1974"><div class="cap"><b>1974年に始めた30年</b>（実データ。8,259戦634勝・重賞42勝。1983年までの大レースを4つ含む）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1974年〜2003年　18歳〜48歳</div></div>
+<div class="hero-h"><span>大レース・G1</span><b>11勝</b></div>
+<div class="plq-list"><div class="plq in" style="--i:0"><div class="plq__top"><div class="plq__nm">皐月賞</div><div class="plq__n">4勝</div></div>
+<div class="plq__w"><span>1977年・21歳</span><b>テンペストパルス</b></div><div class="plq__w"><span>1979年・23歳</span><b>オリーブプレスト</b></div><div class="plq__w"><span>1993年・37歳</span><b>ステラトパーズ</b></div><div class="plq__w"><span>1998年・42歳</span><b>ステララグーン</b></div></div><div class="plq in" style="--i:1"><div class="plq__top"><div class="plq__nm">朝日杯3歳ステークス</div><div class="plq__n">2勝</div></div>
+<div class="plq__w"><span>1983年・27歳</span><b>カメリアマグノリア</b></div><div class="plq__w"><span>1997年・41歳</span><b>メイプルジャスミン</b></div></div><div class="plq in" style="--i:2"><div class="plq__top"><div class="plq__nm">宝塚記念</div></div>
+<div class="plq__w"><span>1979年・23歳</span><b>スピリットネーヴェ</b></div></div><div class="plq in" style="--i:3"><div class="plq__top"><div class="plq__nm">東京優駿（日本ダービー）</div></div>
+<div class="plq__w"><span>1987年・31歳</span><b>アリアシエロ</b></div></div><div class="plq in" style="--i:4"><div class="plq__top"><div class="plq__nm">農林水産省賞典 安田記念</div></div>
+<div class="plq__w"><span>1988年・32歳</span><b>ネロアルバ</b></div></div><div class="plq in" style="--i:5"><div class="plq__top"><div class="plq__nm">桜花賞</div></div>
+<div class="plq__w"><span>1994年・38歳</span><b>コンパスメロディ</b></div></div><div class="plq in" style="--i:6"><div class="plq__top"><div class="plq__nm">天皇賞（春）</div></div>
+<div class="plq__w"><span>2003年・47歳</span><b>パレードソレイユ</b></div></div></div><div class="sec"><h3>G2　11勝</h3><div class="gw"><span class="gw__y">1984年</span>
+<span class="gw__r">読売マイラーズカップ</span><span class="gw__h">ラピスノワール</span></div><div class="gw"><span class="gw__y">1984年</span>
+<span class="gw__r">サンケイスポーツ賞 4歳牝馬特別 （オークストライアル）</span><span class="gw__h">オパールアクセル</span></div><div class="gw"><span class="gw__y">1987年</span>
+<span class="gw__r">報知杯 4歳牝馬特別 （桜花賞トライアル）</span><span class="gw__h">ダッシュブロッサム</span></div><div class="gw"><span class="gw__y">1989年</span>
+<span class="gw__r">報知杯 弥生賞</span><span class="gw__h">メロディブラン</span></div><div class="gw"><span class="gw__y">1992年</span>
+<span class="gw__r">報知杯 4歳牝馬特別 （桜花賞トライアル）</span><span class="gw__h">アリアマッハ</span></div><div class="gw"><span class="gw__y">1994年</span>
+<span class="gw__r">フェブラリーステークス</span><span class="gw__h">フォルテブラン</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">報知杯 4歳牝馬特別 （桜花賞トライアル）</span><span class="gw__h">ミモザラピス</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">ルーナロッソ</span></div><div class="gw"><span class="gw__y">1999年</span>
+<span class="gw__r">京都新聞杯 （菊花賞トライアル）</span><span class="gw__h">スターネビュラ</span></div><div class="gw"><span class="gw__y">2001年</span>
+<span class="gw__r">京都新聞杯</span><span class="gw__h">ブレイブミント</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">ビートゼファー</span></div></div><div class="sec"><h3>G3　20勝</h3><div class="gw"><span class="gw__y">1975年</span>
+<span class="gw__r">読売杯マイラーズカップ</span><span class="gw__h">リボンビート</span></div><div class="gw"><span class="gw__y">1979年</span>
+<span class="gw__r">CBC賞</span><span class="gw__h">ラピッドタイタン</span></div><div class="gw"><span class="gw__y">1980年</span>
+<span class="gw__r">フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><span class="gw__h">フォースラグーン</span></div><div class="gw"><span class="gw__y">1981年</span>
+<span class="gw__r">トヨタ賞 中京記念</span><span class="gw__h">イーグルペリドット</span></div><div class="gw"><span class="gw__y">1982年</span>
+<span class="gw__r">京成杯3歳ステークス</span><span class="gw__h">バラードミーティア</span></div><div class="gw"><span class="gw__y">1983年</span>
+<span class="gw__r">第50回日本ダービー記念 NHK杯</span><span class="gw__h">バトンブリッツ</span></div><div class="gw"><span class="gw__y">1988年</span>
+<span class="gw__r">ラジオたんぱ賞</span><span class="gw__h">クエストルミエール</span></div><div class="gw"><span class="gw__y">1989年</span>
+<span class="gw__r">中日スポーツ賞4歳ステークス</span><span class="gw__h">レインボーパルス</span></div><div class="gw"><span class="gw__y">1992年</span>
+<span class="gw__r">京成杯</span><span class="gw__h">イリスインパクト</span></div><div class="gw"><span class="gw__y">1994年</span>
+<span class="gw__r">クリスタルカップ</span><span class="gw__h">ウルフソレイユ</span></div><div class="gw"><span class="gw__y">1994年</span>
+<span class="gw__r">京阪杯</span><span class="gw__h">ベルベットビアンコ</span></div><div class="gw"><span class="gw__y">1996年</span>
+<span class="gw__r">シーサイドステークス</span><span class="gw__h">リボンアレグロ</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">日刊スポーツ賞 シンザン記念</span><span class="gw__h">クローバーセイル</span></div><div class="gw"><span class="gw__y">1998年</span>
+<span class="gw__r">NHK賞 きさらぎ賞</span><span class="gw__h">アズールエニグマ</span></div><div class="gw"><span class="gw__y">1999年</span>
+<span class="gw__r">平安ステークス</span><span class="gw__h">ウェーブコバルト</span></div><div class="gw"><span class="gw__y">2001年</span>
+<span class="gw__r">スポーツニッポン賞 京都金杯</span><span class="gw__h">ホライズンオペラ</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">共同通信杯（トキノミノル記念）</span><span class="gw__h">イーグルスパーク</span></div><div class="gw"><span class="gw__y">2002年</span>
+<span class="gw__r">富士ステークス</span><span class="gw__h">オリーブジェット</span></div><div class="gw"><span class="gw__y">2003年</span>
+<span class="gw__r">スポーツニッポン賞 京都金杯</span><span class="gw__h">フォルテソレイユ</span></div><div class="gw"><span class="gw__y">2003年</span>
+<span class="gw__r">日刊スポーツ賞 シンザン記念</span><span class="gw__h">メイプルルーチェ</span></div></div>
+<div class="sec"><h3>30年の成績</h3><div class="tr"><span class="tr__k">通算</span><span class="tr__v">8,259戦 634勝</span></div><div class="tr"><span class="tr__k">勝率</span><span class="tr__v">7.7%</span></div><div class="tr"><span class="tr__k">重賞</span><span class="tr__v">42勝<span>大レース・G1 11勝</span></span></div><div class="tr"><span class="tr__k">最も勝った年</span><span class="tr__v">31勝<span>1975年・19歳</span></span></div><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">4億184万円</span></div>
+<div class="strip"><div class="ch ch--strip" style="--max:40;--n:30" id="ch-4">
+<div class="ch__plot"><div class="ch__rules"></div><div class="ch__bars"><i class="" style="--v:15;--i:0"></i><i class="is-gr" style="--v:31;--i:1"></i><i class="" style="--v:29;--i:2"></i><i class="is-g1" style="--v:20;--i:3"></i><i class="" style="--v:22;--i:4"></i><i class="is-g1" style="--v:24;--i:5"></i><i class="is-gr" style="--v:22;--i:6"></i><i class="is-gr" style="--v:17;--i:7"></i><i class="is-gr" style="--v:16;--i:8"></i><i class="is-g1" style="--v:22;--i:9"></i><i class="is-gr" style="--v:25;--i:10"></i><i class="" style="--v:16;--i:11"></i><i class="" style="--v:25;--i:12"></i><i class="is-g1" style="--v:21;--i:13"></i><i class="is-g1" style="--v:22;--i:14"></i><i class="is-gr" style="--v:21;--i:15"></i><i class="" style="--v:18;--i:16"></i><i class="" style="--v:14;--i:17"></i><i class="is-gr" style="--v:18;--i:18"></i><i class="is-g1" style="--v:21;--i:19"></i><i class="is-g1" style="--v:18;--i:20"></i><i class="" style="--v:17;--i:21"></i><i class="is-gr" style="--v:18;--i:22"></i><i class="is-g1" style="--v:22;--i:23"></i><i class="is-g1" style="--v:25;--i:24"></i><i class="is-gr" style="--v:23;--i:25"></i><i class="" style="--v:20;--i:26"></i><i class="is-gr" style="--v:22;--i:27"></i><i class="is-gr" style="--v:20;--i:28"></i><i class="is-g1" style="--v:30;--i:29"></i></div></div>
+<div class="ch__x"><span class="is-first" style="--i:0">1974</span><span class="" style="--i:10">1984</span><span class="" style="--i:20">1994</span><span class="is-last" style="--i:29">2003</span></div></div></div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">リリーネーヴェ</div>
+<div class="mt__v">64回</div></div><div class="mt"><div class="mt__nm">オンダグロウ<span class="mk">主戦</span></div>
+<div class="mt__v">52回</div></div><div class="mt"><div class="mt__nm">アステルブーケ</div>
+<div class="mt__v">52回</div></div><div class="mt"><div class="mt__nm">ノヴァバラード<span class="mk">主戦</span></div>
+<div class="mt__v">48回</div></div><div class="mt"><div class="mt__nm">シルバーアテナ</div>
+<div class="mt__v">46回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div><div class="shot" data-shot="B-empty"><div class="cap"><b>重賞を1つも勝てなかった30年</b>（合成。1994年の実データから重賞の勝ちを消し、2005年を「1度も乗らなかった年」にし、乗った馬を3頭に減らした）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1994年〜2023年　18歳〜48歳</div></div>
+<div class="plq-list"><div class="plq"><div class="plq__k">最も勝った年</div><div class="plq__top"><div class="plq__nm">37勝</div></div>
+<div class="plq__sub">2004年・28歳　265戦</div></div></div>
+<div class="note">重賞の勝ちはありませんでした。</div>
+<div class="sec"><h3>30年の成績</h3><div class="tr"><span class="tr__k">通算</span><span class="tr__v">7,807戦 545勝</span></div><div class="tr"><span class="tr__k">勝率</span><span class="tr__v">7.0%</span></div><div class="tr"><span class="tr__k">重賞</span><span class="tr__v">0勝</span></div><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">3億6,629万円</span></div>
+<div class="strip"><div class="ch ch--strip" style="--max:40;--n:30" id="ch-5">
+<div class="ch__plot"><div class="ch__rules"></div><div class="ch__bars"><i class="" style="--v:10;--i:0"></i><i class="" style="--v:9;--i:1"></i><i class="" style="--v:8;--i:2"></i><i class="" style="--v:16;--i:3"></i><i class="" style="--v:17;--i:4"></i><i class="" style="--v:16;--i:5"></i><i class="" style="--v:12;--i:6"></i><i class="" style="--v:13;--i:7"></i><i class="" style="--v:19;--i:8"></i><i class="" style="--v:21;--i:9"></i><i class="" style="--v:37;--i:10"></i><i class="is-off" style="--v:0;--i:11"></i><i class="" style="--v:12;--i:12"></i><i class="" style="--v:21;--i:13"></i><i class="" style="--v:15;--i:14"></i><i class="" style="--v:15;--i:15"></i><i class="" style="--v:13;--i:16"></i><i class="" style="--v:22;--i:17"></i><i class="" style="--v:16;--i:18"></i><i class="" style="--v:25;--i:19"></i><i class="" style="--v:14;--i:20"></i><i class="" style="--v:17;--i:21"></i><i class="" style="--v:20;--i:22"></i><i class="" style="--v:16;--i:23"></i><i class="" style="--v:23;--i:24"></i><i class="" style="--v:17;--i:25"></i><i class="" style="--v:26;--i:26"></i><i class="" style="--v:36;--i:27"></i><i class="" style="--v:26;--i:28"></i><i class="" style="--v:33;--i:29"></i></div></div>
+<div class="ch__x"><span class="is-first" style="--i:0">1994</span><span class="" style="--i:10">2004</span><span class="" style="--i:20">2014</span><span class="is-last" style="--i:29">2023</span></div></div></div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">エンブレムメロディ<span class="mk">主戦</span></div>
+<div class="mt__v">51回</div></div><div class="mt"><div class="mt__nm">キャロルヴァラー</div>
+<div class="mt__v">43回</div></div><div class="mt"><div class="mt__nm">ハートグリフォン</div>
+<div class="mt__v">42回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div></div></section>
+<section class="cand" data-cand="C"><h2>案C　通算の勝ち数と、1年ごとの成績表が主役<small>通算の勝ち数を画面でいちばん大きな数字で出し、その下に30年ぶんの成績表を1年1行で並べる。重賞の勝ちは、勝った年の行の下に入る（格ごとの一覧は作らない）。グラフは無い。動き：通算の勝ち数が0から数え上がる（モーションリファレンス dv-stat・900ms・easeOutExpo）。</small></h2>
+<div class="gallery"><div class="shot" data-shot="C-1994"><div class="cap"><b>1994年に始めた30年</b>（実データ。8,065戦556勝・重賞39勝）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1994年〜2023年　18歳〜48歳</div></div>
+<div class="board big"><div class="board__k">通算</div>
+<div class="big__n"><b data-count="556">556</b><span>勝</span></div>
+<div class="big__sub">8,065戦　勝率6.9%</div></div>
+<div class="tiles"><div class="tile"><div class="tile__k">重賞</div><div class="tile__v is-hot">39勝</div><div class="tile__p"></div></div><div class="tile"><div class="tile__k">G1</div><div class="tile__v is-hot">11勝</div><div class="tile__p"></div></div><div class="tile"><div class="tile__k">最も勝った年</div><div class="tile__v">37勝</div><div class="tile__p">2004年・28歳</div></div></div>
+<div class="sec sec--tight"><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">3億7,558万円</span></div>
+<div class="tr"><span class="tr__k">乗った馬の獲得賞金</span><span class="tr__v">53億3,976万円</span></div></div>
+<div class="sec"><h3>1年ごとの成績</h3><div class="yr"><span class="yr__y">1994年</span><span class="yr__a">18歳</span><span class="yr__g"></span><span class="yr__s">279戦</span><span class="yr__w">10勝</span>
+</div><div class="yr"><span class="yr__y">1995年</span><span class="yr__a">19歳</span><span class="yr__g"></span><span class="yr__s">278戦</span><span class="yr__w">9勝</span>
+</div><div class="yr"><span class="yr__y">1996年</span><span class="yr__a">20歳</span><span class="yr__g"></span><span class="yr__s">276戦</span><span class="yr__w">8勝</span>
+</div><div class="yr"><span class="yr__y">1997年</span><span class="yr__a">21歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">274戦</span><span class="yr__w">16勝</span>
+<div class="yr__gw"><i>G2</i><span>京都新聞杯 （菊花賞トライアル）</span><em>ペリドットイリス</em></div></div><div class="yr"><span class="yr__y">1998年</span><span class="yr__a">22歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">275戦</span><span class="yr__w">17勝</span>
+<div class="yr__gw"><i>G2</i><span>京都新聞杯 （菊花賞トライアル）</span><em>サンダープラチナ</em></div></div><div class="yr"><span class="yr__y">1999年</span><span class="yr__a">23歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">259戦</span><span class="yr__w">16勝</span>
+<div class="yr__gw"><i>G2</i><span>フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><em>ウィングミネルバ</em></div></div><div class="yr"><span class="yr__y">2000年</span><span class="yr__a">24歳</span><span class="yr__g"></span><span class="yr__s">262戦</span><span class="yr__w">12勝</span>
+</div><div class="yr"><span class="yr__y">2001年</span><span class="yr__a">25歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">271戦</span><span class="yr__w">13勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>ヴィクトリーオペラ</em></div><div class="yr__gw"><i>G3</i><span>ユニコーンステークス</span><em>ラピッドブロッサム</em></div></div><div class="yr"><span class="yr__y">2002年</span><span class="yr__a">26歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">281戦</span><span class="yr__w">19勝</span>
+<div class="yr__gw"><i>G3</i><span>阪急杯</span><em>コバルトアリア</em></div></div><div class="yr"><span class="yr__y">2003年</span><span class="yr__a">27歳</span><span class="yr__g"></span><span class="yr__s">267戦</span><span class="yr__w">21勝</span>
+</div><div class="yr"><span class="yr__y">2004年</span><span class="yr__a">28歳</span><span class="yr__g">重賞4勝</span><span class="yr__s">265戦</span><span class="yr__w is-best">37勝</span>
+<div class="yr__gw"><i>G3</i><span>根岸ステークス</span><em>ノヴァミストラル</em></div><div class="yr__gw"><i>G3</i><span>シルクロードステークス</span><em>ヴィオラシロッコ</em></div><div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>ブランサンダー</em></div><div class="yr__gw is-g1"><i>G1</i><span>優駿牝馬（オークス）</span><em>フィオーレジュエル</em></div></div><div class="yr"><span class="yr__y">2005年</span><span class="yr__a">29歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">258戦</span><span class="yr__w">11勝</span>
+<div class="yr__gw"><i>G2</i><span>フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><em>フォースセイル</em></div></div><div class="yr"><span class="yr__y">2006年</span><span class="yr__a">30歳</span><span class="yr__g">重賞5勝</span><span class="yr__s">269戦</span><span class="yr__w">12勝</span>
+<div class="yr__gw"><i>G3</i><span>トヨタ賞 中京記念</span><em>フォルテトロフィー</em></div><div class="yr__gw"><i>G2</i><span>報知杯 フィリーズレビュー （桜花賞トライアル）</span><em>ルーチェバラード</em></div><div class="yr__gw is-g1"><i>G1</i><span>天皇賞（春）</span><em>ワルツラピッド</em></div><div class="yr__gw is-g1"><i>G1</i><span>ヴィクトリアマイル</span><em>アクセルワルツ</em></div><div class="yr__gw"><i>G2</i><span>京王杯2歳ステークス</span><em>パルスワルツ</em></div></div><div class="yr"><span class="yr__y">2007年</span><span class="yr__a">31歳</span><span class="yr__g">重賞3勝</span><span class="yr__s">262戦</span><span class="yr__w">21勝</span>
+<div class="yr__gw"><i>G2</i><span>フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><em>アメジストギフト</em></div><div class="yr__gw is-g1"><i>G1</i><span>桜花賞</span><em>ドリームビアンコ</em></div><div class="yr__gw"><i>G3</i><span>シリウスステークス</span><em>ガーベラショコラ</em></div></div><div class="yr"><span class="yr__y">2008年</span><span class="yr__a">32歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">279戦</span><span class="yr__w">15勝</span>
+<div class="yr__gw"><i>G3</i><span>デイリー杯 クイーンカップ</span><em>アレグロフラッグ</em></div><div class="yr__gw"><i>G3</i><span>ダービー卿チャレンジトロフィー</span><em>ステラエニグマ</em></div></div><div class="yr"><span class="yr__y">2009年</span><span class="yr__a">33歳</span><span class="yr__g"></span><span class="yr__s">271戦</span><span class="yr__w">15勝</span>
+</div><div class="yr"><span class="yr__y">2010年</span><span class="yr__a">34歳</span><span class="yr__g"></span><span class="yr__s">277戦</span><span class="yr__w">13勝</span>
+</div><div class="yr"><span class="yr__y">2011年</span><span class="yr__a">35歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">269戦</span><span class="yr__w">22勝</span>
+<div class="yr__gw"><i>G2</i><span>産経大阪杯</span><em>フラッグスパーク</em></div></div><div class="yr"><span class="yr__y">2012年</span><span class="yr__a">36歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">270戦</span><span class="yr__w">16勝</span>
+<div class="yr__gw"><i>G3</i><span>平安ステークス</span><em>フリージアチャージ</em></div><div class="yr__gw"><i>G3</i><span>東海テレビ杯 プロキオンステークス</span><em>フロストシャドウ</em></div></div><div class="yr"><span class="yr__y">2013年</span><span class="yr__a">37歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">266戦</span><span class="yr__w">25勝</span>
+<div class="yr__gw"><i>G2</i><span>報知杯 弥生賞 （皐月賞トライアル）</span><em>クリムゾンラピッド</em></div><div class="yr__gw"><i>G3</i><span>農林水産省賞典 新潟記念</span><em>ラベンダーランタン</em></div></div><div class="yr"><span class="yr__y">2014年</span><span class="yr__a">38歳</span><span class="yr__g">重賞3勝</span><span class="yr__s">271戦</span><span class="yr__w">14勝</span>
+<div class="yr__gw"><i>G2</i><span>京王杯スプリングカップ</span><em>ルミエールノヴァ</em></div><div class="yr__gw"><i>G3</i><span>レパードステークス</span><em>プラチナソナタ</em></div><div class="yr__gw"><i>G3</i><span>いちょうステークス</span><em>フォルテラベンダー</em></div></div><div class="yr"><span class="yr__y">2015年</span><span class="yr__a">39歳</span><span class="yr__g"></span><span class="yr__s">261戦</span><span class="yr__w">17勝</span>
+</div><div class="yr"><span class="yr__y">2016年</span><span class="yr__a">40歳</span><span class="yr__g"></span><span class="yr__s">264戦</span><span class="yr__w">20勝</span>
+</div><div class="yr"><span class="yr__y">2017年</span><span class="yr__a">41歳</span><span class="yr__g"></span><span class="yr__s">278戦</span><span class="yr__w">16勝</span>
+</div><div class="yr"><span class="yr__y">2018年</span><span class="yr__a">42歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">272戦</span><span class="yr__w">23勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>ヴィクトリアマイル</span><em>ヘリオスエール</em></div><div class="yr__gw"><i>G3</i><span>葵ステークス</span><em>ジュエルノワール</em></div></div><div class="yr"><span class="yr__y">2019年</span><span class="yr__a">43歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">267戦</span><span class="yr__w">17勝</span>
+<div class="yr__gw"><i>G2</i><span>サンケイスポーツ賞 フローラステークス （オークストライアル）</span><em>ネロマッハ</em></div><div class="yr__gw is-g1"><i>G1</i><span>東京優駿（日本ダービー）</span><em>フラッグエコー</em></div></div><div class="yr"><span class="yr__y">2020年</span><span class="yr__a">44歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">253戦</span><span class="yr__w">26勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>東京優駿（日本ダービー）</span><em>アンバーソレイユ</em></div></div><div class="yr"><span class="yr__y">2021年</span><span class="yr__a">45歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">264戦</span><span class="yr__w">36勝</span>
+<div class="yr__gw"><i>G2</i><span>東海テレビ杯 東海ステークス</span><em>ストームミスティ</em></div><div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>ゼファーメロディ</em></div></div><div class="yr"><span class="yr__y">2022年</span><span class="yr__a">46歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">267戦</span><span class="yr__w">26勝</span>
+<div class="yr__gw"><i>G3</i><span>毎日杯</span><em>シエロクエスト</em></div></div><div class="yr"><span class="yr__y">2023年</span><span class="yr__a">47歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">260戦</span><span class="yr__w">33勝</span>
+<div class="yr__gw"><i>G2</i><span>デイリー杯2歳ステークス</span><em>プレアデスアロー</em></div><div class="yr__gw is-g1"><i>G1</i><span>朝日杯フューチュリティステークス</span><em>プレアデスアロー</em></div></div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">エンブレムメロディ<span class="mk">主戦</span></div>
+<div class="mt__v">51回</div></div><div class="mt"><div class="mt__nm">キャロルヴァラー</div>
+<div class="mt__v">43回</div></div><div class="mt"><div class="mt__nm">ハートグリフォン</div>
+<div class="mt__v">42回</div></div><div class="mt"><div class="mt__nm">イリスフロスト</div>
+<div class="mt__v">42回</div></div><div class="mt"><div class="mt__nm">アテナスピネル</div>
+<div class="mt__v">39回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div><div class="shot" data-shot="C-1974"><div class="cap"><b>1974年に始めた30年</b>（実データ。8,259戦634勝・重賞42勝。1983年までの大レースを4つ含む）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1974年〜2003年　18歳〜48歳</div></div>
+<div class="board big"><div class="board__k">通算</div>
+<div class="big__n"><b data-count="634">634</b><span>勝</span></div>
+<div class="big__sub">8,259戦　勝率7.7%</div></div>
+<div class="tiles"><div class="tile"><div class="tile__k">重賞</div><div class="tile__v is-hot">42勝</div><div class="tile__p"></div></div><div class="tile"><div class="tile__k">大レース・G1</div><div class="tile__v is-hot">11勝</div><div class="tile__p"></div></div><div class="tile"><div class="tile__k">最も勝った年</div><div class="tile__v">31勝</div><div class="tile__p">1975年・19歳</div></div></div>
+<div class="sec sec--tight"><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">4億184万円</span></div>
+<div class="tr"><span class="tr__k">乗った馬の獲得賞金</span><span class="tr__v">46億7,347万円</span></div></div>
+<div class="sec"><h3>1年ごとの成績</h3><div class="yr"><span class="yr__y">1974年</span><span class="yr__a">18歳</span><span class="yr__g"></span><span class="yr__s">279戦</span><span class="yr__w">15勝</span>
+</div><div class="yr"><span class="yr__y">1975年</span><span class="yr__a">19歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">277戦</span><span class="yr__w is-best">31勝</span>
+<div class="yr__gw"><i>G3</i><span>読売杯マイラーズカップ</span><em>リボンビート</em></div></div><div class="yr"><span class="yr__y">1976年</span><span class="yr__a">20歳</span><span class="yr__g"></span><span class="yr__s">281戦</span><span class="yr__w">29勝</span>
+</div><div class="yr"><span class="yr__y">1977年</span><span class="yr__a">21歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">274戦</span><span class="yr__w">20勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>テンペストパルス</em></div></div><div class="yr"><span class="yr__y">1978年</span><span class="yr__a">22歳</span><span class="yr__g"></span><span class="yr__s">283戦</span><span class="yr__w">22勝</span>
+</div><div class="yr"><span class="yr__y">1979年</span><span class="yr__a">23歳</span><span class="yr__g">重賞3勝</span><span class="yr__s">281戦</span><span class="yr__w">24勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>オリーブプレスト</em></div><div class="yr__gw is-g1"><i>G1</i><span>宝塚記念</span><em>スピリットネーヴェ</em></div><div class="yr__gw"><i>G3</i><span>CBC賞</span><em>ラピッドタイタン</em></div></div><div class="yr"><span class="yr__y">1980年</span><span class="yr__a">24歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">268戦</span><span class="yr__w">22勝</span>
+<div class="yr__gw"><i>G3</i><span>フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><em>フォースラグーン</em></div></div><div class="yr"><span class="yr__y">1981年</span><span class="yr__a">25歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">271戦</span><span class="yr__w">17勝</span>
+<div class="yr__gw"><i>G3</i><span>トヨタ賞 中京記念</span><em>イーグルペリドット</em></div></div><div class="yr"><span class="yr__y">1982年</span><span class="yr__a">26歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">278戦</span><span class="yr__w">16勝</span>
+<div class="yr__gw"><i>G3</i><span>京成杯3歳ステークス</span><em>バラードミーティア</em></div></div><div class="yr"><span class="yr__y">1983年</span><span class="yr__a">27歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">265戦</span><span class="yr__w">22勝</span>
+<div class="yr__gw"><i>G3</i><span>第50回日本ダービー記念 NHK杯</span><em>バトンブリッツ</em></div><div class="yr__gw is-g1"><i>G1</i><span>朝日杯3歳ステークス</span><em>カメリアマグノリア</em></div></div><div class="yr"><span class="yr__y">1984年</span><span class="yr__a">28歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">264戦</span><span class="yr__w">25勝</span>
+<div class="yr__gw"><i>G2</i><span>読売マイラーズカップ</span><em>ラピスノワール</em></div><div class="yr__gw"><i>G2</i><span>サンケイスポーツ賞 4歳牝馬特別 （オークストライアル）</span><em>オパールアクセル</em></div></div><div class="yr"><span class="yr__y">1985年</span><span class="yr__a">29歳</span><span class="yr__g"></span><span class="yr__s">275戦</span><span class="yr__w">16勝</span>
+</div><div class="yr"><span class="yr__y">1986年</span><span class="yr__a">30歳</span><span class="yr__g"></span><span class="yr__s">269戦</span><span class="yr__w">25勝</span>
+</div><div class="yr"><span class="yr__y">1987年</span><span class="yr__a">31歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">271戦</span><span class="yr__w">21勝</span>
+<div class="yr__gw"><i>G2</i><span>報知杯 4歳牝馬特別 （桜花賞トライアル）</span><em>ダッシュブロッサム</em></div><div class="yr__gw is-g1"><i>G1</i><span>東京優駿（日本ダービー）</span><em>アリアシエロ</em></div></div><div class="yr"><span class="yr__y">1988年</span><span class="yr__a">32歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">282戦</span><span class="yr__w">22勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>農林水産省賞典 安田記念</span><em>ネロアルバ</em></div><div class="yr__gw"><i>G3</i><span>ラジオたんぱ賞</span><em>クエストルミエール</em></div></div><div class="yr"><span class="yr__y">1989年</span><span class="yr__a">33歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">278戦</span><span class="yr__w">21勝</span>
+<div class="yr__gw"><i>G2</i><span>報知杯 弥生賞</span><em>メロディブラン</em></div><div class="yr__gw"><i>G3</i><span>中日スポーツ賞4歳ステークス</span><em>レインボーパルス</em></div></div><div class="yr"><span class="yr__y">1990年</span><span class="yr__a">34歳</span><span class="yr__g"></span><span class="yr__s">271戦</span><span class="yr__w">18勝</span>
+</div><div class="yr"><span class="yr__y">1991年</span><span class="yr__a">35歳</span><span class="yr__g"></span><span class="yr__s">274戦</span><span class="yr__w">14勝</span>
+</div><div class="yr"><span class="yr__y">1992年</span><span class="yr__a">36歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">283戦</span><span class="yr__w">18勝</span>
+<div class="yr__gw"><i>G3</i><span>京成杯</span><em>イリスインパクト</em></div><div class="yr__gw"><i>G2</i><span>報知杯 4歳牝馬特別 （桜花賞トライアル）</span><em>アリアマッハ</em></div></div><div class="yr"><span class="yr__y">1993年</span><span class="yr__a">37歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">279戦</span><span class="yr__w">21勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>ステラトパーズ</em></div></div><div class="yr"><span class="yr__y">1994年</span><span class="yr__a">38歳</span><span class="yr__g">重賞4勝</span><span class="yr__s">281戦</span><span class="yr__w">18勝</span>
+<div class="yr__gw"><i>G2</i><span>フェブラリーステークス</span><em>フォルテブラン</em></div><div class="yr__gw is-g1"><i>G1</i><span>桜花賞</span><em>コンパスメロディ</em></div><div class="yr__gw"><i>G3</i><span>クリスタルカップ</span><em>ウルフソレイユ</em></div><div class="yr__gw"><i>G3</i><span>京阪杯</span><em>ベルベットビアンコ</em></div></div><div class="yr"><span class="yr__y">1995年</span><span class="yr__a">39歳</span><span class="yr__g"></span><span class="yr__s">280戦</span><span class="yr__w">17勝</span>
+</div><div class="yr"><span class="yr__y">1996年</span><span class="yr__a">40歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">269戦</span><span class="yr__w">18勝</span>
+<div class="yr__gw"><i>G3</i><span>シーサイドステークス</span><em>リボンアレグロ</em></div></div><div class="yr"><span class="yr__y">1997年</span><span class="yr__a">41歳</span><span class="yr__g">重賞1勝</span><span class="yr__s">281戦</span><span class="yr__w">22勝</span>
+<div class="yr__gw is-g1"><i>G1</i><span>朝日杯3歳ステークス</span><em>メイプルジャスミン</em></div></div><div class="yr"><span class="yr__y">1998年</span><span class="yr__a">42歳</span><span class="yr__g">重賞5勝</span><span class="yr__s">279戦</span><span class="yr__w">25勝</span>
+<div class="yr__gw"><i>G3</i><span>日刊スポーツ賞 シンザン記念</span><em>クローバーセイル</em></div><div class="yr__gw"><i>G3</i><span>NHK賞 きさらぎ賞</span><em>アズールエニグマ</em></div><div class="yr__gw"><i>G2</i><span>報知杯 4歳牝馬特別 （桜花賞トライアル）</span><em>ミモザラピス</em></div><div class="yr__gw"><i>G2</i><span>フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><em>ルーナロッソ</em></div><div class="yr__gw is-g1"><i>G1</i><span>皐月賞</span><em>ステララグーン</em></div></div><div class="yr"><span class="yr__y">1999年</span><span class="yr__a">43歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">267戦</span><span class="yr__w">23勝</span>
+<div class="yr__gw"><i>G3</i><span>平安ステークス</span><em>ウェーブコバルト</em></div><div class="yr__gw"><i>G2</i><span>京都新聞杯 （菊花賞トライアル）</span><em>スターネビュラ</em></div></div><div class="yr"><span class="yr__y">2000年</span><span class="yr__a">44歳</span><span class="yr__g"></span><span class="yr__s">266戦</span><span class="yr__w">20勝</span>
+</div><div class="yr"><span class="yr__y">2001年</span><span class="yr__a">45歳</span><span class="yr__g">重賞2勝</span><span class="yr__s">281戦</span><span class="yr__w">22勝</span>
+<div class="yr__gw"><i>G3</i><span>スポーツニッポン賞 京都金杯</span><em>ホライズンオペラ</em></div><div class="yr__gw"><i>G2</i><span>京都新聞杯</span><em>ブレイブミント</em></div></div><div class="yr"><span class="yr__y">2002年</span><span class="yr__a">46歳</span><span class="yr__g">重賞3勝</span><span class="yr__s">268戦</span><span class="yr__w">20勝</span>
+<div class="yr__gw"><i>G3</i><span>共同通信杯（トキノミノル記念）</span><em>イーグルスパーク</em></div><div class="yr__gw"><i>G2</i><span>フジテレビ賞 スプリングステークス （皐月賞トライアル）</span><em>ビートゼファー</em></div><div class="yr__gw"><i>G3</i><span>富士ステークス</span><em>オリーブジェット</em></div></div><div class="yr"><span class="yr__y">2003年</span><span class="yr__a">47歳</span><span class="yr__g">重賞3勝</span><span class="yr__s">284戦</span><span class="yr__w">30勝</span>
+<div class="yr__gw"><i>G3</i><span>スポーツニッポン賞 京都金杯</span><em>フォルテソレイユ</em></div><div class="yr__gw"><i>G3</i><span>日刊スポーツ賞 シンザン記念</span><em>メイプルルーチェ</em></div><div class="yr__gw is-g1"><i>G1</i><span>天皇賞（春）</span><em>パレードソレイユ</em></div></div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">リリーネーヴェ</div>
+<div class="mt__v">64回</div></div><div class="mt"><div class="mt__nm">オンダグロウ<span class="mk">主戦</span></div>
+<div class="mt__v">52回</div></div><div class="mt"><div class="mt__nm">アステルブーケ</div>
+<div class="mt__v">52回</div></div><div class="mt"><div class="mt__nm">ノヴァバラード<span class="mk">主戦</span></div>
+<div class="mt__v">48回</div></div><div class="mt"><div class="mt__nm">シルバーアテナ</div>
+<div class="mt__v">46回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div><div class="shot" data-shot="C-empty"><div class="cap"><b>重賞を1つも勝てなかった30年</b>（合成。1994年の実データから重賞の勝ちを消し、2005年を「1度も乗らなかった年」にし、乗った馬を3頭に減らした）</div><div class="frame"><div class="ce"><div class="ce-hd"><div class="ce-hd__nm">今井尚人</div>
+<div class="ce-hd__sub"><b>実力派</b>1994年〜2023年　18歳〜48歳</div></div>
+<div class="board big"><div class="board__k">通算</div>
+<div class="big__n"><b data-count="545">545</b><span>勝</span></div>
+<div class="big__sub">7,807戦　勝率7.0%</div></div>
+<div class="tiles"><div class="tile"><div class="tile__k">重賞</div><div class="tile__v">0勝</div><div class="tile__p"></div></div><div class="tile"><div class="tile__k">G1</div><div class="tile__v">0勝</div><div class="tile__p"></div></div><div class="tile"><div class="tile__k">最も勝った年</div><div class="tile__v">37勝</div><div class="tile__p">2004年・28歳</div></div></div>
+<div class="sec sec--tight"><div class="tr"><span class="tr__k">稼いだお金</span><span class="tr__v">3億6,629万円</span></div>
+<div class="tr"><span class="tr__k">乗った馬の獲得賞金</span><span class="tr__v">51億3,382万円</span></div></div>
+<div class="sec"><h3>1年ごとの成績</h3><div class="yr"><span class="yr__y">1994年</span><span class="yr__a">18歳</span><span class="yr__g"></span><span class="yr__s">279戦</span><span class="yr__w">10勝</span>
+</div><div class="yr"><span class="yr__y">1995年</span><span class="yr__a">19歳</span><span class="yr__g"></span><span class="yr__s">278戦</span><span class="yr__w">9勝</span>
+</div><div class="yr"><span class="yr__y">1996年</span><span class="yr__a">20歳</span><span class="yr__g"></span><span class="yr__s">276戦</span><span class="yr__w">8勝</span>
+</div><div class="yr"><span class="yr__y">1997年</span><span class="yr__a">21歳</span><span class="yr__g"></span><span class="yr__s">274戦</span><span class="yr__w">16勝</span>
+</div><div class="yr"><span class="yr__y">1998年</span><span class="yr__a">22歳</span><span class="yr__g"></span><span class="yr__s">275戦</span><span class="yr__w">17勝</span>
+</div><div class="yr"><span class="yr__y">1999年</span><span class="yr__a">23歳</span><span class="yr__g"></span><span class="yr__s">259戦</span><span class="yr__w">16勝</span>
+</div><div class="yr"><span class="yr__y">2000年</span><span class="yr__a">24歳</span><span class="yr__g"></span><span class="yr__s">262戦</span><span class="yr__w">12勝</span>
+</div><div class="yr"><span class="yr__y">2001年</span><span class="yr__a">25歳</span><span class="yr__g"></span><span class="yr__s">271戦</span><span class="yr__w">13勝</span>
+</div><div class="yr"><span class="yr__y">2002年</span><span class="yr__a">26歳</span><span class="yr__g"></span><span class="yr__s">281戦</span><span class="yr__w">19勝</span>
+</div><div class="yr"><span class="yr__y">2003年</span><span class="yr__a">27歳</span><span class="yr__g"></span><span class="yr__s">267戦</span><span class="yr__w">21勝</span>
+</div><div class="yr"><span class="yr__y">2004年</span><span class="yr__a">28歳</span><span class="yr__g"></span><span class="yr__s">265戦</span><span class="yr__w is-best">37勝</span>
+</div><div class="yr is-off"><span class="yr__y">2005年</span><span class="yr__a">29歳</span><span class="yr__off">騎乗なし</span>
+</div><div class="yr"><span class="yr__y">2006年</span><span class="yr__a">30歳</span><span class="yr__g"></span><span class="yr__s">269戦</span><span class="yr__w">12勝</span>
+</div><div class="yr"><span class="yr__y">2007年</span><span class="yr__a">31歳</span><span class="yr__g"></span><span class="yr__s">262戦</span><span class="yr__w">21勝</span>
+</div><div class="yr"><span class="yr__y">2008年</span><span class="yr__a">32歳</span><span class="yr__g"></span><span class="yr__s">279戦</span><span class="yr__w">15勝</span>
+</div><div class="yr"><span class="yr__y">2009年</span><span class="yr__a">33歳</span><span class="yr__g"></span><span class="yr__s">271戦</span><span class="yr__w">15勝</span>
+</div><div class="yr"><span class="yr__y">2010年</span><span class="yr__a">34歳</span><span class="yr__g"></span><span class="yr__s">277戦</span><span class="yr__w">13勝</span>
+</div><div class="yr"><span class="yr__y">2011年</span><span class="yr__a">35歳</span><span class="yr__g"></span><span class="yr__s">269戦</span><span class="yr__w">22勝</span>
+</div><div class="yr"><span class="yr__y">2012年</span><span class="yr__a">36歳</span><span class="yr__g"></span><span class="yr__s">270戦</span><span class="yr__w">16勝</span>
+</div><div class="yr"><span class="yr__y">2013年</span><span class="yr__a">37歳</span><span class="yr__g"></span><span class="yr__s">266戦</span><span class="yr__w">25勝</span>
+</div><div class="yr"><span class="yr__y">2014年</span><span class="yr__a">38歳</span><span class="yr__g"></span><span class="yr__s">271戦</span><span class="yr__w">14勝</span>
+</div><div class="yr"><span class="yr__y">2015年</span><span class="yr__a">39歳</span><span class="yr__g"></span><span class="yr__s">261戦</span><span class="yr__w">17勝</span>
+</div><div class="yr"><span class="yr__y">2016年</span><span class="yr__a">40歳</span><span class="yr__g"></span><span class="yr__s">264戦</span><span class="yr__w">20勝</span>
+</div><div class="yr"><span class="yr__y">2017年</span><span class="yr__a">41歳</span><span class="yr__g"></span><span class="yr__s">278戦</span><span class="yr__w">16勝</span>
+</div><div class="yr"><span class="yr__y">2018年</span><span class="yr__a">42歳</span><span class="yr__g"></span><span class="yr__s">272戦</span><span class="yr__w">23勝</span>
+</div><div class="yr"><span class="yr__y">2019年</span><span class="yr__a">43歳</span><span class="yr__g"></span><span class="yr__s">267戦</span><span class="yr__w">17勝</span>
+</div><div class="yr"><span class="yr__y">2020年</span><span class="yr__a">44歳</span><span class="yr__g"></span><span class="yr__s">253戦</span><span class="yr__w">26勝</span>
+</div><div class="yr"><span class="yr__y">2021年</span><span class="yr__a">45歳</span><span class="yr__g"></span><span class="yr__s">264戦</span><span class="yr__w">36勝</span>
+</div><div class="yr"><span class="yr__y">2022年</span><span class="yr__a">46歳</span><span class="yr__g"></span><span class="yr__s">267戦</span><span class="yr__w">26勝</span>
+</div><div class="yr"><span class="yr__y">2023年</span><span class="yr__a">47歳</span><span class="yr__g"></span><span class="yr__s">260戦</span><span class="yr__w">33勝</span>
+</div></div>
+<div class="sec"><h3>よく乗った馬</h3><div class="mt"><div class="mt__nm">エンブレムメロディ<span class="mk">主戦</span></div>
+<div class="mt__v">51回</div></div><div class="mt"><div class="mt__nm">キャロルヴァラー</div>
+<div class="mt__v">43回</div></div><div class="mt"><div class="mt__nm">ハートグリフォン</div>
+<div class="mt__v">42回</div></div></div><div class="foot"><div class="btn">タイトルへ</div></div></div></div></div></div></section>
+</div>
+<script>
+// ?only=A-1994 で1枚だけを画面いっぱいに出す
+(function(){
+  var only=new URLSearchParams(location.search).get("only");
+  if(only){document.body.classList.add("only");
+    var shot=document.querySelector('[data-shot="'+only+'"]');
+    if(shot){shot.classList.add("is-on");shot.closest(".cand").classList.add("is-on");}}
+  // 案A：グラフをなぞると、その年が下の行に出る
+  document.querySelectorAll(".ch--full").forEach(function(ch){
+    var rows=JSON.parse(ch.dataset.chart),best=ch.dataset.best,g1=ch.dataset.g1;
+    var plot=ch.querySelector(".ch__plot"),bars=ch.querySelectorAll(".ch__bars i"),rd=ch.parentNode.querySelector(".rd");
+    function pick(e){
+      var r=plot.getBoundingClientRect(),i=Math.max(0,Math.min(rows.length-1,Math.floor((e.clientX-r.left)/r.width*rows.length)));
+      bars.forEach(function(b,k){b.classList.toggle("is-sel",k===i)});
+      var y=rows[i],gr=y[4]>0?"重賞"+y[4]+"勝"+(y[5]>0?"（"+g1+" "+y[5]+"勝）":""):"";
+      rd.innerHTML='<div class="rd__k">'+y[0]+"年・"+y[1]+"歳"+(String(y[0])===best?'<span class="mk">最も勝った年</span>':"")+"</div>"+
+        '<div class="rd__v">'+(y[2]===0?'<b class="none">騎乗なし</b>':"<b>"+y[3]+"勝</b><span>"+y[2]+"戦</span><span>"+gr+"</span>")+"</div>";
+    }
+    plot.addEventListener("pointerdown",pick);
+    plot.addEventListener("pointermove",function(e){if(e.buttons||e.pointerType==="touch")pick(e)});
+  });
+  // 案C：通算の勝ち数が数え上がる（dv-stat・easeOutExpo）
+  var dur=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--m-count-dur"))||0;
+  document.querySelectorAll("[data-count]").forEach(function(el){
+    var to=+el.dataset.count,fmt=function(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,",")};
+    if(!dur){el.textContent=fmt(to);return}
+    var t0=performance.now();
+    (function tick(now){var p=Math.min(1,(now-t0)/dur),e=p===1?1:1-Math.pow(2,-10*p);
+      el.textContent=fmt(Math.round(to*e));if(p<1)requestAnimationFrame(tick)})(t0);
+  });
+})();
+</script>
+</body></html>
