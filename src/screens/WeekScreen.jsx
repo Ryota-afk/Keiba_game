@@ -7,6 +7,8 @@
 //   ・同じレースには1頭だけ——決めた表の残りの行は薄くなる
 //   ・1日1場——その日に別の競馬場で決めると、他の競馬場のタブは薄くなり、押すと理由が出る
 //   ・薄い行は押しても開かない。開く行は同時に1つ
+//   ・開いた行の「馬を見る」で馬の詳しい画面（`HorseDetail.jsx`・案A 能力表・2026-11-28）へ。
+//     そこの「乗る」は行の「乗る」と同じ`togglePick`。閉じると、開く前に見ていた位置へ戻る
 // 行の中身は`design/mocks/week-result-v2.html`の案A 時刻表（2026-11-27にユーザーが選んだ）：
 //   1段目＝馬名・性齢・毛色・調教後の体重（前走比）・前走からの間隔（「中6週」「連闘」「初出走」）。
 //   2段目＝主戦・戦績・走り方・芝ダの相性／調教師。レースの見出しの上に「京都 6R」。レースは番号順。
@@ -51,6 +53,8 @@ import { WeekResultScreen } from "./WeekResultScreen.jsx";
 import { YearEndSummaryScreen, RetiredHorsesScreen } from "./YearEndScreen.jsx";
 import { JockeyProfile } from "./JockeyProfile.jsx";
 import { Banzuke } from "./Banzuke.jsx";
+import { HorseDetail } from "./HorseDetail.jsx";
+import { SurfaceMarkDefs } from "./SurfaceMarkDefs.jsx";
 import "./WeekScreen.css";
 
 // 調教後の体重（`domain/horseForm.js`の`trainingWeightFor`。`view/horseRowView.js`の`trainingWeightView`が受ける）。
@@ -65,27 +69,6 @@ const PROFILE_TAB_LABEL = "自分";
 // 開き方は「自分」と同じ（土曜・日曜を押せば依頼一覧に戻り、週を進めたら閉じる）。
 const BANZUKE_TAB_LABEL = "番付";
 const SIDE_TAB = Object.freeze({ PROFILE: "profile", BANZUKE: "banzuke" });
-
-/** 芝・ダートの相性4段。同じ20px枠・同じ2pxの線で描く（フォントの字形だと○が△より小さく見える）。 */
-function SurfaceMarkDefs() {
-  return (
-    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-      <symbol id="wk-m2" viewBox="0 0 20 20">
-        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
-        <circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" strokeWidth="2" />
-      </symbol>
-      <symbol id="wk-m1" viewBox="0 0 20 20">
-        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
-      </symbol>
-      <symbol id="wk-m3" viewBox="0 0 20 20">
-        <path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      </symbol>
-      <symbol id="wk-mx" viewBox="0 0 20 20">
-        <path d="M3 3 L17 17 M17 3 L3 17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </symbol>
-    </svg>
-  );
-}
 
 /**
  * 先週の出来事を1行の文にする。⭐悪い知らせだけを出す段（2026-09-20のユーザー決定・
@@ -129,6 +112,8 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   const [pickedHorseIds, setPickedHorseIds] = useState(() => new Set());
   const [openHorseId, setOpenHorseId] = useState(null);
   const [entryListRequest, setEntryListRequest] = useState(null);
+  const [detailHorseId, setDetailHorseId] = useState(null); // 馬の詳しい画面を開いている馬（null＝閉じている）
+  const scrollBeforeDetail = useRef(0);
   const [weekResult, setWeekResult] = useState(null);
   // 年の最後の週だけ：結果画面のあとに出す年末の2枚（`advanceWeek`の`yearEnd`）。
   // `yearEndStep`＝今どちらを出しているか（null＝出していない／"summary"＝年末のまとめ／"retired"＝引退した馬）。
@@ -206,6 +191,20 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     setOpenHorseId(null);
   }
 
+  const weekPane = () => document.querySelector(".screen-pane--week");
+  function openDetail(horseId) {
+    scrollBeforeDetail.current = weekPane()?.scrollTop ?? 0;
+    setDetailHorseId(horseId);
+    weekPane()?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }
+  // 閉じたら、開く前に見ていた行の位置へ戻す（一覧の先頭へ飛ぶと、見ていたレースを探し直すことになる）。
+  function closeDetail() {
+    setDetailHorseId(null);
+    const top = scrollBeforeDetail.current;
+    requestAnimationFrame(() => weekPane()?.scrollTo(0, top));
+  }
+
   function handleAdvance() {
     const res = advanceWeek(saveSeed, roster, player, {
       chooseCourse: () => ({ [DAY.SAT]: goingCourseByDay[DAY.SAT], [DAY.SUN]: goingCourseByDay[DAY.SUN] }),
@@ -232,6 +231,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
     writeSave(saveSeed, startYear, res.roster, res.player);
     setPickedHorseIds(new Set());
     setOpenHorseId(null);
+    setDetailHorseId(null);
     setSelectedDay(null);
     setSideTab(null);
     setViewCourseByDay({ [DAY.SAT]: null, [DAY.SUN]: null });
@@ -299,6 +299,26 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
         horse={entryHorse}
         mount={entryListRequest}
         onClose={() => setEntryListRequest(null)}
+      />
+    );
+  }
+
+  const detailRequest = detailHorseId ? requestByHorseId.get(detailHorseId) : null;
+  const detailHorse = detailRequest ? horsesById.get(detailRequest.horseId) : null;
+  if (detailRequest && detailHorse) {
+    return (
+      <HorseDetail
+        horse={detailHorse}
+        request={detailRequest}
+        player={player}
+        saveSeed={saveSeed}
+        stable={stablesById.get(detailRequest.stableId) ?? null}
+        isPicked={pickedHorseIds.has(detailRequest.horseId)}
+        onTogglePick={() => {
+          togglePick(detailRequest.horseId);
+          closeDetail();
+        }}
+        onClose={closeDetail}
       />
     );
   }
@@ -508,6 +528,16 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
                           }}
                         >
                           出馬表
+                        </button>
+                        <button
+                          type="button"
+                          className="wk-lnk"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDetail(request.horseId);
+                          }}
+                        >
+                          馬を見る
                         </button>
                       </span>
                     </div>

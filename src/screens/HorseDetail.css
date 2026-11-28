@@ -1,0 +1,440 @@
+/*
+ * 馬の詳しい画面（案A 能力表）。見本：design/mocks/horse-detail-v1.html（2026-11-28にユーザーが選んだ）。
+ * 色は週の画面（WeekScreen.css）と同じ値。暗い枠の地（--board）は週の結果・番付と同じ #0f160e。
+ * ⚠️見本の`.frame{width:390px}`は並べて見せるための値。実装では画面いっぱいに広げる（CLAUDE.md §8）。
+ * 級数は styles/type.css、余白は styles/space.css のトークンだけを使う（生のpxを書かない）。
+ * 縦線を引かない（区切りは横罫線・面の明暗）。絵文字を使わない。
+ */
+
+.horse-detail {
+  --panel: #1a2a18;
+  --panel2: #223a20;
+  --board: #0f160e;
+  --fg: #f2ede0;
+  --muted: #9fb896;
+  --dim: #5f7659;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --on-action: #ffffff;
+  --turf: #8fd07e;
+  --dirt: #d8b27a;
+  --rule: rgba(255, 255, 255, 0.1);
+  --tap: 44px;
+  --sh: calc(var(--s1) / 2);
+  /* 馬の絵の後ろの地面。暗い毛色（青鹿毛・青毛）が画面の地の色に沈まないための明るい面 */
+  --paddock: #4d8a45;
+  --paddock2: #3f7639;
+  --pic-w: 88px;
+  --pic-h: 72px;
+  --horse-w: 76px;
+  --bar-h: 8px;
+  --ax-h: 14px;
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  background: var(--panel);
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding-bottom: max(var(--s2), env(safe-area-inset-bottom, 0px));
+}
+.horse-detail *,
+.horse-detail *::before,
+.horse-detail *::after {
+  box-sizing: border-box;
+}
+.horse-detail h1,
+.horse-detail h2 {
+  margin: 0;
+}
+
+.hd-sf {
+  font-weight: 700;
+  color: var(--turf);
+}
+.hd-sf.is-dirt {
+  color: var(--dirt);
+}
+.hd-num {
+  white-space: nowrap;
+}
+.hd-sym {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  color: var(--fg);
+}
+.hd-mk {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ── どの依頼の馬か（週の画面のレースの見出しと同じ並びを小さく） ── */
+.hd-ctx {
+  padding: max(var(--s2), env(safe-area-inset-top, 0px)) var(--s2) 0;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.hd-ctx__d {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+/* ── 絵・馬名・性齢・毛色・クラス・調教師 ── */
+.hd-top {
+  display: grid;
+  grid-template-columns: var(--pic-w) minmax(0, 1fr);
+  gap: var(--s2);
+  align-items: center;
+  padding: var(--s1) var(--s2) 0;
+}
+.hd-pic {
+  width: var(--pic-w);
+  height: var(--pic-h);
+  padding-bottom: 6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: linear-gradient(var(--paddock) 0 72%, var(--paddock2) 72% 100%);
+}
+.hd-pic svg {
+  display: block;
+  width: var(--horse-w);
+  image-rendering: pixelated;
+}
+.hd-name {
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.hd-name .hd-mk {
+  font-size: var(--fs-caption);
+  margin-left: var(--s1);
+  white-space: nowrap;
+}
+.hd-id {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.7;
+}
+.hd-id span + span {
+  margin-left: var(--s1);
+}
+.hd-id b {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* ── 体重・前走から・脚質・相性（横に4つ。体重の欄が残りの幅を取る。
+      幅が足りない画面（320px）では、後ろの欄から次の行へ折り返す） ── */
+.hd-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s2);
+  padding: var(--s2) var(--s2) 0;
+}
+.hd-fact:first-child {
+  flex: 1 1 auto;
+}
+.hd-fact {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.hd-fact small {
+  display: block;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--muted);
+}
+.hd-fact i {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ── 小見出し（週の結果の .wr-sec h3 と同じ） ── */
+.hd-sec {
+  padding: var(--s3) var(--s2) 0;
+}
+.hd-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.hd-h__n {
+  letter-spacing: 0;
+}
+.hd-h__n b {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+/* ── 適距離の枠：帯の図と、今回のレースの距離の印 ── */
+.hd-dist {
+  background: var(--panel2);
+  padding: var(--s1) var(--s2) var(--s2);
+  margin-top: var(--s1);
+}
+.hd-dist__hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.hd-dist__l {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.hd-dist__v {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.hd-dist__bar {
+  position: relative;
+  height: calc(var(--ax-h) + var(--bar-h) + var(--s2));
+  margin-top: var(--sh);
+}
+.hd-dist__track,
+.hd-dist__band {
+  position: absolute;
+  bottom: var(--ax-h);
+  height: var(--bar-h);
+}
+.hd-dist__track {
+  left: 0;
+  right: 0;
+  background: var(--board);
+}
+.hd-dist__band {
+  background: var(--accent);
+}
+.hd-dist__now {
+  position: absolute;
+  bottom: calc(var(--ax-h) + var(--bar-h));
+  transform: translateX(-50%);
+  font-size: var(--fs-caption);
+  color: var(--fg);
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
+}
+/* 下向きの三角（印の先が帯の上端に触れる） */
+.hd-dist__now::after {
+  content: "";
+  display: block;
+  margin: 1px auto 0;
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+  border-top-color: var(--fg);
+  border-bottom-width: 0;
+}
+/* 目盛りの字は、帯の上の位置（0・1/3・2/3・1）に合わせて置く */
+.hd-dist__ax {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-size: var(--fs-caption);
+  color: var(--dim);
+  line-height: 1;
+}
+.hd-dist__ax span {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+.hd-dist__ax span:nth-child(1) {
+  left: 0;
+  transform: none;
+}
+.hd-dist__ax span:nth-child(2) {
+  left: 33.333%;
+}
+.hd-dist__ax span:nth-child(3) {
+  left: 66.667%;
+}
+.hd-dist__ax span:nth-child(4) {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.hd-dist.is-q {
+  background: var(--board);
+}
+.hd-dist.is-q .hd-dist__l {
+  color: var(--dim);
+}
+.hd-dist.is-q .hd-dist__v {
+  color: var(--dim);
+  font-weight: 400;
+}
+.hd-dist.is-q .hd-dist__track {
+  background: var(--panel);
+}
+
+/* ── 能力の枠（分かった枠＝明るい面に値、分からない枠＝暗い面に「？」） ── */
+.hd-grid {
+  display: grid;
+  gap: var(--sh);
+  margin-top: var(--sh);
+}
+.hd-grid.is-c5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+.hd-grid.is-c3 {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: var(--s1);
+}
+.hd-ab {
+  background: var(--panel2);
+  padding: var(--s1) var(--sh);
+  text-align: center;
+  min-width: 0;
+}
+.hd-ab__l {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.hd-ab__v {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.3;
+  font-family: "M PLUS 1 Code", "M PLUS 1p", monospace;
+}
+/* 細い目盛り：スピードは値÷100、記号は16段のうちの位置 */
+.hd-ab__m {
+  height: 3px;
+  background: var(--board);
+  margin: var(--sh) var(--sh) 0;
+}
+.hd-ab__m i {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+}
+.hd-ab.is-q {
+  background: var(--board);
+}
+.hd-ab.is-q .hd-ab__l {
+  color: var(--dim);
+}
+.hd-ab.is-q .hd-ab__v {
+  color: var(--dim);
+  font-weight: 400;
+}
+.hd-ab.is-q .hd-ab__m {
+  visibility: hidden;
+}
+.hd-ab.is-s .hd-ab__v {
+  font-size: var(--fs-lead);
+  line-height: 1.6;
+}
+
+/* ── 戦績の1走（上：着順・条件・体重／下：日付・レース名・人気・自分） ── */
+.hd-run {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 0 var(--s1);
+  align-items: baseline;
+  padding: var(--s1) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.hd-run:last-child {
+  box-shadow: none;
+}
+.hd-run__pos {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.hd-run__pos small {
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--muted);
+}
+.hd-run.is-win .hd-run__pos {
+  color: var(--accent);
+}
+.hd-run__where {
+  font-size: var(--fs-body);
+  color: var(--fg);
+}
+.hd-run__sub {
+  grid-column: 2 / -1;
+  overflow-wrap: anywhere;
+}
+.hd-run__kg {
+  text-align: right;
+  white-space: nowrap;
+}
+.hd-run__kg b {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--fg);
+}
+.hd-empty {
+  padding: var(--s2) 0 var(--s1);
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+
+/* ── 下の押すもの（週の画面の行と同じ言葉。塗りの主ボタンと、文字だけの「閉じる」） ── */
+.hd-foot {
+  display: flex;
+  align-items: center;
+  padding: var(--s4) var(--s2) var(--s2);
+}
+.hd-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1 1 auto;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  text-align: center;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.hd-lnk {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 0 0 auto;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  padding: 0 var(--s1) 0 var(--s3);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--action);
+  white-space: nowrap;
+}
+.hd-btn:focus-visible,
+.hd-lnk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

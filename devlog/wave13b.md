@@ -176,3 +176,7 @@
   プレイヤーの鞍の記録（`weekResults.js`の`historyEntry`）に`byPlayer: true`（NPC経路は無変更・古い記録は無い＝false扱い）。`view/horseDetailView.js`の`buildHorseDetail`新設（domainの関数は`deps`で受ける）。`sim/stamina.js`の`APT_MIN/MAX_DISTANCE`をexport。
   計測（全部開くまでにプレイヤーが乗る回数・20万回の平均）：7項目 平均10.64回（中央値10・90%点13）→ 6項目 平均9.03回（9・11）。実関数3,000頭でも9.00回。1.6回早くなる。⚠️式は変えていない（項目が減った分だけ）。
   npm test 23件・build成功。テストは`tools/test-horse-detail.mjs`。
+- 実装（Fable・馬の詳しい画面）：`screens/HorseDetail.jsx`＋`.css`（案A）。週の画面の開いた行に「馬を見る」。週の画面の代わりにこの1枚を出す（出馬表と同じ出し方）。下の「乗る／外す」は行と同じ`togglePick`で、押すと週の画面へ戻る。「閉じる」は開く前のスクロール位置へ戻す。
+  脚質は「前走から」と「相性」の間に置いた（体重・前走から・脚質・相性の4つ。320px幅では相性が次の行へ折れる）。絵は`dreamDerbySprite.js`の`standingHorseSvg(look)`。相性の線画は`screens/SurfaceMarkDefs.jsx`へ移し、週の画面と共用。
+  確認：build・test 23件。Playwright（iPhone 13と320px幅）で、5／6開いた馬・初出走の馬の絵を見た。乗る→行が決まる（あと5件）・決めた行からは「外す」・閉じる（位置239→239）・JSエラー0。数値は動かしていない（表示だけ）。
+  未確認：朝の調教の項目が開いた見え方（開く手段がまだ無い）・9文字を超える馬名・長いレース名の折り返し・人の通しプレイ。

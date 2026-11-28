@@ -218,6 +218,28 @@ export function horseSvgMarkup(entry) {
     `</g></svg>`;
 }
 
+/**
+ * 立ち姿の馬だけのSVGマークアップ（騎手・ゼッケン・影なし。右向き・脚は回さない）。馬の詳しい画面が使う。
+ * 形と色は走る絵（`horseSvgMarkup`）と同じ定数。viewBoxは馬の外形（x 1..40・y 1..32）に合わせた 41×34。
+ * @param {{coat?:string, coatGenes?:{e:number}, age?:number, face?:string, legs?:number[]}} look
+ */
+export function standingHorseSvg(look) {
+  const lk = { ...look, face: look.face || "none", legs: look.legs || [0, 0, 0, 0] };
+  const pal = coatPaletteFor(lk);
+  const part = ([role, x, y, w, h]) => fillRect(pal[role], x, y, w, h);
+  const pink = lk.face === "bald" || lk.coat === "white";
+  return `<svg class="hs-stand" viewBox="0 0 41 34" shape-rendering="crispEdges" aria-hidden="true">` +
+    HORSE_TAIL.map(part).join("") +
+    HORSE_LEGS.map((l) => leg(l, 0, pal, lk)).join("") +
+    HORSE_BODY.map(part).join("") +
+    (pal.dapple ? HORSE_DAPPLES.map((d) => fillRect(pal.dapple, ...d)).join("") : "") +
+    HORSE_HEAD.map(part).join("") +
+    (HORSE_FACE[lk.face] || []).map((f) => fillRect(MARKING_WHITE, ...f)).join("") +
+    (pink ? fillRect(NOSE_PINK, ...HORSE_NOSE_PINK) : "") +
+    fillRect(EYE_COLOR, ...HORSE_EYE) +
+    `</svg>`;
+}
+
 /** 馬番→枠番の帽色（マーカーチップ・SVGの--cap変数に使う）。 */
 export function capColorFor(num) {
   return WAKU_COLORS[frameFor(num)];
