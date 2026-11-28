@@ -132,8 +132,8 @@ export const TWO_YEAR_OLD_DEBUT_WEEK = 23;
 
 /**
  * 条件戦の1着賞金（円）。⚠️**仮の値**（2026年の中央値を、日本ダービー1着の比で割った値。
- * `arch/race-program.md`§8）。収得賞金の順番付けにしか使わない——絶対額がずれても
- * 順番は変わらない。
+ * `arch/race-program.md`§8）。⚠️#114（2026-11-28）から騎手の進上金（獲得賞金の5%）にも
+ * 使うので、絶対額のずれがそのまま収入のずれになる（棚上げ#150）。
  */
 export const PROVISIONAL_FIRST_PRIZE_1974 = Object.freeze({
   shinba: 870_000,
