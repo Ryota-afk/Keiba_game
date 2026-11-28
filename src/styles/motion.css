@@ -61,6 +61,13 @@
   --m-list-gap: 40ms;
   --m-list-ease: cubic-bezier(0.33, 1, 0.68, 1);
   --m-list-shift: 6px;
+
+  /* 棒グラフの棒が左から順に基線から伸びる（騎手人生のまとめの30本・`screens/CareerEndScreen.css`の`.ce-ch__bar`）。
+     参考：モーションリファレンス bar-chart-stagger（全体1100ms・easeOutCubic）。
+     30本なので1本400ms・間隔24ms＝29×24＋400＝1096ms。左から右は18歳から47歳への時間の順。 */
+  --m-bar-dur: 400ms;
+  --m-bar-gap: 24ms;
+  --m-bar-ease: cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 /* ⚠️動きに弱い人への配慮（CLAUDE.md指示）。durationだけを0msへ落とし、
@@ -85,6 +92,9 @@
        時間差も無くし、全部の行が一度にフェードする */
     --m-list-gap: 0ms;
     --m-list-shift: 0px;
+    /* 棒グラフ：伸びる動きを省き、伸びた状態を最初から出す */
+    --m-bar-dur: 0ms;
+    --m-bar-gap: 0ms;
   }
 }
 

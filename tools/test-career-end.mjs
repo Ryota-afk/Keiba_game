@@ -8,6 +8,7 @@ import { advanceWeek } from "../src/domain/weekLoop.js";
 import { isCareerOver, endCareer } from "../src/domain/careerEnd.js";
 import { createEmptyPlayerRecord, applyRideToRecord } from "../src/domain/playerRecord.js";
 import { buildCareerSummary } from "../src/view/careerSummaryView.js";
+import { careerEndView } from "../src/view/careerEndView.js";
 import { START_YEARS } from "../src/data/startYears.js";
 import { CAREER_YEARS, lastCareerYear } from "../src/data/career.js";
 import { MAIN_TIMELINE_START_WEEK } from "../src/data/calendar.js";
@@ -77,6 +78,7 @@ test("buildCareerSummary：空の騎手でも落ちず、勝ち鞍のある騎�
   assert.equal(empty.byYear.length, CAREER_YEARS);
   assert.equal(empty.byYear[0].age, 18);
   assert.equal(empty.byYear[CAREER_YEARS - 1].age, 47);
+  assert.equal(empty.identity.lastAge, 47, "見出しの歳は最後の年の行と同じ");
   assert.deepEqual(empty.gradedWinList, []);
 
   let player = createPlayer(SEED, { startYear: 1994 });
@@ -101,4 +103,79 @@ test("buildCareerSummary：空の騎手でも落ちず、勝ち鞍のある騎�
   assert.equal(s.bestYear.year, 1996);
   assert.equal(s.mainMounts[0].name, "アルファ");
   assert.equal(s.mainMounts[0].gradedWins, 3);
+});
+
+test("よく乗った馬は重賞の勝ち数→乗った回数の順で上位5頭", () => {
+  let player = createPlayer(SEED, { startYear: 1994 });
+  let rec = player.record;
+  const win = (horseId) =>
+    (rec = applyRideToRecord(rec, {
+      won: true, grade: "g3", raceName: "A賞", tier: "g3", year: 1995, horseId, aptitudeKeys: [],
+      detail: { week: 10, horseName: horseId },
+    }));
+  win("h2");
+  win("h2");
+  win("h5");
+  const mainMounts = {
+    h1: { rides: 60, horseName: "h1" },
+    h2: { rides: 5, horseName: "h2" },
+    h3: { rides: 50, horseName: "h3" },
+    h4: { rides: 40, horseName: "h4" },
+    h5: { rides: 3, horseName: "h5" },
+    h6: { rides: 30, horseName: "h6" },
+    h7: { rides: 20, horseName: "h7" },
+  };
+  const s = buildCareerSummary({ player: { ...player, record: rec, mainMounts }, roster });
+  assert.deepEqual(s.mainMounts.map((m) => m.horseId), ["h2", "h5", "h1", "h3", "h4"]);
+});
+
+test("careerEndView：グラフ・最初に選ぶ年・G1の呼び方・レース名・空のとき", () => {
+  const empty = careerEndView(buildCareerSummary({ player: createPlayer(SEED, { startYear: 1994 }), roster }));
+  assert.equal(empty.span, "1994年〜2023年　18歳〜47歳");
+  assert.equal(empty.chart.max, 10);
+  assert.deepEqual(empty.chart.ticks, [10]);
+  assert.equal(empty.chart.bars.length, CAREER_YEARS);
+  assert.deepEqual(empty.chart.axis.map((a) => a.year), [1994, 2004, 2014, 2023]);
+  assert.deepEqual(empty.chart.legend, []);
+  assert.equal(empty.initialIndex, 0);
+  assert.equal(empty.years[0].off, true);
+  assert.deepEqual(empty.tiers, []);
+  assert.deepEqual(empty.mounts, []);
+  assert.deepEqual(empty.totals.map((t) => t.value), ["0戦 0勝", "0.0%", "0勝", "0万円"]);
+
+  const build = (startYear, wins) => {
+    let player = createPlayer(SEED, { startYear });
+    let rec = player.record;
+    for (const [year, tier, raceName] of wins)
+      rec = applyRideToRecord(rec, {
+        won: true, grade: tier, raceName, tier, year, horseId: "hA", income: 5000000, aptitudeKeys: [],
+        detail: { week: 10, horseName: "アルファ" },
+      });
+    rec = applyRideToRecord(rec, { won: false, grade: null, raceName: null, year: startYear, horseId: "hA", aptitudeKeys: [] });
+    return careerEndView(buildCareerSummary({ player: { ...player, record: rec }, roster }));
+  };
+  const modern = build(1994, [
+    [1996, "g2", "フジテレビ賞 スプリングステークス （皐月賞トライアル）"],
+    [1996, "g1", "農林水産省賞典 安田記念"],
+    [1999, "g3", "CBC賞"],
+  ]);
+  assert.equal(modern.g1Label, "G1");
+  assert.equal(modern.initialIndex, 2, "最も勝った年（1996年）");
+  assert.equal(modern.years[2].head, "1996年・20歳");
+  assert.equal(modern.years[2].isBest, true);
+  assert.equal(modern.years[2].graded, "重賞2勝（G1 1勝）");
+  assert.equal(modern.years[5].graded, "重賞1勝");
+  assert.equal(modern.years[0].off, false);
+  assert.equal(modern.years[0].graded, null);
+  assert.deepEqual(modern.chart.bars.slice(0, 6).map((b) => b.tone), ["plain", "plain", "g1", "plain", "plain", "graded"]);
+  assert.deepEqual(modern.chart.legend.map((l) => l.label), ["G1を勝った年", "重賞を勝った年"]);
+  assert.deepEqual(modern.tiers.map((g) => g.heading), ["G1　1勝", "G2　1勝", "G3　1勝"]);
+  assert.deepEqual(modern.tiers.map((g) => g.rows[0].race), ["安田記念", "スプリングステークス", "CBC賞"]);
+  assert.equal(modern.totals[2].sub, "G1 1勝");
+  assert.equal(modern.totals[3].value, "1,500万円");
+
+  const old = build(1974, [[1983, "g1", "皐月賞"]]);
+  assert.equal(old.g1Label, "大レース・G1");
+  assert.equal(old.tiers[0].heading, "大レース・G1　1勝");
+  assert.equal(build(1974, [[1984, "g1", "皐月賞"]]).g1Label, "G1");
 });

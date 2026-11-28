@@ -266,7 +266,7 @@ export function App() {
       )}
 
       {careerEndMounted && gameState && (
-        <div className="screen-pane">
+        <div className="screen-pane screen-pane--week">
           <CareerEndScreen player={gameState.player} roster={gameState.roster} onBackToTitle={handleBackToTitle} />
         </div>
       )}

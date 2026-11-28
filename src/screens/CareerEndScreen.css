@@ -1,0 +1,375 @@
+/*
+ * 騎手人生のまとめ。見本：design/mocks/career-end-v1.html の案A（devlog/wave13b.md §35）。
+ * 色は年末のまとめ（YearEndScreen.css）と同じ値。accent（黄）＝読むもの、action（青）＝押すもの・選択中。
+ * ⚠️--action-on-dark：グラフで選んでいる年の印の色。action（#1a5fb4）と同じ色相（213°）のまま明るくしたもの。
+ *   暗い板（--board）の上で3px前後の細い印にすると、actionの青そのままでは見えにくい（板との明度差が小さい）ため。
+ *   新しい役割の色ではなく「選択中＝action」の暗い面用。黄（accent）は棒の色（G1を勝った年）で使っているので印には使わない。
+ * ⚠️見本の .frame の 390px 幅・min-height:720px は並べて見せるための値で、ここでは画面いっぱいに広げる。
+ * 級数は styles/type.css、余白は styles/space.css のトークンだけ。縦線を引かない。絵文字を使わない。
+ * 動き：棒が左（18歳）から順に基線から伸びる。styles/motion.css の --m-bar-*
+ *   （モーションリファレンス bar-chart-stagger）。秒数・イージングをここに書かない。
+ *   動きを減らす設定では --m-bar-dur・--m-bar-gap が0になり、伸びた状態が最初から出る。
+ * ⚠️--ce-col-year（年の列の幅）・--ce-plot-h（グラフの高さ）は級数ではなく置き場所の大きさ。ここに1箇所だけ持つ。
+ */
+
+.career-end {
+  --panel: #1a2a18;
+  --board: #0f160e;
+  --fg: #f2ede0;
+  --muted: #9fb896;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --action-on-dark: #5b9bea;
+  --on-action: #ffffff;
+  --rule: rgba(255, 255, 255, 0.1);
+  --ce-bar: #4f6f47; /* 重賞を勝っていない年の棒（板と同じ緑の明るい面。色ではなく明暗で区別する） */
+  --ce-col-year: 4.2em;
+  --ce-plot-h: calc(var(--s5) * 5);
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding-bottom: max(var(--s2), env(safe-area-inset-bottom, 0px));
+}
+.career-end *,
+.career-end *::before,
+.career-end *::after {
+  box-sizing: border-box;
+}
+
+/* ── 見出し：名前・ランク・年と歳 ── */
+.ce-hd {
+  padding: max(var(--s2), env(safe-area-inset-top, 0px)) var(--s2) var(--s2);
+}
+.ce-hd__nm {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ce-hd__sub {
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ce-hd__sub b {
+  margin-right: var(--s1);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* 名前の右の印（「最も勝った年」「主戦」。番付・年末のまとめと同じ） */
+.ce-mk {
+  margin-left: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ── グラフの板（この画面の主役） ── */
+.ce-board {
+  margin: 0 var(--s2);
+  padding: var(--s2);
+  background: var(--board);
+}
+.ce-board__k {
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.ce-ch {
+  margin-top: var(--s2);
+}
+/* 右の余白は目盛りの数字の置き場所 */
+.ce-ch__plot {
+  position: relative;
+  height: var(--ce-plot-h);
+  margin-right: var(--s3);
+}
+.ce-ch__rules i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--v) / var(--max) * 100%);
+  height: 1px;
+  background: var(--rule);
+}
+.ce-ch__rules span {
+  position: absolute;
+  left: 100%;
+  top: -0.8em;
+  width: var(--s3);
+  text-align: right;
+  font-size: var(--fs-caption);
+  font-style: normal;
+  color: var(--muted);
+}
+/* 棒の並び。下の線が基線。横になぞって年を選ぶので、縦のスクロールだけをブラウザに任せる */
+.ce-ch__bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 2px;
+  box-shadow: 0 1px 0 var(--muted);
+  touch-action: pan-y;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 1年ぶんの列（枠の高さいっぱい。0勝の年も押せる） */
+.ce-ch__col {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  -webkit-tap-highlight-color: transparent;
+}
+.ce-ch__col:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.ce-ch__bar {
+  display: block;
+  width: 100%;
+  height: calc(var(--v) / var(--max) * 100%);
+  background: var(--ce-bar);
+  transform-origin: bottom;
+  animation: ce-bar var(--m-bar-dur) var(--m-bar-ease) both;
+  animation-delay: calc(var(--i) * var(--m-bar-gap));
+}
+.ce-ch__bar.is-gr {
+  background: var(--fg);
+}
+.ce-ch__bar.is-g1 {
+  background: var(--accent);
+}
+@keyframes ce-bar {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: none;
+  }
+}
+/* 選んでいる年：基線の下に青い印（選択中＝action） */
+.ce-ch__col.is-sel::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  height: calc(var(--s1) / 2);
+  background: var(--action-on-dark);
+}
+/* 横軸の年（1年目・11年目・21年目・最後の年）。それぞれの棒の真ん中に合わせ、両端だけ端に寄せる */
+.ce-ch__x {
+  position: relative;
+  height: 1.6em;
+  margin: calc(var(--s1) + var(--s1) / 2) var(--s3) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ce-ch__x span {
+  position: absolute;
+  left: calc((var(--i) + 0.5) / var(--n) * 100%);
+  transform: translateX(-50%);
+}
+.ce-ch__x span.is-first {
+  left: 0;
+  transform: none;
+}
+.ce-ch__x span.is-last {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.ce-ch__lg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s2);
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ce-ch__lg i {
+  display: inline-block;
+  width: var(--s1);
+  height: var(--s1);
+  margin-right: calc(var(--s1) / 2);
+}
+.ce-ch__lg i.is-gr {
+  background: var(--fg);
+}
+.ce-ch__lg i.is-g1 {
+  background: var(--accent);
+}
+
+/* 選んだ年の行 */
+.ce-rd {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  box-shadow: inset 0 1px 0 var(--rule);
+}
+.ce-rd__k {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ce-rd__v {
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  font-size: var(--fs-body);
+}
+.ce-rd__v b {
+  font-size: var(--fs-lead);
+  font-weight: 700;
+}
+.ce-rd__v b.is-none {
+  font-weight: 400;
+  color: var(--muted);
+}
+.ce-rd__g {
+  color: var(--accent);
+}
+
+/* ── 段（通算・G1・G2・G3・よく乗った馬） ── */
+.ce-sec {
+  margin: 0;
+  padding: var(--s3) var(--s2) 0;
+}
+.ce-sec--tight {
+  padding-top: var(--s1);
+}
+.ce-sec h2 {
+  margin: 0;
+  padding-bottom: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+
+/* 項目と値の行（通算・勝率・重賞・稼いだお金） */
+.ce-tr,
+.ce-mt {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s1);
+  padding: var(--s1) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.ce-tr:last-child,
+.ce-mt:last-child,
+.ce-gw:last-child {
+  box-shadow: none;
+}
+.ce-tr__k {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ce-tr__v {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  text-align: right;
+}
+.ce-tr__v span {
+  margin-left: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* 重賞の行：年・レース名・馬名。G1だけレース名を本文の大きさ・黄にする */
+.ce-gw {
+  display: grid;
+  grid-template-columns: var(--ce-col-year) minmax(0, 1fr) auto;
+  gap: 0 var(--s1);
+  align-items: baseline;
+  padding: calc(var(--s1) * 0.75) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+}
+.ce-gw__y,
+.ce-gw__h {
+  color: var(--muted);
+}
+.ce-gw__r {
+  overflow-wrap: anywhere;
+}
+.ce-gw__h {
+  max-width: 10.5em;
+  text-align: right;
+}
+.ce-gw.is-strong {
+  padding: var(--s1) 0;
+}
+.ce-gw.is-strong .ce-gw__r {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--accent);
+}
+.ce-gw.is-strong .ce-gw__h {
+  color: var(--fg);
+}
+
+/* よく乗った馬の行：馬名（＋主戦）・乗った回数・重賞の勝ち数 */
+.ce-mt__nm {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ce-mt__v {
+  font-size: var(--fs-body);
+  white-space: nowrap;
+}
+.ce-mt__v span {
+  margin-left: var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--accent);
+}
+
+/* ── タイトルへ（1画面に1つの押すもの） ── */
+.ce-foot {
+  margin-top: auto;
+  padding: var(--s4) var(--s2) 0;
+}
+.ce-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  text-align: center;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.ce-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

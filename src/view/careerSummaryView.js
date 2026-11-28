@@ -1,7 +1,7 @@
 // キャリアの終わりの画面に渡すデータを組む（`devlog/wave13b.md`§35）。純関数（JSX無し）。
 // 画面は計算せず、ここで組んだ値を並べるだけ。
 
-import { CAREER_END_AGE, DEBUT_AGE, lastCareerYear } from "../data/career.js";
+import { DEBUT_AGE, lastCareerYear } from "../data/career.js";
 import { RANK_LABELS } from "../data/ranks.js";
 
 const TIER_ORDER = { g1: 0, g2: 1, g3: 2 };
@@ -11,7 +11,7 @@ const TOP_MOUNTS = 5;
  * @param {{ player: object, roster?: { horses?: object[] } }} args
  *   `roster.horses`＝名前を引くのに使う（引退して名簿に居ない馬は`mainMounts[].horseName`・勝ち鞍の一覧の名前で補う）
  * @returns {{
- *   identity: { name: string, debutAge: number, endAge: number, startYear: number|null, endYear: number|null },
+ *   identity: { name: string, debutAge: number, lastAge: number|null, startYear: number|null, endYear: number|null },
  *   totals: { starts: number, wins: number, winRate: number, gradedWins: number, g1Wins: number,
  *     bigRaceWins: number, income: number, prize: number },
  *   byYear: { year: number, age: number|null, starts: number, wins: number, gradedWins: number,
@@ -25,7 +25,8 @@ const TOP_MOUNTS = 5;
  *   money: number }}
  *   `winRate`＝0〜1（出走0なら0）。`byYear`＝開始年から最後の年まで毎年（乗らなかった年も0で並ぶ）。
  *   `bestYear`＝最も勝った年（同数は早い年。1勝もなければnull）。`gradedWinList`＝G1→G2→G3、同じ格は年・週の順。
- *   `mainMounts`＝乗った回数の多い上位5頭（同数は主戦→重賞の勝ち数→id）。
+ *   `identity.lastAge`＝最後の年の歳（`byYear`の最後の行と同じ値。30年なら47。開始年が分からなければnull）。
+ *   `mainMounts`＝重賞の勝ち数の多い順→乗った回数の多い順の上位5頭（同数は主戦→id。2026-11-28のユーザー決定）。
  */
 export function buildCareerSummary({ player, roster }) {
   const record = player.record ?? {};
@@ -88,9 +89,9 @@ export function buildCareerSummary({ player, roster }) {
     }))
     .sort(
       (a, b) =>
+        b.gradedWins - a.gradedWins ||
         b.rides - a.rides ||
         Number(b.isMain) - Number(a.isMain) ||
-        b.gradedWins - a.gradedWins ||
         (a.horseId < b.horseId ? -1 : 1)
     )
     .slice(0, TOP_MOUNTS);
@@ -100,7 +101,7 @@ export function buildCareerSummary({ player, roster }) {
     identity: {
       name: player.jockey?.name ?? "",
       debutAge: DEBUT_AGE,
-      endAge: CAREER_END_AGE,
+      lastAge: byYear.length ? byYear[byYear.length - 1].age : null,
       startYear,
       endYear,
     },
