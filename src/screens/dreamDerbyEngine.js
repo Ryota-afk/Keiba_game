@@ -54,7 +54,7 @@ import {
   bandPath,
   formatPoint,
 } from "../view/dreamDerbyRace.js";
-import { horseSvgMarkup, coatFor, silkFor, capColorFor, gaitPhaseFor } from "../view/dreamDerbySprite.js";
+import { horseSvgMarkup, silkFor, capColorFor, gaitPhaseFor } from "../view/dreamDerbySprite.js";
 import {
   fieldOrder,
   commentaryVars,
@@ -810,9 +810,6 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     entries.forEach((e) => {
       const el = document.createElement("div");
       el.className = `horse-sprite${e.isSelf ? " is-self" : ""}`;
-      const coat = coatFor(e.num);
-      el.style.setProperty("--coat", coat.hex);
-      el.style.setProperty("--coat-dark", coat.dark);
       el.style.setProperty("--silk", silkFor(e));
       el.style.setProperty("--cap", capColorFor(e.num).bg);
       el.style.setProperty("--ph", `${gaitPhaseFor(e.num).toFixed(3)}s`);

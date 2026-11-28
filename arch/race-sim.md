@@ -250,8 +250,16 @@ SVGマークアップ）・`src/view/dreamDerbyCommentary.js`（実況の文組�
 ⭐**夢から覚めた後の3場面の絵**（目覚めの部屋・名前入力の校門・卒業式の壇上）は
 `src/view/wakeGradScenes.js`の`roomSceneMarkup()`／`schoolSceneMarkup()`／`ceremonySceneMarkup()`
 （130×100マスの文字地図→`<rect>`の純関数。2026-09-20・`design/mocks/wake-grad-scenes.js`が原型）。
-⚠️**馬の形は`dreamDerbySprite.js`の`HORSE_TAIL`／`HORSE_LEGS`／`HORSE_BODY`を両方が共有する**——
-ここを変えるとレース画面の馬と校門の奥の馬が一緒に変わる。
+⚠️**馬の形は`dreamDerbySprite.js`の`HORSE_TAIL`／`HORSE_LEGS`／`HORSE_BODY`／`HORSE_HEAD`／`HORSE_EYE`を両方が共有する**——
+ここを変えるとレース画面の馬と校門の奥の馬が一緒に変わる（校門の馬は2色のまま・白い模様なし）。
+⭐**レース画面の馬の色と白い模様**（2026-11-28・`design/mocks/horse-sprite-v1.html`案C）：`horseSvgMarkup(entry)`が
+`lookForEntry(entry)`（`entry.horse.coat`／`.coatGenes`／`.markings`、年齢は`entry.age`→`entry.raceYear − horse.bornYear`→3歳）
+→`coatPaletteFor(look)`で役割ごとの色（body／shade／mane／tail／leg／muzzle／hi／hoof／dapple）を決め、`fill`に直接書く
+（CSS変数は`--silk`と`--cap`だけ。`--coat`は廃止）。色の表は`data/dreamDerbyVisuals.js`の`COAT_PALETTE`（芦毛以外の7毛色）と
+`GRAY_COAT`（芦毛：2歳→8歳で濃い側から白い側へ混ぜる。`coatGenes.e === 0`なら赤みの灰。混ぜ具合0.75未満＝6歳まで斑）。
+顔の白7種は`HORSE_FACE`、脚の白の高さは`HORSE_SOCK_HEIGHT`（1.5／3.2／5.5マス）で、白い脚は蹄も薄い色。
+⚠️**左右**：馬は右向き。`HORSE_LEGS`の7番目が`markings.legs`（[左前,右前,左後,右後]）の添字で、太い脚（x=7・21）が手前＝右脚。
+`horse.coat`が無い馬だけ`legacyCoatIdFor(num)`（馬番→昔の5色）へ落とす。
 
 ⚠️**2026-09-06に`gapMetersAt`（演出だけで隊列を作っていた関数）を削除した。**
 各馬の通過距離の出どころは**レースsimが返す時系列ただ1つ**になった（下記）。

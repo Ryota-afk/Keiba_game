@@ -261,8 +261,6 @@
 @keyframes hs-f1 { 0%, 33.2% { opacity: 1; } 33.3%, 100% { opacity: 0; } }
 @keyframes hs-f2 { 0%, 33.2% { opacity: 0; } 33.3%, 66.5% { opacity: 1; } 66.6%, 100% { opacity: 0; } }
 @keyframes hs-f3 { 0%, 66.5% { opacity: 0; } 66.6%, 100% { opacity: 1; } }
-.horse-sprite .coat { fill: var(--coat); }
-.horse-sprite .coat-dark { fill: var(--coat-dark); }
 .horse-sprite .silk { fill: var(--silk); }
 .horse-sprite .cap { fill: var(--cap); }
 .horse-sprite .hs-shadow { fill: rgba(6, 60, 6, 0.5); }

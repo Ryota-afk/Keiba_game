@@ -157,3 +157,9 @@
   模様は3頭だけ手書き表`data/derbyHorseMarkings.js`（ミホノブルボン＝流星・右後2／ナリタブライアン＝星鼻白・脚なし／メイショウサムソン＝白面・右前1・右後2。小白1・一白2。「右髪中」「初地」は意味が確認できず脚に反映せず）。残り48頭は生成のまま。
   出走表の各エントリーに`age: 3`を追加（馬に生年が無いため）。
   計測：`measure-card-winrate.mjs 100`は71.0／53.4／24.0で変更前と同じ。npm test 18件通過・build成功。⚠️鹿毛・黒鹿毛・青鹿毛の違いは遺伝子に無いので、遺伝子から戻した色は同じ系まで（実際の色は`horse.coat`）。200シードで相手に出た馬は43頭（騎手重複で出ない馬が居る）。
+- 実装（Fable）：案Cを`view/dreamDerbySprite.js`へ移した。形は`HORSE_BODY`（胴）／`HORSE_HEAD`（首・頭）／`HORSE_EYE`／`HORSE_FACE`（顔の白7種）／`HORSE_DAPPLES`に分け、
+  色は`data/dreamDerbyVisuals.js`の`COAT_PALETTE`（7毛色）＋`GRAY_COAT`（芦毛。2歳→8歳で混ぜる）。`coatFor`・`COAT_COLORS`・CSSの`--coat`は廃止（`fill`に直接書く）。
+  呼び出し側の`screens/dreamDerbyEngine.js`から`coatFor`の2行を外した。校門の奥の馬（`wakeGradScenes.js`）は新しい形・2色のまま。
+  左右はモックと同じ（太い脚x=7・21＝右脚。`HORSE_LEGS`の7番目が`markings.legs`の添字）。動きは変えていない（モーションリファレンスは引いていない）。
+  確認：`npm run build`・`npm test`（18件）通過。Playwright（iPhone 13）で8毛色・顔7種・芦毛の年齢を並べた絵と、夢のダービーのスタート・道中・ゴール、校門の場面を目で見た。
+  未確認：通常のレース画面（夢のダービー以外に馬の絵を出す画面はまだ無い）。

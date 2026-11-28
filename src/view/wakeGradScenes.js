@@ -2,10 +2,12 @@
 // 130×100マスの方眼にドット絵として描き、SVGのマークアップ文字列を返す（JSX・DOM無し、純関数のみ）。
 // `design/mocks/wake-room-v1.html`案C・`grad-school-v1.html`案C・`grad-ceremony-v1.html`案Aを
 // 2026-09-20にユーザーが選び、`design/mocks/wake-grad-scenes.js`（原型）から移した。
-// 馬の形は`view/dreamDerbySprite.js`のレース画面の馬と共有する（HORSE_TAIL／HORSE_LEGS／HORSE_BODY）。
+// 馬の形は`view/dreamDerbySprite.js`のレース画面の馬と共有する（HORSE_TAIL／HORSE_LEGS／HORSE_BODY／HORSE_HEAD／HORSE_EYE）。
 // 130:100は390×300の枠と同じ比。枠の比が違うときは`xMidYMid slice`で中央を残して端を切る。
 
-import { HORSE_TAIL, HORSE_LEGS, HORSE_BODY, HORSE_HOOF_COLOR, HORSE_EYE_COLOR } from "./dreamDerbySprite.js";
+import {
+  HORSE_TAIL, HORSE_LEGS, HORSE_BODY, HORSE_HEAD, HORSE_EYE, HORSE_HOOF_COLOR, HORSE_EYE_COLOR,
+} from "./dreamDerbySprite.js";
 
 export const SCENE_COLS = 130;
 export const SCENE_ROWS = 100;
@@ -197,14 +199,18 @@ function painter() {
     // レース画面と同じ形の馬（`view/dreamDerbySprite.js`の40×36・右向き。脚は立ち姿）
     horse(x, y, opt = {}) {
       const sc = opt.scale || 1;
-      const fill = { coat: opt.coat || C.b, dark: opt.dark || C.d, eye: HORSE_EYE_COLOR };
+      // 背景の小さい馬なので2色のまま（胴と、たてがみ・尾・耳・鼻先・腹の影）。背と頬の明るい線は胴の色で塗る。
+      const coat = opt.coat || C.b;
+      const dark = opt.dark || C.d;
+      const fill = { body: coat, hi: coat, shade: dark, mane: dark, tail: dark, muzzle: dark };
       const put = (c, rx, ry, rw, rh) => this.r(x + (opt.flip ? 40 - rx - rw : rx) * sc, y + ry * sc, rw * sc, rh * sc, c);
       for (const [role, rx, ry, rw, rh] of HORSE_TAIL) put(fill[role], rx, ry, rw, rh);
       for (const [lx, ly, lw, lh] of HORSE_LEGS) {
-        put(fill.coat, lx, ly, lw, lh);
+        put(fill.body, lx, ly, lw, lh);
         put(HORSE_HOOF_COLOR, lx, ly + lh - 1.5, lw, 2);
       }
-      for (const [role, rx, ry, rw, rh] of HORSE_BODY) put(fill[role], rx, ry, rw, rh);
+      for (const [role, rx, ry, rw, rh] of [...HORSE_BODY, ...HORSE_HEAD]) put(fill[role], rx, ry, rw, rh);
+      put(HORSE_EYE_COLOR, ...HORSE_EYE);
     },
     svg() {
       return (
