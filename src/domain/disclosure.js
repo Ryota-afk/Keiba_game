@@ -31,7 +31,8 @@ const POOL_CONFIG = Object.freeze({
  */
 export function attemptReveal(saveSeed, week, horse, poolName) {
   const { pool, revealedKey, streakKey } = POOL_CONFIG[poolName];
-  const revealed = horse.disclosure[revealedKey];
+  // 古いセーブ：プールに無い項目（"reserve"・"strategy"）は無視する（数えも、二重に開けもしない）
+  const revealed = horse.disclosure[revealedKey].filter((item) => pool.includes(item));
   const remaining = pool.filter((item) => !revealed.includes(item));
   if (remaining.length === 0) return horse; // このプールは開き切っている
 
@@ -62,5 +63,11 @@ export function attemptReveal(saveSeed, week, horse, poolName) {
 /** そのプールが開き切っているか（両プールとも開いて初めて「知り切った」）。 */
 export function isPoolFullyRevealed(horse, poolName) {
   const { pool, revealedKey } = POOL_CONFIG[poolName];
-  return horse.disclosure[revealedKey].length >= pool.length;
+  return revealedCount(horse, poolName) >= pool.length;
+}
+
+/** 開いた項目の数（プールに無い古い項目は数えない）。 */
+export function revealedCount(horse, poolName) {
+  const { pool, revealedKey } = POOL_CONFIG[poolName];
+  return horse.disclosure[revealedKey].filter((item) => pool.includes(item)).length;
 }

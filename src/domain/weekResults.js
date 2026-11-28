@@ -175,6 +175,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     surface: mount.surface ?? null,
     distance: mount.distance ?? null,
     condition,
+    byPlayer: true, // 「自分」の印（プレイヤーの鞍だけ。古い記録・NPCの記録には無い＝false扱い）
     ...(result.selfDay ? bodyKgFields(result.selfDay) : {}),
   };
   let nextRecord;

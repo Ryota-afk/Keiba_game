@@ -172,3 +172,7 @@
 レースで分かる項目は6つ＝適距離・スピード（数値）・瞬発力・勝負根性・柔軟性・パワー（記号16段）。開いたかどうかは`horse.disclosure.raceRevealed`（`domain/disclosure.js`の`attemptReveal`がプレイヤーの鞍ごとに1回）。
 - **ユーザー決定（2026-11-28）**：馬の詳しい画面は**案A 能力表**（https://claude.ai/artifact/QefkyXNnvBdvzW3PtbefTn）／戦績に**「自分」の印を付ける**（記録に乗った人を1項目足す。足す前の記録には付かない）／
   **脚質は分かっている扱い**（実際の競馬でも過去のレースで分かる。朝の調教で分かる項目は賢さ・健康・精神力の3つにする）／画面の下に**「乗る」と「閉じる」**を置く。
+- 実装（Sonnet・馬の詳しい画面のデータ）：開示プールを レース6（適距離・スピード・瞬発力・勝負根性・柔軟性・パワー）／調教3（賢さ・健康・精神力）に。古いセーブの"reserve""strategy"は`disclosure.js`が無視（`revealedCount`新設）。
+  プレイヤーの鞍の記録（`weekResults.js`の`historyEntry`）に`byPlayer: true`（NPC経路は無変更・古い記録は無い＝false扱い）。`view/horseDetailView.js`の`buildHorseDetail`新設（domainの関数は`deps`で受ける）。`sim/stamina.js`の`APT_MIN/MAX_DISTANCE`をexport。
+  計測（全部開くまでにプレイヤーが乗る回数・20万回の平均）：7項目 平均10.64回（中央値10・90%点13）→ 6項目 平均9.03回（9・11）。実関数3,000頭でも9.00回。1.6回早くなる。⚠️式は変えていない（項目が減った分だけ）。
+  npm test 23件・build成功。テストは`tools/test-horse-detail.mjs`。

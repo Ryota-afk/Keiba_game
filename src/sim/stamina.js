@@ -88,9 +88,9 @@ export function optimalDistance(horse) {
 }
 
 /** 適正距離が取りうる下限（m）。JRAの最短が1000m。 */
-const APT_MIN_DISTANCE = 1000;
+export const APT_MIN_DISTANCE = 1000;
 /** 適正距離が取りうる上限（m）。 */
-const APT_MAX_DISTANCE = 4000;
+export const APT_MAX_DISTANCE = 4000;
 
 /**
  * その馬の適正距離の「幅」（m）。⭐柔軟性が決める。
