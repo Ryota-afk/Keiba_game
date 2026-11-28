@@ -508,7 +508,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
     // カード最下部の選択肢「下げて外へ」に吹き出しがかぶらないよう、判断カードの
     // 直上（.card-panelの上端）に出す。bottomの値はanchorAbove経由で都度計算する。
     showTutorialInternal({
-      text: "選んだ行動で、レースが変わります",
+      text: "選んだ行動でレースが変わります",
       atTop: false,
       anchorAbove: refs.cardPanel,
     });
@@ -528,8 +528,8 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
         const leader = currentLeaderEntry();
         const text =
           label === "先頭" && leader && !leader.isSelf
-            ? `画面が先頭の「${leader.name}」を追いかけます。`
-            : `画面が自分の「${selfEntry.name}」に戻ります。`;
+            ? `画面が先頭の「${leader.name}」を追いかけます`
+            : `画面が自分の「${selfEntry.name}」に戻ります`;
         callbacks.setTutorial((prev) => (prev ? { ...prev, text } : prev));
         raceTimeout(() => {
           hideTutorialInternal();
@@ -558,7 +558,7 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
       onPress: (label) => {
         pressCount += 1;
         callbacks.setTutorial((prev) =>
-          prev ? { ...prev, progressText: `${pressCount}/3`, text: `表示が「${label}」になりました。` } : prev
+          prev ? { ...prev, progressText: `${pressCount}/3`, text: `表示が「${label}」になりました` } : prev
         );
         if (pressCount >= 3) {
           activeButtonTutorial = null;

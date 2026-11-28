@@ -77,7 +77,7 @@ export function groupRidesByDay(rides) {
     return {
       dayLabel: DAY_LABEL[day],
       courseName: dayRides[0]?.courseName ?? null,
-      emptyText: dayRides.length === 0 ? `${DAY_LABEL[day]}は乗りませんでした。` : null,
+      emptyText: dayRides.length === 0 ? `${DAY_LABEL[day]}は乗りませんでした` : null,
       rides: dayRides,
     };
   });

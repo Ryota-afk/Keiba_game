@@ -229,7 +229,7 @@ export function TitleScreen({ onStart, hasSave = false, onContinue, saveSummary 
         <div className="title-screen__modal" role="dialog" aria-modal="true" aria-labelledby="title-confirm-msg">
           <div className="title-screen__modal-box">
             <p className="title-screen__confirm-msg" id="title-confirm-msg">
-              今の記録を消して、新しく始めますか。
+              今の記録を消して新しく始めますか？
             </p>
             <div className="title-screen__confirm-btns">
               <button type="button" className="title-screen__ghost" onClick={() => setConfirming(false)}>

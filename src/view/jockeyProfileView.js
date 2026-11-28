@@ -167,7 +167,7 @@ export function buildJockeyProfile({ player, stables }) {
     gaugeGroups: buildGaugeGroups(total, cap),
     freeLabel: isFull ? "" : `空き ${cap - total}`,
     capLabel: `${rankLabel}は${cap}まで`,
-    fullNote: isFull ? "どれかが1つ上がると、黄色い枠のものが1つ下がります" : null,
+    fullNote: isFull ? "どれかが1つ上がると黄色い枠のものが1つ下がります" : null,
     groups,
   };
 }

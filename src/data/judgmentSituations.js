@@ -26,17 +26,17 @@ const DREAM_MID_CHOICES = Object.freeze([
 export const SITUATION_CHOICES = Object.freeze({
   boxed: [
     { id: "wait", label: "じっと待つ", effect: 0 },
-    { id: "forceOut", label: "強引に進路を切り開く", effect: 3 },
+    { id: "forceOut", label: "強引に割って出る", effect: 3 },
     { id: "pullBack", label: "一度下げて外へ回す", effect: -1 },
   ],
   gapAhead: [
-    { id: "goNow", label: "迷わず突く", effect: 4 },
+    { id: "goNow", label: "すぐ突く", effect: 4 },
     { id: "holdPosition", label: "位置を守ったまま様子を見る", effect: 0 },
   ],
   gapFar: [
     { id: "chase", label: "早めに動いて追いかける", effect: 2 },
-    { id: "stayPatient", label: "我慢して直線に賭ける", effect: 0 },
-    { id: "switchOut", label: "外に出して見晴らしを取る", effect: 1 },
+    { id: "stayPatient", label: "直線まで我慢する", effect: 0 },
+    { id: "switchOut", label: "外に出して前を空ける", effect: 1 },
   ],
   horsePulling: [
     { id: "letGo", label: "行きたがるまま行かせる", effect: 2 },

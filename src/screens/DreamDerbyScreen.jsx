@@ -239,9 +239,9 @@ export function DreamDerbyScreen({ saveSeed, onGraduate }) {
           >
             <div className="intro-eyebrow">東京競馬場　第11レース</div>
             <p className="intro-line">
-              日本ダービー。
+              日本ダービー
               <br />
-              芝2400メートル、3歳馬18頭。
+              芝2400メートル　3歳馬18頭
             </p>
           </div>
 

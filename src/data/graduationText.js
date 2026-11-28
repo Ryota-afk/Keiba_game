@@ -5,14 +5,14 @@
 // （CLAUDE.md §7「文言を変えない」）。
 
 /** 段1：システムの声（トースト）。 */
-export const NAME_PROMPT_TEXT = "名前を教えてください。";
+export const NAME_PROMPT_TEXT = "名前を教えてください";
 
 /** 段2：式典の読み上げ4行（A-2）。フルネームを差し込む。 */
 export function ceremonyLines(fullName) {
   return [
-    `「卒業証書授与、${fullName}」`,
+    `「卒業証書授与　${fullName}」`,
     "「はい」",
-    "「今日から、君は騎手だ」",
+    "「今日から君も騎手です」",
   ];
 }
 
@@ -25,10 +25,10 @@ export function ceremonyLines(fullName) {
  */
 export function reportLines(schoolRecord) {
   return [
-    "「卒業、おめでとう。」",
-    "「三年前、お前は馬に触るのも怖がっていたな」",
-    "「ここから先は、俺は何も言えん」",
-    "「声をかけてきた厩舎がある。自分で選べ」",
+    "「卒業おめでとう」",
+    "「三年前は馬に触るのも怖がってたのにな」",
+    "「もう俺から教えることはないよ」",
+    "「声をかけてくれた厩舎があるから自分で選べ」",
   ];
 }
 
@@ -37,7 +37,7 @@ export function reportLines(schoolRecord) {
  * （CLAUDE.md §7・2026-09-09にユーザーが明示）。2026-09-09にユーザーが(B)案で決定
  * （`devlog/wave06.md`§65）。
  */
-export const DREAM_RECORD_INTRO = "夢の中の乗り方を、これからの自分の型にするか選べます。";
+export const DREAM_RECORD_INTRO = "夢の中の乗り方をこれからの自分の型にするか選べます";
 
 /**
  * 段3：夢の記録に対する2択（C-2）。`accept`＝あの乗り方を信じる／`reject`＝一から覚え直す。
@@ -47,21 +47,21 @@ export function dreamRecordChoices(strategyLabel) {
   return [
     {
       id: "accept",
-      label: "夢の乗り方を信じてみる",
-      hint: `${strategyLabel}が武器になります。`,
+      label: "夢と同じ乗り方でいく",
+      hint: `${strategyLabel}が得意な状態から始まります`,
     },
     {
       id: "reject",
       label: "一から覚え直す",
       // 2026-09-27にユーザーが案Aで決定（通しプレイ②の指摘⑦：「四つ」が何か分からない）。
-      hint: "逃げ・先行・差し・追込が、どれも同じ腕前から始まります。",
+      hint: "逃げ・先行・差し・追込がどれも同じ腕前から始まります",
     },
   ];
 }
 
 /** 段4：厩舎を選んだ後の確定行。 */
 export function stableConfirmedLine(trainerFamilyName) {
-  return `${trainerFamilyName}厩舎に所属が決まりました。`;
+  return `${trainerFamilyName}厩舎に所属が決まりました`;
 }
 
 export const STABLE_OFFER_HEADING = "声をかけてきた厩舎";

@@ -143,13 +143,13 @@ export function lockedCourseMessage(day, goingCourseId, thisCourseId) {
   const dayLabel = day === DAY.SUN ? "日曜" : "土曜";
   const going = findCourse(goingCourseId)?.name ?? goingCourseId;
   const here = findCourse(thisCourseId)?.name ?? thisCourseId;
-  return `${dayLabel}は${going}へ行きます。${here}の依頼には乗れません。`;
+  return `${dayLabel}は${going}へ行くので${here}の依頼には乗れません`;
 }
 
 /** その日に依頼が無いときの文（見本：「日曜は依頼がありません。」）。 */
 export function emptyDayMessage(day) {
-  return day === DAY.SUN ? "日曜は依頼がありません。" : "土曜は依頼がありません。";
+  return day === DAY.SUN ? "日曜は依頼がありません" : "土曜は依頼がありません";
 }
 
 /** 週に依頼が1件も来なかったときの文（見本と同じ）。 */
-export const EMPTY_WEEK_MESSAGE = "今週は依頼が来ませんでした。";
+export const EMPTY_WEEK_MESSAGE = "今週は依頼が来ませんでした";

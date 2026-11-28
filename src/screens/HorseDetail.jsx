@@ -234,7 +234,7 @@ export function HorseDetail({ horse, request, player, saveSeed, stable, isPicked
         {d.runs.length > 0 ? (
           d.runs.map((run, i) => <Run key={i} run={run} />)
         ) : (
-          <div className="hd-empty">まだ走っていません。</div>
+          <div className="hd-empty">まだ走っていません</div>
         )}
       </section>
 

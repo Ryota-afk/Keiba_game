@@ -97,7 +97,7 @@ export function WeekResultScreen({ summary, onNext }) {
         </div>
       </div>
 
-      {rides.length === 0 && <p className="wr-empty">今週は乗りませんでした。</p>}
+      {rides.length === 0 && <p className="wr-empty">今週は乗りませんでした</p>}
       {groupRidesByDay(rides).map((group, gi) => (
         <React.Fragment key={group.dayLabel ?? gi}>
           {group.dayLabel && (

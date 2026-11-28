@@ -21,7 +21,7 @@ import {
 } from "../view/banzukeView.js";
 import "./Banzuke.css";
 
-const EMPTY_MESSAGE = "今年の番付は、今週末のレースから始まります。";
+const EMPTY_MESSAGE = "今年の番付は今週末のレースから始まります";
 const SHOW_LAST_YEAR_LABEL = "前の年を見る";
 const SHOW_THIS_YEAR_LABEL = "今年に戻る";
 const EMPTY_ORDER_LABEL = "賞金の多い順";

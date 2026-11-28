@@ -96,17 +96,17 @@ function notificationText(n, horsesById, stablesById) {
   const horseName = (id) => horsesById.get(id)?.name ?? id;
   switch (n.type) {
     case NOTIFICATION_TYPES.LOST_MAIN_MOUNT:
-      return `${horseName(n.horseId)}の主戦を他の騎手に取られました。`;
+      return `${horseName(n.horseId)}の主戦を他の騎手に取られました`;
     case NOTIFICATION_TYPES.INJURY:
-      return `${horseName(n.horseId)}が${INJURY_LABELS[n.injuryType] ?? n.injuryType}しました。${n.weeksOut}週間乗れません。`;
+      return `${horseName(n.horseId)}が${INJURY_LABELS[n.injuryType] ?? n.injuryType}で${n.weeksOut}週間乗れません`;
     case NOTIFICATION_TYPES.BIG_TRUST_CHANGE: {
       if (n.delta >= 0) return null;
       const who =
         n.targetType === "trainer" ? `${stablesById.get(n.targetId)?.trainerName ?? n.targetId}調教師` : "馬主";
-      return `${who}からの信頼が下がりました。`;
+      return `${who}からの信頼が下がりました`;
     }
     case NOTIFICATION_TYPES.FATIGUE_DANGER:
-      return "疲労がたまっています。落馬しやすくなっています。";
+      return "疲労がたまって落馬しやすくなっています";
     default:
       return null;
   }
