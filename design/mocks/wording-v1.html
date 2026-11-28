@@ -1,0 +1,524 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文言の洗い直し v1</title>
+<style>
+/*
+ * 文言の洗い直し——候補の一覧。2026-11-28・Fable 5.2。通しプレイ⑤の指摘2（devlog/wave15.md §1・棚上げ#158）。
+ * コードは変えていない。ここにあるのは候補だけ（CLAUDE.md §8の手順1）。
+ * 表ではなく1件ずつの段にした（スマホの幅で横に送らずに読めるように）。縦線なし。絵文字なし。
+ */
+:root{
+  --fs-caption:12px; --fs-body:15px; --fs-lead:19px; --fs-title:24px;
+  --s1:8px; --s2:16px; --s3:24px; --s5:40px;
+  --bg:#0f0c0a; --panel:#1a2a18; --panel2:#223a20;
+  --fg:#f2ede0; --muted:#9fb896; --dim:#6f8669; --accent:#ffd83d; --rule:rgba(255,255,255,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;font-size:var(--fs-body);line-height:1.7;padding:var(--s3) var(--s2) var(--s5);line-break:strict;overflow-wrap:anywhere}
+.wrap{max-width:680px;margin:0 auto}
+h1{font-size:var(--fs-title);line-height:1.35}
+.intro{color:var(--muted);margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:600}
+h2{font-size:var(--fs-lead);line-height:1.4;margin-top:var(--s5);padding-top:var(--s2);box-shadow:inset 0 1px 0 var(--rule);display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2)}
+h2 small{font-size:var(--fs-caption);color:var(--muted);font-weight:400;white-space:nowrap}
+.note{font-size:var(--fs-caption);color:var(--muted);margin-top:var(--s1)}
+.toc{margin-top:var(--s3);background:var(--panel);border-radius:6px;padding:var(--s1) var(--s2)}
+.toc a{display:flex;justify-content:space-between;gap:var(--s2);color:var(--fg);text-decoration:none;padding:6px 0;box-shadow:inset 0 -1px 0 var(--rule)}
+.toc a:last-of-type{box-shadow:none}
+.toc b{color:var(--accent);font-variant-numeric:tabular-nums}
+.toc .sum{display:flex;justify-content:space-between;padding:6px 0;color:var(--muted)}
+.krit{margin-top:var(--s2);padding-left:1.4em;color:var(--muted);font-size:var(--fs-caption)}
+article{margin-top:var(--s3);background:var(--panel);border-radius:6px;padding:var(--s2)}
+.no{font-size:var(--fs-caption);color:var(--dim);font-variant-numeric:tabular-nums}
+.now{font-size:var(--fs-lead);font-weight:700;line-height:1.5;color:var(--accent)}
+.where{font-size:var(--fs-caption);color:var(--dim);margin-top:4px;font-family:ui-monospace,Menlo,monospace}
+.k{list-style:none;display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:var(--s1);font-size:var(--fs-caption);color:var(--muted)}
+.why{margin-top:var(--s1)}
+.cs{margin-top:var(--s2);display:grid;gap:var(--s1)}
+.c{background:var(--panel2);border-radius:4px;padding:10px 12px;display:grid;grid-template-columns:2.6em 1fr;gap:var(--s1);align-items:baseline}
+.c b{color:var(--muted);font-size:var(--fs-caption);font-variant-numeric:tabular-nums}
+.c p{font-weight:600}
+details{margin-top:var(--s2);color:var(--muted);font-size:var(--fs-caption)}
+summary{padding:10px 0;cursor:pointer}
+.ok{list-style:none}
+.ok li{padding:5px 0;box-shadow:inset 0 -1px 0 var(--rule)}
+</style></head><body><div class="wrap">
+<h1>文言の洗い直し v1</h1>
+<p class="intro">通しプレイ⑤の「文言が気になるところが多々ある」を受けて、画面ごとに出ている言葉を全部読み、気になるものに候補を付けました。<b>コードはまだ何も変えていません。</b>番号と記号（例：2A、17B）で選んでください。「そのまま」も選べます。</p>
+<div class="toc"><a href="#s0"><span>ユーザーが挙げた4つ</span><b>4</b></a><a href="#s1"><span>タイトル</span><b>2</b></a><a href="#s2"><span>夢のダービー：画面とチュートリアル</span><b>9</b></a><a href="#s3"><span>夢のダービー：実況</span><b>9</b></a><a href="#s4"><span>卒業式</span><b>9</b></a><a href="#s5"><span>週の画面</span><b>6</b></a><a href="#s6"><span>知らせ（週の画面の上に出る「先週の出来事」）</span><b>3</b></a><a href="#s7"><span>出馬表</span><b>1</b></a><a href="#s8"><span>週の結果</span><b>2</b></a><a href="#s9"><span>馬の詳しい画面</span><b>4</b></a><a href="#s10"><span>自分のタブ</span><b>2</b></a><a href="#s11"><span>番付のタブ</span><b>1</b></a><a href="#s12"><span>年末のまとめ・引退した馬</span><b>2</b></a><a href="#s13"><span>騎手人生の終わり</span><b>1</b></a><div class="sum"><span>合計</span><b>55</b></div></div>
+<p class="note" style="margin-top:16px">気になるとした基準（各項目の小さい字がこれです）</p>
+<ol class="krit"><li>何のことか行だけでは分からない</li><li>文が名詞で止まる・同じ段で文体が混ざる</li><li>条件や意味が2通りに読める</li><li>日本語・競馬の言い方として不自然</li><li>画面に既に出ているものの言い直し</li><li>人物の言葉として意味が取りにくい・口調が浮く</li><li>同じ物を指す言葉が場所によって違う</li><li>実況の決まりに当たる</li><li>具体性が無い・まとめの一文</li></ol>
+<section id="s0"><h2>ユーザーが挙げた4つ<small>4件</small></h2>
+<p class="note">どこが気になるかは聞いていないので、「なぜ」は作った側の読みです。</p>
+<article>
+<div class="no">1</div>
+<p class="now">「ここから先は、俺は何も言えん」</p>
+<p class="where">src/data/graduationText.js:30（卒業式・教官の3行目）</p>
+<ul class="k"><li>人物の言葉として意味が取りにくい・口調が浮く</li><li>条件や意味が2通りに読める</li></ul>
+<p class="why">「言えん」が「言う資格が無い」「言ってはいけない」「もう教えない」のどれにも読める。前の行（三年前の思い出）からも次の行（厩舎を選べ）からもつながらない。「ここから先は、俺は」と「は」が2つ続く。語尾の「〜ん」だけ、前後の行（「怖がっていたな」「自分で選べ」）より古い言い方になっている。</p>
+<div class="cs"><div class="c"><b>1A</b><p>「俺が教えられるのは、今日までだ」</p></div><div class="c"><b>1B</b><p>「明日からは、俺に聞くな」</p></div><div class="c"><b>1C</b><p>この行を消し、次の行を「声をかけてきた厩舎がある。どこへ行くかは、自分で決めろ」にする</p></div></div>
+</article>
+<article>
+<div class="no">2</div>
+<p class="now">あと4回乗って、1勝すれば主戦<br>（ほかの形：あと4回乗れば主戦／1勝すれば主戦／主戦になりました）</p>
+<p class="where">src/screens/WeekResultScreen.jsx:30〜35（週の結果・「主戦」の段。左に馬名、右にこの文）</p>
+<ul class="k"><li>文が名詞で止まる・同じ段で文体が混ざる</li><li>条件や意味が2通りに読める</li></ul>
+<p class="why">文が「主戦」という名詞で止まる。同じ段の「主戦になりました」、すぐ下の段の「少し上がりました」は敬語なので、1つの画面に2つの文体がある。「4回乗って、1勝すれば」は「4回乗り終えてから1勝」とも「4回のうちに1勝」とも読める（実際の条件は「合わせて5回乗る」と「1回勝つ」の2つで、順番は無い。domain/mainMount.js:20）。見出しが「主戦」で行の終わりも「主戦」。</p>
+<div class="cs"><div class="c"><b>2A</b><p>見出しを「主戦まで」に変え、右は条件だけにする：「あと4回・1勝」／「あと4回」／「あと1勝」／「主戦になりました」</p></div><div class="c"><b>2B</b><p>数で出す：「騎乗 1／5　勝ち 0／1」（なった週は「主戦になりました」）</p></div><div class="c"><b>2C</b><p>敬語の文にする：「あと4回の騎乗と1勝で、主戦になります」／「あと4回の騎乗で、主戦になります」／「あと1勝で、主戦になります」</p></div></div>
+</article>
+<article>
+<div class="no">3</div>
+<p class="now">少し上がりました<br>（ほかの段階：大きく上がりました／下がりました／大きく下がりました）</p>
+<p class="where">src/screens/WeekResultScreen.jsx:23〜28（週の結果・「調教師からの信頼」の段。左に「◯◯調教師」、右にこの文）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">上がる側は「少し」「大きく」の2段なのに、下がる側は「下がりました」「大きく下がりました」で、小さいほうにだけ程度の言葉が無い。行だけ読むと何が上がったのかが無い（見出しまで目を戻す必要がある）。すぐ下の「能力」の段にも「若手に上がりました」があり、同じ「上がりました」が別の物に使われている。</p>
+<div class="cs"><div class="c"><b>3A</b><p>程度の言葉を小さいほうから外す：「上がりました／大きく上がりました／下がりました／大きく下がりました」</p></div><div class="c"><b>3B</b><p>小さいほうにも付けて揃える：「少し上がりました／大きく上がりました／少し下がりました／大きく下がりました」</p></div><div class="c"><b>3C</b><p>見出しを消し、週の画面の知らせと同じ形の文にする：「◯◯調教師からの信頼が上がりました」「◯◯調教師からの信頼が大きく下がりました」</p></div></div><p class="note">数字を出さないのは2026-09-25のユーザー決定なので、候補も言葉だけにしています。</p>
+</article>
+<article>
+<div class="no">4</div>
+<p class="now">乗ります</p>
+<p class="where">src/screens/WeekScreen.jsx:564（週の画面・乗ると決めた依頼の行の2行目の左端。決める前は「5戦0勝」が出ている場所）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>画面に既に出ているものの言い直し</li></ul>
+<p class="why">決めた瞬間に戦績が消える（決めたあとで他の馬と見比べられない）。行は決めると色が変わるので、「決めた」ことは既に見えている。ほかの欄は「逃げ」「芝◎」のように名詞なのに、ここだけ誰かの宣言の形の文になっている。</p>
+<div class="cs"><div class="c"><b>4A</b><p>戦績を消さず、「主戦」と同じ小さな札を先頭に足す：「騎乗　5戦0勝　逃げ　芝◎」</p></div><div class="c"><b>4B</b><p>言葉を足さない：行の色だけで示し、戦績は「5戦0勝」のまま</p></div><div class="c"><b>4C</b><p>札の言葉を「乗る馬」にする：「乗る馬　5戦0勝　逃げ　芝◎」</p></div></div>
+</article>
+</section><section id="s1"><h2>タイトル<small>2件</small></h2>
+<article>
+<div class="no">5</div>
+<p class="now">はじまる年</p>
+<p class="where">src/screens/TitleScreen.jsx:159</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">プレイヤーが選ぶ欄なのに「はじまる」（勝手に始まる）になっている。</p>
+<div class="cs"><div class="c"><b>5A</b><p>始める年</p></div><div class="c"><b>5B</b><p>デビューする年</p></div></div>
+</article>
+<article>
+<div class="no">6</div>
+<p class="now">今の記録を消して、新しく始めますか。　［いいえ］［はい］</p>
+<p class="where">src/screens/TitleScreen.jsx:232・236・239</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">記録を消すボタンが「はい」で、押すと何が起きるかがボタンに書かれていない。「今の記録」が、すぐ上の「つづきから」の欄の騎手のことだと文からは分からない。</p>
+<div class="cs"><div class="c"><b>6A</b><p>文はそのまま、ボタンを「やめる」「消して始める」にする</p></div><div class="c"><b>6B</b><p>文に騎手名を入れる：「◯◯の記録が消えます。新しく始めますか。」　［やめる］［消して始める］</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（5行）</summary><ul class="ok"><li>ファースト／ジョッキー</li><li>難しさ</li><li>やさしい／ふつう／きびしい／とてもきびしい</li><li>騎手になる</li><li>つづきから（騎手名　年月週　所持金）</li></ul></details>
+</section><section id="s2"><h2>夢のダービー：画面とチュートリアル<small>9件</small></h2>
+<p class="note">ユーザーの指摘3（「外に出す」「内で待つ」の内外が絵に出ない）は言葉ではなくレースの仕組みの問題（棚上げ#44）なので、ここの候補では直りません。</p>
+<article>
+<div class="no">7</div>
+<p class="now">［馬名］［馬番］［非表示］　／　［自分］［先頭］</p>
+<p class="where">src/screens/DreamDerbyScreen.jsx:16・20（レース画面の右下の3つのボタン）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">ボタンに今の状態だけが書いてあり、何を切り替えるボタンなのかが分からない（「非表示」は何が、「自分」は何が）。そのためチュートリアルの吹き出しで補っている。</p>
+<div class="cs"><div class="c"><b>7A</b><p>ボタンの中に項目の名前を小さく足す：「名前 馬名／名前 馬番／名前 なし」「速さ ×1」「視点 自分／視点 先頭」</p></div><div class="c"><b>7B</b><p>状態の言葉だけ直す：「馬名／馬番／名前なし」「自分を追う／先頭を追う」</p></div></div>
+</article>
+<article>
+<div class="no">8</div>
+<p class="now">押してみてください</p>
+<p class="where">src/screens/dreamDerbyEngine.js:520（「自分／先頭」のボタンを指す吹き出し）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">何のボタンかを言わずに押させている。</p>
+<div class="cs"><div class="c"><b>8A</b><p>画面が追いかける馬を、ここで切り替えられます。</p></div><div class="c"><b>8B</b><p>押すと、画面が先頭の馬を追いかけます。</p></div></div>
+</article>
+<article>
+<div class="no">9</div>
+<p class="now">3回押してみてください　→　表示が「馬番」になりました。</p>
+<p class="where">src/screens/dreamDerbyEngine.js:550・561（名前のボタンを指す吹き出し）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>画面に既に出ているものの言い直し</li></ul>
+<p class="why">何のボタンかを言わない。「表示」が何の表示かが無い。押したあとの文は、ボタンに出ている言葉の言い直し。</p>
+<div class="cs"><div class="c"><b>9A</b><p>馬の上に出す名前を、ここで切り替えられます。3回押してみてください。　→　（押したあとは文を変えず、「1/3」だけ進める）</p></div><div class="c"><b>9B</b><p>3回押してみてください。　→　「馬番が出ています。」「名前を消しました。」「馬名が出ています。」</p></div></div>
+</article>
+<article>
+<div class="no">10</div>
+<p class="now">押すと速くなります　→　×2になりました</p>
+<p class="where">src/screens/dreamDerbyEngine.js:576・584（速さのボタンを指す吹き出し）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>画面に既に出ているものの言い直し</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">何が速くなるのかが無い。押したあとの文はボタンの言葉の言い直し。吹き出しの文に、「。」で終わるものと「。」の無いものが混ざっている（この2つは無い）。</p>
+<div class="cs"><div class="c"><b>10A</b><p>押すと、レースが速く進みます。　→　（押したあとは文を変えない）</p></div><div class="c"><b>10B</b><p>押すと、レースが速く進みます。　→　2倍の速さで進んでいます。</p></div></div>
+</article>
+<article>
+<div class="no">11</div>
+<p class="now">選んだ行動で、レースが変わります</p>
+<p class="where">src/screens/dreamDerbyEngine.js:511（最初の判断カードの上に出る吹き出し）</p>
+<ul class="k"><li>具体性が無い・まとめの一文</li></ul>
+<p class="why">どう変わるのかが無い。カードが出ている間レースが止まっていることも言っていない。「。」が無い。</p>
+<div class="cs"><div class="c"><b>11A</b><p>ここで選んだとおりに、あなたの馬が動きます。</p></div><div class="c"><b>11B</b><p>レースを止めています。乗り方を1つ選んでください。</p></div></div>
+</article>
+<article>
+<div class="no">12</div>
+<p class="now">わかった</p>
+<p class="where">src/screens/DreamDerbyScreen.jsx:411（吹き出しを閉じるボタン）</p>
+<ul class="k"><li>文が名詞で止まる・同じ段で文体が混ざる</li></ul>
+<p class="why">吹き出しの文は敬語なのに、返事のボタンだけくだけた言い方。</p>
+<div class="cs"><div class="c"><b>12A</b><p>わかりました</p></div><div class="c"><b>12B</b><p>閉じる</p></div></div>
+</article>
+<article>
+<div class="no">13</div>
+<p class="now">外に出す／外へ出す　・　すぐ追い出す／ここで追い出す／今すぐ追い出す</p>
+<p class="where">src/data/judgmentSituations.js:81・85　／　78・91・99（直線の判断カードの選択肢）</p>
+<ul class="k"><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">同じ動きなのに、自分の位置（先頭・前・中団・後方）でカードが変わると言い方も変わる。</p>
+<div class="cs"><div class="c"><b>13A</b><p>「外に出す」「ここで追い出す」に揃える</p></div><div class="c"><b>13B</b><p>「外へ出す」「すぐ追い出す」に揃える</p></div></div>
+</article>
+<article>
+<div class="no">14</div>
+<p class="now">もう少し持つ</p>
+<p class="where">src/data/judgmentSituations.js:79（先頭で直線に入ったときの選択肢）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">何を持つのかが無い（手綱を持ったまま＝まだ追わない、の意味）。同じ動きが前・中団のカードでは「もう少し待つ」。</p>
+<div class="cs"><div class="c"><b>14A</b><p>もう少し待つ（ほかのカードに揃える）</p></div><div class="c"><b>14B</b><p>まだ追い出さない</p></div></div>
+</article>
+<article>
+<div class="no">15</div>
+<p class="now">外から一気に　・　大外から</p>
+<p class="where">src/data/judgmentSituations.js:93・97（直線の選択肢）</p>
+<ul class="k"><li>文が名詞で止まる・同じ段で文体が混ざる</li></ul>
+<p class="why">ほかの選択肢は「内を突く」「ここで追い出す」と動詞で終わるのに、この2つだけ途中で止まっている。</p>
+<div class="cs"><div class="c"><b>15A</b><p>外から一気に行く　・　大外に出す</p></div><div class="c"><b>15B</b><p>外を回って追い込む　・　大外を回す</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（13行）</summary><ul class="ok"><li>東京競馬場　第11レース</li><li>日本ダービー。芝2400メートル、3歳馬18頭。</li><li>スタート／道中／直線／ゴール</li><li>残り2400m</li><li>×1／×2／×4</li><li>画面が先頭の「◯◯」を追いかけます。／画面が自分の「◯◯」に戻ります。</li><li>残り1200m／最後の直線（カードの見出し）</li><li>先頭／7番手（カードの状況）</li><li>まくっていく／内で待つ／位置を下げる／後続を離す／このまま行く／息を入れる／控える／内に寄せる／早めに仕掛ける／内から抜く／もう少し待つ／内を突く／最後まで脚を残す</li><li>3着／18頭中／着・馬番・馬名・着差／タイム 上がり4F 上がり3F</li><li>出馬表／実況／◯番人気</li><li>「起きなさい。もう7時過ぎてる」「……ん」「今日は卒業式でしょう。競馬学校の」「わかってる」</li><li>卒業式へ</li></ul></details>
+</section><section id="s3"><h2>夢のダービー：実況<small>9件</small></h2>
+<p class="note">全部で約200行。印を付けたのは9か所（14行）です。名実況のもじり（10行）は元の言い回しを残すものなので触っていません。</p>
+<article>
+<div class="no">16</div>
+<p class="now">出走馬です。{6頭の名前}。そして{自分の番号}番{自分の馬}。1番人気に応えられるか。以上18頭。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:47</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">7頭しか呼んでいないのに「以上18頭」と締めている。</p>
+<div class="cs"><div class="c"><b>16A</b><p>出走馬です。{6頭の名前}。そして{番号}番{自分の馬}。1番人気に応えられるか。</p></div><div class="c"><b>16B</b><p>{6頭の名前}。そして1番人気、{番号}番{自分の馬}。18頭が走ります。</p></div></div>
+</article>
+<article>
+<div class="no">17</div>
+<p class="now">18頭が収まった。スタンドが静かになる。　・　残り500。歓声が大きくなる。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:53・146</p>
+<ul class="k"><li>実況の決まりに当たる</li></ul>
+<p class="why">後ろの文が、情景を現在形で書く小説の形で、実況の声に聞こえない。</p>
+<div class="cs"><div class="c"><b>17A</b><p>18頭が収まった。スタンドが静まり返りました。　・　残り500。スタンドから大歓声。</p></div><div class="c"><b>17B</b><p>後ろの文を削る：「18頭が収まった。」　・　146行目は行ごと削る（同じ場面にあと9行ある）</p></div></div>
+</article>
+<article>
+<div class="no">18</div>
+<p class="now">{自分の馬}は7番手の内。落ち着いてレースを進めています。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:110</p>
+<ul class="k"><li>実況の決まりに当たる</li></ul>
+<p class="why">レースの計算が内・外の位置を持っていないのに「内」と言っている（指摘3と同じ根）。</p>
+<div class="cs"><div class="c"><b>18A</b><p>{自分の馬}は7番手。落ち着いてレースを進めています。</p></div><div class="c"><b>18B</b><p>行ごと削る（同じ場面にあと9行ある）</p></div></div>
+</article>
+<article>
+<div class="no">19</div>
+<p class="now">残り800メートル。3コーナー。各馬動き始めた。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:122</p>
+<ul class="k"><li>実況の決まりに当たる</li></ul>
+<p class="why">どの馬が動いたのかを言っていない（決まり：動いた馬を名前で言う）。</p>
+<div class="cs"><div class="c"><b>19A</b><p>残り800メートル。3コーナー。先頭は{先頭の馬}。</p></div><div class="c"><b>19B</b><p>行ごと削る（同じ場面に、動いた馬を名前で言う行が3本ある）</p></div></div>
+</article>
+<article>
+<div class="no">20</div>
+<p class="now">{勝ち馬}がゴールを駆け抜けた。今年の3歳馬の頂点が決まりました。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:170</p>
+<ul class="k"><li>具体性が無い・まとめの一文</li></ul>
+<p class="why">後ろの文がまとめの一文になっている。</p>
+<div class="cs"><div class="c"><b>20A</b><p>{勝ち馬}がゴールを駆け抜けた。ダービー馬は{勝ち馬}です。</p></div><div class="c"><b>20B</b><p>{勝ち馬}がゴールを駆け抜けた。</p></div></div>
+</article>
+<article>
+<div class="no">21</div>
+<p class="now">{自分の馬}、動かない。　・　{自分の馬}、まだ動かない。　・　{自分の馬}は我慢。　・　{自分の馬}、まだ追わない。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:224・261・262・325（「待つ」側の選択肢を選んだ直後に出る行）</p>
+<ul class="k"><li>実況の決まりに当たる</li></ul>
+<p class="why">決まり「動きがないことを言わない」に当たる。ただし選んだ直後の返事なので、行を無くすと選択が効いたのかが分からなくなる。</p>
+<div class="cs"><div class="c"><b>21A</b><p>位置を言う：「{自分の馬}は7番手のまま。前に{先頭の馬}。」</p></div><div class="c"><b>21B</b><p>騎手の手を言う行だけ残す：「{自分の馬}、手綱を抑えたまま。」（263行目に既にある形）</p></div></div>
+</article>
+<article>
+<div class="no">22</div>
+<p class="now">一列下げた{自分の馬}。早いと見たか。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:232</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">何が早いのかが無い。ペースのことなら字は「速い」。</p>
+<div class="cs"><div class="c"><b>22A</b><p>一列下げた{自分の馬}。ペースが速いと見たか。</p></div><div class="c"><b>22B</b><p>一列下げた{自分の馬}。前が速いと見たか。</p></div></div>
+</article>
+<article>
+<div class="no">23</div>
+<p class="now">先頭{自分の馬}、まだ長手綱。2番手は{2番手の馬}。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:245（「息を入れる」を選んだ直後）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">「長手綱」は競馬を見る人にもあまり通じない言葉。選んだ「息を入れる」とのつながりも見えにくい。</p>
+<div class="cs"><div class="c"><b>23A</b><p>先頭{自分の馬}、手綱を緩めた。2番手は{2番手の馬}。</p></div><div class="c"><b>23B</b><p>先頭{自分の馬}、ペースを落とした。2番手は{2番手の馬}。</p></div></div>
+</article>
+<article>
+<div class="no">24</div>
+<p class="now">{自分の馬}、内に寄せた。インを突いて行く。</p>
+<p class="where">src/data/dreamDerbyCommentary.js:289（先頭で直線に入り「内に寄せる」を選んだ直後）</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">自分が先頭なのに「突く」（前の馬の間に入るときの言葉）と言っている。1行の中に「内」と「イン」がある。</p>
+<div class="cs"><div class="c"><b>24A</b><p>{自分の馬}、内に寄せた。ラチ沿いを進む。</p></div><div class="c"><b>24B</b><p>先頭{自分の馬}、内ラチ沿いへ。</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（13行）</summary><ul class="ok"><li>ゲートに入るまで（10行）</li><li>スタート（9行）</li><li>先頭からの並び（10行）</li><li>1〜2コーナー（8行）</li><li>向正面（9行）</li><li>自分の馬の位置（残り9行）</li><li>3コーナー（残り7行）</li><li>4コーナー（8行）</li><li>直線の入口（残り9行）</li><li>残り200（12行）</li><li>ゴール（残り19行）</li><li>名実況のもじり（10行）</li><li>選択肢を選んだ直後（残り約55行）</li></ul></details>
+</section><section id="s4"><h2>卒業式<small>9件</small></h2>
+<article>
+<div class="no">25</div>
+<p class="now">「今日から、君は騎手だ」</p>
+<p class="where">src/data/graduationText.js:15（証書を渡す場面の3行目）</p>
+<ul class="k"><li>人物の言葉として意味が取りにくい・口調が浮く</li></ul>
+<p class="why">次の場面の教官は「お前」と呼ぶ。同じ人なら呼び方が変わっているし、別の人なら誰の言葉なのかが分からない。</p>
+<div class="cs"><div class="c"><b>25A</b><p>「今日から、お前は騎手だ」（同じ教官の言葉にする）</p></div><div class="c"><b>25B</b><p>この行を消し、「はい」で次へ進む</p></div></div>
+</article>
+<article>
+<div class="no">26</div>
+<p class="now">「卒業、おめでとう。」</p>
+<p class="where">src/data/graduationText.js:28</p>
+<ul class="k"><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">セリフの中でこの行だけ「。」が付いている（ほかの6行は付いていない）。</p>
+<div class="cs"><div class="c"><b>26A</b><p>「卒業、おめでとう」</p></div><div class="c"><b>26B</b><p>「おめでとう」</p></div></div>
+</article>
+<article>
+<div class="no">27</div>
+<p class="now">「三年前、お前は馬に触るのも怖がっていたな」</p>
+<p class="where">src/data/graduationText.js:29</p>
+<ul class="k"><li>人物の言葉として意味が取りにくい・口調が浮く</li></ul>
+<p class="why">印は弱め。プレイヤーの過去をセリフが決めている。例の「ここから先は〜」と並べると、話が思い出から急に切り替わる。</p>
+<div class="cs"><div class="c"><b>27A</b><p>そのまま（例の行を直せばつながる）</p></div><div class="c"><b>27B</b><p>「三年、よく続けたな」</p></div></div>
+</article>
+<article>
+<div class="no">28</div>
+<p class="now">「声をかけてきた厩舎がある。自分で選べ」　→（直後に出るのは夢の乗り方の2択）→　見出し「声をかけてきた厩舎」</p>
+<p class="where">src/data/graduationText.js:31・67　／　src/screens/GraduationScreen.jsx:249・276</p>
+<ul class="k"><li>画面に既に出ているものの言い直し</li></ul>
+<p class="why">教官が「厩舎を選べ」と言った直後に出るのは、厩舎ではなく夢の乗り方の2択。厩舎が出るのはその次で、そこに同じ言葉の見出しがもう一度出る。</p>
+<div class="cs"><div class="c"><b>28A</b><p>セリフを夢の2択のあと（厩舎が出る段の先頭）へ移し、見出しは消す</p></div><div class="c"><b>28B</b><p>セリフはそのまま、見出しを「厩舎を選んでください」にする</p></div><div class="c"><b>28C</b><p>見出しだけ消す</p></div></div>
+</article>
+<article>
+<div class="no">29</div>
+<p class="now">夢の中の乗り方を、これからの自分の型にするか選べます。</p>
+<p class="where">src/data/graduationText.js:40（2択の上の1行）</p>
+<ul class="k"><li>具体性が無い・まとめの一文</li></ul>
+<p class="why">「自分の型にする」が何を起こすのかが分からない。</p>
+<div class="cs"><div class="c"><b>29A</b><p>夢の中の乗り方を、得意な乗り方にして始めるか選んでください。</p></div><div class="c"><b>29B</b><p>夢で乗ったときの乗り方を、得意にして始めますか。</p></div></div>
+</article>
+<article>
+<div class="no">30</div>
+<p class="now">夢の乗り方を信じてみる<br>逃げが武器になります。</p>
+<p class="where">src/data/graduationText.js:50〜51（2択の1つめと添え書き）</p>
+<ul class="k"><li>具体性が無い・まとめの一文</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">「武器になります」は言い回しで、実際に起きること（逃げだけD、残りの3つはG〜Eで始まる。domain/graduation.js:69）が出ていない。もう1つの選択肢は「どれも同じ腕前から始まります」と中身を書いているので、比べられない。上の行は「夢の中の乗り方」、ここは「夢の乗り方」。</p>
+<div class="cs"><div class="c"><b>30A</b><p>夢の中の乗り方を信じてみる<br>逃げがD、ほかの3つはG〜Eで始まります。　／　一から覚え直す<br>逃げ・先行・差し・追込が、どれもEで始まります。</p></div><div class="c"><b>30B</b><p>夢の中の乗り方を信じてみる<br>逃げだけが得意な騎手として始まります。</p></div></div>
+</article>
+<article>
+<div class="no">31</div>
+<p class="now">芝の〜1400mが専門　・　芝の2400m〜が専門</p>
+<p class="where">src/data/stableSpecialtyLabels.js:9〜16（厩舎の選択肢の添え書き・8種類）</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">「の〜」と助詞のすぐあとに記号が来て読みにくい。</p>
+<div class="cs"><div class="c"><b>31A</b><p>芝1400m以下が専門　・　芝1400〜1800mが専門　・　芝2400m以上が専門</p></div><div class="c"><b>31B</b><p>芝の1400mまでが専門　・　芝の2400mからが専門</p></div></div>
+</article>
+<article>
+<div class="no">32</div>
+<p class="now">◯◯厩舎に所属が決まりました。</p>
+<p class="where">src/data/graduationText.js:64</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">「〜に所属が決まる」は助詞が合っていない。</p>
+<div class="cs"><div class="c"><b>32A</b><p>◯◯厩舎への所属が決まりました。</p></div><div class="c"><b>32B</b><p>◯◯厩舎に所属します。</p></div></div>
+</article>
+<article>
+<div class="no">33</div>
+<p class="now">使える文字は、漢字・ひらがな・カタカナです</p>
+<p class="where">src/screens/GraduationScreen.jsx:371</p>
+<ul class="k"><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">世界の外からの説明のうち、この行だけ「。」が無い。</p>
+<div class="cs"><div class="c"><b>33A</b><p>使える文字は、漢字・ひらがな・カタカナです。</p></div><div class="c"><b>33B</b><p>漢字・ひらがな・カタカナで入力してください。</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（6行）</summary><ul class="ok"><li>名前を教えてください。</li><li>姓／名</li><li>次へ</li><li>「卒業証書授与、◯◯」「はい」</li><li>成績表（G ─ S+、〜1400m／1400〜1800m／1800〜2400m／2400m〜／芝／ダート）</li><li>一から覚え直す／逃げ・先行・差し・追込が、どれも同じ腕前から始まります。</li></ul></details>
+</section><section id="s5"><h2>週の画面<small>6件</small></h2>
+<p class="note">「所属厩舎」はユーザーが直した言葉（「自分の厩舎」→「所属厩舎」）なので印を付けていません。</p>
+<article>
+<div class="no">34</div>
+<p class="now">あと6件</p>
+<p class="where">src/screens/WeekScreen.jsx:367（画面の右上）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">何があと6件なのかが無い（今週あと何頭に乗れるか）。数え方が画面ごとに違う：ここは「件」、自分のタブは「あと4鞍」、週の結果は「あと4回」。</p>
+<div class="cs"><div class="c"><b>34A</b><p>あと6鞍乗れます</p></div><div class="c"><b>34B</b><p>騎乗 0／6</p></div><div class="c"><b>34C</b><p>乗れる数 あと6</p></div></div>
+</article>
+<article>
+<div class="no">35</div>
+<p class="now">調教後　・　前走から</p>
+<p class="where">src/screens/WeekScreen.jsx:515〜516（依頼の表の見出し）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">見出しが途中で切れている（調教後の何か、前走から何か）。馬の詳しい画面では同じ物が「調教後の体重」。</p>
+<div class="cs"><div class="c"><b>35A</b><p>体重　・　間隔</p></div><div class="c"><b>35B</b><p>調教後の体重　・　前走との間隔（幅が足りるかは見本で確かめる）</p></div></div>
+</article>
+<article>
+<div class="no">36</div>
+<p class="now">断ると信頼が下がります</p>
+<p class="where">src/screens/WeekScreen.jsx:583（主戦の馬の行に出る注意）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">画面に「断る」というボタンは無い（「乗る」を押さないまま週を進めることが断ること）。誰の信頼かも無い（下がるのはその馬の調教師からの信頼。domain/weekLoop.js:347）。</p>
+<div class="cs"><div class="c"><b>36A</b><p>乗らないと、調教師からの信頼が下がります</p></div><div class="c"><b>36B</b><p>乗らない週は、調教師からの信頼が下がります</p></div></div>
+</article>
+<article>
+<div class="no">37</div>
+<p class="now">外す</p>
+<p class="where">src/screens/WeekScreen.jsx:593（乗ると決めた行のボタン）</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">「外す」は予想が外れるときの言葉でもあり、乗るのをやめる意味に取りにくい。</p>
+<div class="cs"><div class="c"><b>37A</b><p>やめる</p></div><div class="c"><b>37B</b><p>取り消す</p></div></div>
+</article>
+<article>
+<div class="no">38</div>
+<p class="now">土曜は京都へ行きます。阪神の依頼には乗れません。</p>
+<p class="where">src/view/weekOffersView.js:146</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">「依頼に乗る」とは言わない（依頼は受ける、馬には乗る）。</p>
+<div class="cs"><div class="c"><b>38A</b><p>土曜は京都で乗ります。阪神の馬には乗れません。</p></div><div class="c"><b>38B</b><p>土曜は京都へ行きます。阪神の依頼は受けられません。</p></div></div>
+</article>
+<article>
+<div class="no">39</div>
+<p class="now">土曜は依頼がありません。　・　今週は依頼が来ませんでした。</p>
+<p class="where">src/view/weekOffersView.js:151・155</p>
+<ul class="k"><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">同じ「依頼が無い」を2通りに言っている。</p>
+<div class="cs"><div class="c"><b>39A</b><p>土曜は依頼がありません。　・　今週は依頼がありません。</p></div><div class="c"><b>39B</b><p>土曜は依頼が来ていません。　・　今週は依頼が来ていません。</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（11行）</summary><ul class="ok"><li>1994年 10月3週</li><li>疲労／今週 12／来週 20／能力 −3%／−1%未満</li><li>能力が落ちる／落馬しやすい</li><li>土曜／日曜／自分／番付</li><li>京都 6R　芝 1600m 未勝利</li><li>馬名／性齢／毛色</li><li>牝3／鹿毛／418（−14）／中6週／連闘／初出走</li><li>主戦／5戦0勝／逃げ／芝◎／調教師名　所属厩舎</li><li>骨折であと3週間乗れません</li><li>乗る／出馬表／馬を見る</li><li>この週を進める</li></ul></details>
+</section><section id="s6"><h2>知らせ（週の画面の上に出る「先週の出来事」）<small>3件</small></h2>
+<article>
+<div class="no">40</div>
+<p class="now">◯◯が骨折しました。3週間乗れません。</p>
+<p class="where">src/screens/WeekScreen.jsx:101</p>
+<ul class="k"><li>条件や意味が2通りに読める</li></ul>
+<p class="why">骨折したのは馬だが、後ろの文は主語が無く、自分が怪我をして3週間どの馬にも乗れないとも読める。</p>
+<div class="cs"><div class="c"><b>40A</b><p>◯◯が骨折しました。3週間レースに出られません。</p></div><div class="c"><b>40B</b><p>◯◯が骨折で3週間休みます。</p></div></div>
+</article>
+<article>
+<div class="no">41</div>
+<p class="now">馬主からの信頼が下がりました。</p>
+<p class="where">src/screens/WeekScreen.jsx:105</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">調教師のほうは「◯◯調教師からの〜」と名前が付くのに、馬主はどの馬主かが無い。</p>
+<div class="cs"><div class="c"><b>41A</b><p>◯◯（馬の名前）の馬主からの信頼が下がりました。</p></div><div class="c"><b>41B</b><p>馬主の名前を出す（名前のデータがあるかは未確認）</p></div></div>
+</article>
+<article>
+<div class="no">42</div>
+<p class="now">疲労がたまっています。落馬しやすくなっています。</p>
+<p class="where">src/screens/WeekScreen.jsx:109</p>
+<ul class="k"><li>画面に既に出ているものの言い直し</li></ul>
+<p class="why">「〜ています。」が2つ続く。「落馬しやすい」はすぐ下の疲労の帯に出ている。</p>
+<div class="cs"><div class="c"><b>42A</b><p>疲労がたまり、落馬しやすくなっています。</p></div><div class="c"><b>42B</b><p>疲労がたまっています。</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（2行）</summary><ul class="ok"><li>◯◯の主戦を他の騎手に取られました。</li><li>◯◯調教師からの信頼が下がりました。</li></ul></details>
+</section><section id="s7"><h2>出馬表<small>1件</small></h2>
+<article>
+<div class="no">43</div>
+<p class="now">3着/16頭 3人気</p>
+<p class="where">src/screens/EntryListScreen.jsx:92（各馬の過去のレースの行）</p>
+<ul class="k"><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">同じ画面の上の段は「3番人気」、ここは「3人気」。</p>
+<div class="cs"><div class="c"><b>43A</b><p>3着/16頭 3番人気</p></div><div class="c"><b>43B</b><p>幅が足りなければ今のまま（見本で確かめる）</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（5行）</summary><ul class="ok"><li>レース名／京都 芝1600m　16頭</li><li>枠・馬番・◯番人気・馬名</li><li>騎手未定</li><li>初出走</li><li>閉じる</li></ul></details>
+</section><section id="s8"><h2>週の結果<small>2件</small></h2>
+<p class="note">例の2つ（主戦・信頼）は先頭に置いたので、ここは残りです。</p>
+<article>
+<div class="no">44</div>
+<p class="now">若手に上がりました</p>
+<p class="where">src/view/jockeyProfileView.js:207（「能力」の段の1行目）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">何が上がったのかが無い。同じ段のほかの行は「E → D」の形。</p>
+<div class="cs"><div class="c"><b>44A</b><p>新人 → 若手（ほかの行と同じ形）</p></div><div class="c"><b>44B</b><p>新人から若手に上がりました</p></div></div>
+</article>
+<article>
+<div class="no">45</div>
+<p class="now">適性の合計がいっぱいのため</p>
+<p class="where">src/view/jockeyProfileView.js:202（下がった適性の行の添え書き）</p>
+<ul class="k"><li>具体性が無い・まとめの一文</li></ul>
+<p class="why">印は弱め。「いっぱい」がどの数のことかは自分のタブを見ないと分からない。</p>
+<div class="cs"><div class="c"><b>45A</b><p>適性の合計が上限のため</p></div><div class="c"><b>45B</b><p>適性の合計が36に届いているため（数字はランクの上限）</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（10行）</summary><ul class="ok"><li>1994年 10月3週</li><li>今週 +120,000円　所持金 1,234,000円</li><li>今週は乗りませんでした。／土曜は乗りませんでした。</li><li>土曜 京都／6R／馬名／芝 1600m 未勝利／牝3　鹿毛　418kg（−14）</li><li>3着／3番人気／16頭／落馬</li><li>主戦になりました</li><li>調教師からの信頼／◯◯調教師</li><li>能力／逃げ　E → D</li><li>今週の重賞／レース名・競馬場／勝ち馬／騎手名／◯番人気</li><li>次の週へ</li></ul></details>
+</section><section id="s9"><h2>馬の詳しい画面<small>4件</small></h2>
+<article>
+<div class="no">46</div>
+<p class="now">脚質</p>
+<p class="where">src/screens/HorseDetail.jsx:190</p>
+<ul class="k"><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">同じ「逃げ・先行・差し・追込」を、この画面は「脚質」、自分のタブは「走り方」（jockeyProfileView.js:26）と呼んでいる。</p>
+<div class="cs"><div class="c"><b>46A</b><p>両方「脚質」にする</p></div><div class="c"><b>46B</b><p>両方「走り方」にする</p></div></div>
+</article>
+<article>
+<div class="no">47</div>
+<p class="now">相性　芝◎　ダート○</p>
+<p class="where">src/screens/HorseDetail.jsx:194</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">何と何の相性かが無い。自分のタブでは同じ芝・ダートの欄を「馬場」と呼んでいる。</p>
+<div class="cs"><div class="c"><b>47A</b><p>馬場　芝◎　ダート○</p></div><div class="c"><b>47B</b><p>得意な馬場　芝◎　ダート○</p></div></div>
+</article>
+<article>
+<div class="no">48</div>
+<p class="now">自分</p>
+<p class="where">src/screens/HorseDetail.jsx:106（戦績のうち、自分が乗ったレースに付く印）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">「自分」だけでは何の印か分からない。番付と年末のまとめでは同じ意味の印が「乗った馬」。</p>
+<div class="cs"><div class="c"><b>48A</b><p>騎乗（例の「乗ります」の候補Aと同じ札）</p></div><div class="c"><b>48B</b><p>自分が騎乗</p></div></div>
+</article>
+<article>
+<div class="no">49</div>
+<p class="now">朝の調教で分かること　0／3</p>
+<p class="where">src/screens/HorseDetail.jsx:217</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">今のゲームには調教に行く操作が無い（平日の行動の処理 domain/weekdayActions.js はどの画面からも呼ばれていない）。プレイヤーには増やす手段が無い欄に見える。</p>
+<div class="cs"><div class="c"><b>49A</b><p>平日の行動が入るまで、この段を出さない</p></div><div class="c"><b>49B</b><p>見出しはそのまま（平日の行動を作るときに一緒に見直す）</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（9行）</summary><ul class="ok"><li>今回／京都 6R　芝 1600m 未勝利</li><li>主戦／牝3 鹿毛／調教師名　所属厩舎</li><li>調教後の体重／前走から</li><li>レースで乗って分かること　2／6</li><li>適距離／スピード／瞬発力／勝負根性／柔軟性／パワー／賢さ／健康／精神力／？</li><li>戦績　5戦0勝</li><li>まだ走っていません。</li><li>◯着／日付　レース名　3番人気／16頭</li><li>乗る／外す／閉じる</li></ul></details>
+</section><section id="s10"><h2>自分のタブ<small>2件</small></h2>
+<article>
+<div class="no">50</div>
+<p class="now">あと4鞍</p>
+<p class="where">src/view/jockeyProfileView.js:144（各適性の行の右端）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li><li>同じ物を指す言葉が場所によって違う</li></ul>
+<p class="why">何まであと4鞍なのかが無い（次の段階に上がるまで）。数え方は例の「あと4回乗れば主戦」と違う。</p>
+<div class="cs"><div class="c"><b>50A</b><p>次まで4鞍</p></div><div class="c"><b>50B</b><p>あと4回で上がる</p></div></div>
+</article>
+<article>
+<div class="no">51</div>
+<p class="now">どれかが1つ上がると、黄色い枠のものが1つ下がります</p>
+<p class="where">src/view/jockeyProfileView.js:170</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">「どれか」「もの」が何を指すのかが無い。</p>
+<div class="cs"><div class="c"><b>51A</b><p>適性が1つ上がると、黄色い枠の適性が1つ下がります</p></div><div class="c"><b>51B</b><p>合計が上限です。1つ上がると、黄色い枠の適性が1つ下がります</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（9行）</summary><ul class="ok"><li>騎手名／新人／◯◯厩舎</li><li>12戦 1勝／勝率 8.3%／重賞 0勝／今年 12戦 1勝</li><li>適性の合計　30／36／空き 6／新人は36まで</li><li>G ─ S+</li><li>走り方／距離／馬場</li><li>逃げ・先行・差し・追込／〜1400m ほか／芝・ダート</li><li>ほかの走り方が上がると下がります</li><li>3戦1勝</li><li>これ以上上がりません</li></ul></details>
+</section><section id="s11"><h2>番付のタブ<small>1件</small></h2>
+<article>
+<div class="no">52</div>
+<p class="now">古馬王道　・　古馬マイル短距離</p>
+<p class="where">src/data/banzukeBoards.js:9〜10</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">「王道」は中長距離の路線を指すファンの言い方で、番付の名前としては何の部門かが分かりにくい。「マイル短距離」は2つの言葉がつながって読みにくい。</p>
+<div class="cs"><div class="c"><b>52A</b><p>古馬中長距離　・　古馬短距離・マイル</p></div><div class="c"><b>52B</b><p>古馬 芝2000m以上　・　古馬 芝1600m以下（分け目の距離は実際の値に合わせる）</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（6行）</summary><ul class="ok"><li>今年の番付は、今週末のレースから始まります。</li><li>前の年を見る／今年に戻る</li><li>賞金の多い順／勝ち数の多い順</li><li>3歳牡馬／3歳牝馬／3歳ダート／古馬牝馬／古馬ダート／騎手の勝ち数</li><li>主戦／乗った馬</li><li>◯万円／◯戦◯勝／◯勝</li></ul></details>
+</section><section id="s12"><h2>年末のまとめ・引退した馬<small>2件</small></h2>
+<article>
+<div class="no">53</div>
+<p class="now">対象外</p>
+<p class="where">src/view/yearEndView.js:92（騎手の表彰の、自分の順位の欄）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">何の対象外なのか・なぜなのかが無い（最高勝率は、決まった騎乗数に届かないと順位が付かない）。</p>
+<div class="cs"><div class="c"><b>53A</b><p>騎乗数不足</p></div><div class="c"><b>53B</b><p>順位なし</p></div></div>
+</article>
+<article>
+<div class="no">54</div>
+<p class="now">1994年に引退した馬　……　地方へ移りました</p>
+<p class="where">src/screens/YearEndScreen.jsx:163　／　src/view/yearEndView.js:129</p>
+<ul class="k"><li>日本語・競馬の言い方として不自然</li></ul>
+<p class="why">見出しは「引退した馬」だが、地方へ移った馬は引退していない。</p>
+<div class="cs"><div class="c"><b>54A</b><p>見出しを「1994年に中央を去った馬」にする</p></div><div class="c"><b>54B</b><p>見出しはそのまま、行を「地方競馬へ移籍しました」にする（食い違いは残る）</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（11行）</summary><ul class="ok"><li>1994年 JRA賞／優駿賞</li><li>年度代表馬／該当馬なし</li><li>4歳牡・8戦6勝・3億2,000万円</li><li>部門ごとの最優秀馬／2歳牡馬 ほか</li><li>騎手／最多勝利／最高勝率／最多獲得賞金／◯位</li><li>◯◯の1年／戦績／重賞／稼いだお金／前の年 2勝</li><li>G1の勝ち馬／大レースの勝ち馬／◯着／落馬</li><li>主戦／乗った馬</li><li>種牡馬になります／繁殖牝馬になります</li><li>3回乗りました</li><li>次へ／1995年へ</li></ul></details>
+</section><section id="s13"><h2>騎手人生の終わり<small>1件</small></h2>
+<article>
+<div class="no">55</div>
+<p class="now">タイトルへ</p>
+<p class="where">src/screens/CareerEndScreen.jsx:161（画面でただ1つのボタン）</p>
+<ul class="k"><li>何のことか行だけでは分からない</li></ul>
+<p class="why">「タイトル」は作る側の言葉（タイトル画面）。競馬では「タイトル」は大きなレースの勝ちを指すので、別の意味に読める。</p>
+<div class="cs"><div class="c"><b>55A</b><p>最初の画面へ</p></div><div class="c"><b>55B</b><p>終わる</p></div></div>
+</article>
+<details><summary>印を付けなかった文言（6行）</summary><ul class="ok"><li>騎手名／一流／1994年〜2023年　18歳〜47歳</li><li>1年ごとの勝ち数／最も勝った年／騎乗なし</li><li>G1を勝った年／重賞を勝った年</li><li>通算／勝率／重賞／稼いだお金</li><li>G1　3勝／G2　5勝／G3　8勝</li><li>よく乗った馬／主戦／12回／重賞2勝</li></ul></details>
+</section>
+</div></body></html>
