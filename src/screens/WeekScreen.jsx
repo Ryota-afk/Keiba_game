@@ -14,6 +14,10 @@
 //   2段目＝主戦・戦績・走り方・芝ダの相性／調教師。レースの見出しの上に「京都 6R」。レースは番号順。
 // 乗る馬・行く競馬場はプレイヤーの選択をそのまま`advanceWeek`へ渡す（`chooseMounts`・
 // `chooseCourse`）。何も決めなければ、その日はどこへも行かない。
+// 疲労の帯（`design/mocks/fatigue-week-v1.html`案A・2026-11-28のユーザー決定）：先週の知らせの下・
+//   土日のタブの上。帯の中身＝選んだ鞍数で来週いくつになるか、上の三角＝今の疲労。一覧を下へ送っても
+//   画面の上に残る。「自分」「番付」を開いているあいだも出す（見出しの「あと◯件」と同じ扱い）。
+//   計算は`domain/fatigue.js`、文字づくりは`view/fatigueBandView.js`。
 
 import React, { useMemo, useRef, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
@@ -23,6 +27,13 @@ import { prepareWeek } from "../domain/weekPrepare.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
 import { isMainMount } from "../domain/mainMount.js";
 import { isSidelined } from "../domain/fall.js";
+import {
+  fatigueAfterRides,
+  fatiguePenaltyFactor,
+  FATIGUE_PENALTY_START,
+  FATIGUE_DANGER_THRESHOLD,
+  FATIGUE_MAX,
+} from "../domain/fatigue.js";
 import { deriveFavoredStrategy } from "../domain/strategy.js";
 import { GENDER_LABEL, weeksSinceLastRace } from "../domain/horse.js";
 import { horseAge } from "../domain/retirement.js";
@@ -49,6 +60,7 @@ import {
   emptyDayMessage,
   EMPTY_WEEK_MESSAGE,
 } from "../view/weekOffersView.js";
+import { fatigueBandView } from "../view/fatigueBandView.js";
 import { EntryListScreen } from "./EntryListScreen.jsx";
 import { WeekResultScreen } from "./WeekResultScreen.jsx";
 import { YearEndSummaryScreen, RetiredHorsesScreen } from "./YearEndScreen.jsx";
@@ -73,7 +85,7 @@ const SIDE_TAB = Object.freeze({ PROFILE: "profile", BANZUKE: "banzuke" });
 
 /**
  * 先週の出来事を1行の文にする。⭐悪い知らせだけを出す段（2026-09-20のユーザー決定・
- * `devlog/wave10.md`§10）：怪我・主戦の座を失った・疲れの警告・信頼が下がった、の4つ。
+ * `devlog/wave10.md`§10）：怪我・主戦の座を失った・疲労の警告・信頼が下がった、の4つ。
  * 信頼が上がった知らせ（`delta > 0`）はここでは出さない——知らせ自体は`domain/`が
  * 従来どおり組み立てている（画面に出すかどうかだけをここで決める）。
  * ⚠️「大きく下がりました」とは書かない：この知らせが出る下がり幅は2
@@ -94,7 +106,7 @@ function notificationText(n, horsesById, stablesById) {
       return `${who}からの信頼が下がりました。`;
     }
     case NOTIFICATION_TYPES.FATIGUE_DANGER:
-      return "疲れがたまっています。落馬しやすくなっています。";
+      return "疲労がたまっています。落馬しやすくなっています。";
     default:
       return null;
   }
@@ -333,6 +345,17 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer, 
     .map((n) => notificationText(n, horsesById, stablesById))
     .filter(Boolean);
 
+  // 疲労の帯：選んだ鞍数のまま週を進めたときの来週の疲労（何も選んでいなければ0鞍での値）。
+  const fatigueNext = fatigueAfterRides(player.fatigue, pickedHorseIds.size, player.jockey.physicalStamina);
+  const fatigue = fatigueBandView({
+    now: player.fatigue,
+    next: fatigueNext,
+    penalty: 1 - fatiguePenaltyFactor(fatigueNext),
+    penaltyStart: FATIGUE_PENALTY_START,
+    dangerThreshold: FATIGUE_DANGER_THRESHOLD,
+    max: FATIGUE_MAX,
+  });
+
   return (
     <main className="week-screen" ref={rootRef}>
       <SurfaceMarkDefs />
@@ -351,6 +374,41 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer, 
           ))}
         </div>
       )}
+
+      <div
+        className="wk-ft"
+        style={{
+          "--ft-now": `${fatigue.nowPct}%`,
+          "--ft-next": `${fatigue.nextPct}%`,
+          "--ft-start": `${fatigue.startPct}%`,
+          "--ft-danger": `${fatigue.dangerPct}%`,
+        }}
+      >
+        <div className="wk-ft__row">
+          <span>疲労</span>
+          <span>
+            今<b>{fatigue.nowText}</b>
+          </span>
+          <span className={fatigue.isDanger ? "is-next is-danger" : "is-next"}>
+            来週<b>{fatigue.nextText}</b>
+          </span>
+          {fatigue.penaltyText && (
+            <span className="wk-ft__pen">
+              能力<b>{fatigue.penaltyText}</b>
+            </span>
+          )}
+        </div>
+        <div className="wk-ft__bar">
+          <i className="wk-ft__now" aria-hidden="true" />
+          <span className="wk-ft__track" aria-hidden="true">
+            <i className="wk-ft__fill" />
+          </span>
+          <span className="wk-ft__lab">
+            <span className={fatigue.isPenalized && !fatigue.isDanger ? "is-in" : ""}>能力が落ちる</span>
+            <span className={fatigue.isDanger ? "is-in" : ""}>落馬しやすい</span>
+          </span>
+        </div>
+      </div>
 
       <div className="wk-days">
         {[DAY.SAT, DAY.SUN].map((d) => (

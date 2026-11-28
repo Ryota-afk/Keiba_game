@@ -74,7 +74,7 @@
 }
 
 /* 見出しの下の補足の段。文の段は見本の`.fc`（補足の1行）と同じ。
-   `.is-bad`＝先週の悪い知らせ（怪我・主戦の座を失った・疲れの警告・信頼が下がった。
+   `.is-bad`＝先週の悪い知らせ（怪我・主戦の座を失った・疲労の警告・信頼が下がった。
    2026-09-20のユーザー決定で悪い知らせだけの段になった）。行の「断ると信頼が下がります」
    （`.wk-r__warn`）と同じaccent色で、読むものの色をそろえる */
 .wk-notes {
@@ -87,6 +87,119 @@
   margin: 0;
 }
 .wk-notes.is-bad {
+  color: var(--accent);
+}
+
+/* ── 疲労の帯（design/mocks/fatigue-week-v1.html 案A・2026-11-28に合意） ──
+   先週の知らせの下・土日のタブの上。一覧を下へ送っても画面の上に残る
+   （縦に流れる器は`.screen-pane--week`。その中で張り付く）。
+   文字の行：「疲労　今 62　来週 75　……　能力 −10%」。ラベルはcaption、数字はbody。
+   帯：中身＝来週の疲労、上の三角＝今の疲労。地は「能力が落ちる」「落馬しやすい」の境目で
+   明るさが変わる（線は引かない）。境目の位置（--ft-start・--ft-danger）と今・来週の位置
+   （--ft-now・--ft-next）は`WeekScreen.jsx`が`domain/fatigue.js`の値から渡す。
+   来週の数字は「落馬しやすい」に入ったときだけaccent（読むものの色）。
+   動き：帯と三角は`--m-bar-dur`／`--m-bar-ease`（styles/motion.css。動きを減らす設定では0ms）。
+   数字は動かさず、その場で入れ替える。 */
+.wk-ft {
+  --ft-gap: calc(var(--s1) / 2);
+  --ft-zone0: rgba(255, 255, 255, 0.05);
+  --ft-zone1: rgba(255, 255, 255, 0.1);
+  --ft-zone2: rgba(255, 255, 255, 0.17);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel);
+  padding: var(--ft-gap) var(--s2);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.wk-ft__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.5;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.wk-ft__row b {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--fg);
+  margin-left: var(--ft-gap);
+}
+.wk-ft__row .is-next b {
+  font-weight: 700;
+}
+.wk-ft__row .is-next.is-danger b {
+  color: var(--accent);
+}
+.wk-ft__pen {
+  margin-left: auto;
+}
+.wk-ft__bar {
+  display: block;
+  position: relative;
+  padding-top: 6px;
+}
+.wk-ft__now {
+  position: absolute;
+  top: 0;
+  left: var(--ft-now);
+  width: 8px;
+  height: 5px;
+  margin-left: -4px;
+  background: var(--muted);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transition: left var(--m-bar-dur) var(--m-bar-ease);
+}
+.wk-ft__track {
+  display: block;
+  position: relative;
+  height: var(--s1);
+  background: linear-gradient(
+    90deg,
+    var(--ft-zone0) 0 var(--ft-start),
+    var(--ft-zone1) var(--ft-start) var(--ft-danger),
+    var(--ft-zone2) var(--ft-danger) 100%
+  );
+}
+.wk-ft__fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--dim) 0 var(--ft-start),
+    var(--muted) var(--ft-start) var(--ft-danger),
+    var(--accent) var(--ft-danger) 100%
+  );
+  clip-path: inset(0 calc(100% - var(--ft-next)) 0 0);
+  transition: clip-path var(--m-bar-dur) var(--m-bar-ease);
+}
+.wk-ft__lab {
+  display: block;
+  position: relative;
+  height: 1.6em;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--dim);
+}
+.wk-ft__lab span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  transition: color var(--m-bar-dur) var(--m-bar-ease);
+}
+.wk-ft__lab span:nth-child(1) {
+  left: var(--ft-start);
+}
+.wk-ft__lab span:nth-child(2) {
+  left: var(--ft-danger);
+}
+.wk-ft__lab span.is-in {
+  color: var(--fg);
+}
+.wk-ft__lab span:nth-child(2).is-in {
   color: var(--accent);
 }
 
