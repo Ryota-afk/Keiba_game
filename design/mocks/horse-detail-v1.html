@@ -1,0 +1,363 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>馬の詳しい画面 v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&family=M+PLUS+1+Code:wght@700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 馬の詳しい画面（週の画面で依頼の行を開いたところから入る）——候補3案。2026-11-28・Fable 5.2。
+ * 決定：devlog/wave13b.md §33。要素の全列挙・取得元・空のときの見え方：design/mocks/horse-detail-v1-spec.md
+ * データ：実際のゲームのコードで作った1994年開始・世界の種7（台本は spec §1）。馬の絵は view/dreamDerbySprite.js の形と色。
+ * 色・級数・余白は src/styles/type.css・space.css・WeekScreen.css と同じトークン。縦線なし。絵文字なし。
+ * 注意：.frame の 390px 幅は並べて見せるための値。実装へ持ち込まない。
+ * ?only=A（B・C）を付けると、その案だけを画面いっぱいに縦に並べる（スマホの大きさで撮るため）。
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px; --fs-display:44px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --sh:calc(var(--s1) / 2);
+  --panel:#1a2a18; --panel2:#223a20; --board:#0f160e;
+  --fg:#f2ede0; --muted:#9fb896; --dim:#5f7659;
+  --accent:#ffd83d; --action:#1a5fb4; --on-action:#fff; --on-action-sub:#dbe8ff;
+  --turf:#8fd07e; --dirt:#d8b27a;
+  --rule:rgba(255,255,255,.1);
+  --tap:44px; --col-gap:6px;
+  /* 馬の絵の後ろの地面（暗い毛色が画面の地の色に沈まないための明るい面。レース画面の芝に近い緑） */
+  --paddock:#4d8a45; --paddock2:#3f7639;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0c0a;color:var(--fg);font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6);line-break:strict}
+.wrap{max-width:1680px;margin:0 auto}
+h1{font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.intro{font-size:var(--fs-body);color:var(--muted);line-height:1.8;max-width:62em;margin-top:var(--s1)}
+.intro b{color:var(--fg);font-weight:500}
+.cand{padding:0 var(--s1) var(--s3)}
+.cand>h2{font-size:var(--fs-lead);font-weight:700;line-height:1.4;margin-top:var(--s5);padding-top:var(--s3);box-shadow:inset 0 1px 0 var(--rule)}
+.cand>h2 small{display:block;font-size:var(--fs-body);font-weight:400;color:var(--muted);line-height:1.7;max-width:60em}
+.gallery{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.shot{width:390px;flex:none}
+.cap{font-size:var(--fs-caption);color:var(--muted);line-height:1.6;min-height:36px;margin-bottom:var(--s1)}
+.cap b{color:var(--fg);font-weight:500}
+.frame{width:390px;box-shadow:0 0 0 1px #000;background:var(--panel);font-variant-numeric:tabular-nums}
+body.only{padding:0}
+body.only .wrap>h1,body.only .intro,body.only .cand>h2{display:none}
+body.only .cand{display:none;padding:0}
+body.only .cand.is-only{display:block}
+body.only .gallery{display:block;margin:0}
+body.only .shot,body.only .frame{width:100%}
+body.only .frame{box-shadow:none}
+body.only .cap{padding:var(--s2) var(--s2) var(--s1);margin:0;min-height:0;background:#0f0c0a}
+
+.sf-turf{color:var(--turf)} .sf-dirt{color:var(--dirt)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.sym{display:inline-block;width:14px;height:14px;margin-left:2px;vertical-align:-2px;color:var(--fg)}
+.mk{color:var(--accent);font-weight:700}
+
+/* ══ 週の画面の行（今の実装と同じ部品。押すものが3つになる） ══ */
+.wk-race{padding:var(--s2) var(--s2) 0}
+.wk-race__big{font-size:var(--fs-title);font-weight:700;line-height:1.1}
+.wk-race__no{font-size:var(--fs-body);font-weight:700;color:var(--muted);display:block;line-height:1.5}
+.wk-race__cls{font-size:var(--fs-body);font-weight:400;color:var(--muted);margin-left:var(--s1)}
+.wk-t{padding:var(--s1) var(--s2) var(--s2)}
+.wk-th{font-size:var(--fs-caption);color:var(--dim);padding:var(--s1) 0 var(--sh)}
+.wk-r{min-height:52px;padding:6px 0;box-shadow:inset 0 1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted)}
+.wk-th,.wk-r{display:grid;gap:0 var(--col-gap);align-items:center;grid-template-columns:minmax(0,1fr) 34px 36px 64px 46px}
+.wk-r b{font-weight:500;color:var(--fg)}
+.wk-r__name{font-size:var(--fs-body);font-weight:700;color:var(--fg);line-height:1.3;min-width:0}
+.wk-r__l2{grid-column:1 / -1;display:flex;justify-content:space-between;gap:var(--s1);line-height:1.6}
+.wk-r__l2 span+span{margin-left:var(--s1)}
+.wk-r.is-open{background:var(--panel2);margin:0 calc(var(--s2) * -1);padding:6px var(--s2) var(--s1)}
+.wk-r__acts{grid-column:1 / -1;display:flex;gap:0;align-items:center;padding-top:var(--s1)}
+.wk-btn{display:block;min-height:var(--tap);line-height:var(--tap);text-align:center;background:var(--action);color:var(--on-action);font-size:var(--fs-body);font-weight:700;flex:1 1 auto}
+.wk-lnk{min-height:var(--tap);line-height:var(--tap);padding:0 0 0 var(--s2);font-size:var(--fs-body);font-weight:700;color:var(--action);white-space:nowrap}
+.r{text-align:right} .c{text-align:center}
+
+/* ══ 3案に共通の部品 ══ */
+/* どの依頼の馬か（週の画面のレースの見出しと同じ並び・小さく） */
+.hd-ctx{padding:var(--s2) var(--s2) 0;font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.hd-ctx b{font-weight:700}
+.hd-ctx .d{color:var(--fg);font-weight:700}
+/* 馬の絵（ドット絵・右向き・立ち姿）と、その後ろの地面 */
+.hd-pic{background:linear-gradient(var(--paddock) 0 72%,var(--paddock2) 72% 100%);display:flex;align-items:flex-end;justify-content:center}
+.hd-pic svg{display:block;image-rendering:pixelated}
+/* 小見出し（週の結果の .wr-sec h3 と同じ） */
+.hd-sec{padding:var(--s3) var(--s2) 0}
+.hd-h{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:var(--s1);font-size:var(--fs-caption);font-weight:500;letter-spacing:.08em;color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+.hd-h .n{letter-spacing:0}
+.hd-h .n b{color:var(--fg);font-weight:700}
+/* 戦績の1行（左に着順・中に条件・右に体重） */
+.hd-run{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:0 var(--s1);align-items:baseline;padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.hd-run:last-child{box-shadow:none}
+.hd-run__pos{font-size:var(--fs-body);font-weight:700;color:var(--fg);white-space:nowrap}
+.hd-run__pos small{font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.hd-run.is-win .hd-run__pos{color:var(--accent)}
+.hd-run__where{font-size:var(--fs-body);color:var(--fg)}
+.hd-run__sub{grid-column:2 / -1;overflow-wrap:anywhere}
+.hd-run__kg{text-align:right;white-space:nowrap}
+.hd-run__kg b{font-size:var(--fs-body);font-weight:700;color:var(--fg)}
+.hd-empty{padding:var(--s2) 0 var(--s1);font-size:var(--fs-body);color:var(--muted)}
+/* 下の押すもの（週の画面の行と同じ言葉） */
+.hd-foot{display:flex;align-items:center;padding:var(--s4) var(--s2) var(--s2)}
+.hd-foot .wk-btn{min-height:var(--s6);line-height:var(--s6)}
+
+/* ══ 案A 能力表：主役＝乗って分かった能力。大きい枠に値、分からない枠は暗い面に「？」 ══ */
+.A .hd-top{display:grid;grid-template-columns:88px minmax(0,1fr);gap:var(--s2);padding:var(--s1) var(--s2) 0;align-items:center}
+.A .hd-pic{width:88px;height:72px;padding-bottom:6px}
+.A .hd-pic svg{width:76px}
+.hd-name{font-size:var(--fs-lead);font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.hd-name .mk{font-size:var(--fs-caption);margin-left:var(--s1);white-space:nowrap}
+.hd-id{font-size:var(--fs-caption);color:var(--muted);line-height:1.7}
+.hd-id span+span{margin-left:var(--s1)}
+.hd-id b{color:var(--fg);font-weight:500}
+.A .hd-facts{display:grid;grid-template-columns:1fr auto auto;gap:var(--s2);padding:var(--s2) var(--s2) 0}
+.hd-fact{font-size:var(--fs-body);font-weight:700;line-height:1.4;white-space:nowrap}
+.hd-fact small{display:block;font-size:var(--fs-caption);font-weight:400;color:var(--muted)}
+.hd-fact i{font-style:normal;font-weight:400;color:var(--muted)}
+.ab-grid{display:grid;gap:var(--sh);margin-top:var(--s1)}
+.ab-grid.c5{grid-template-columns:repeat(5,1fr)}
+.ab-grid.c4{grid-template-columns:repeat(4,1fr)}
+.ab{background:var(--panel2);padding:var(--s1) var(--sh) var(--s1);text-align:center;min-width:0}
+.ab__l{font-size:var(--fs-caption);color:var(--muted);line-height:1.4;white-space:nowrap}
+.ab__v{font-size:var(--fs-title);font-weight:700;line-height:1.3;font-family:"M PLUS 1 Code","M PLUS 1p",monospace}
+.ab__m{height:3px;background:var(--board);margin:var(--sh) var(--sh) 0}
+.ab__m i{display:block;height:100%;background:var(--muted)}
+.ab.is-q{background:var(--board)}
+.ab.is-q .ab__l{color:var(--dim)}
+.ab.is-q .ab__v{color:var(--dim);font-weight:400}
+.ab.is-q .ab__m{visibility:hidden}
+.ab.is-s .ab__v{font-size:var(--fs-lead);line-height:1.6}
+/* 適距離の枠：帯の図と、今回のレースの距離の印 */
+.dist{background:var(--panel2);padding:var(--s1) var(--s2) var(--s2);margin-top:var(--s1)}
+.dist__hd{display:flex;justify-content:space-between;align-items:baseline}
+.dist__l{font-size:var(--fs-caption);color:var(--muted)}
+.dist__v{font-size:var(--fs-title);font-weight:700;line-height:1.3;white-space:nowrap}
+.dist__bar{position:relative;height:38px;margin-top:var(--sh)}
+.dist__track{position:absolute;left:0;right:0;bottom:14px;height:8px;background:var(--board)}
+.dist__band{position:absolute;bottom:14px;height:8px;background:var(--accent)}
+.dist__now{position:absolute;bottom:22px;transform:translateX(-50%);font-size:var(--fs-caption);color:var(--fg);white-space:nowrap;text-align:center;line-height:1.2}
+.dist__now::after{content:"";display:block;margin:1px auto 0;width:0;height:0;border:5px solid transparent;border-top-color:var(--fg);border-bottom-width:0}
+.dist__ax{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;font-size:var(--fs-caption);color:var(--dim);line-height:1}
+.dist.is-q{background:var(--board)}
+.dist.is-q .dist__l{color:var(--dim)}
+.dist.is-q .dist__v{color:var(--dim);font-weight:400}
+.dist.is-q .dist__track{background:var(--panel)}
+
+/* ══ 案B 体重と戦績：主役＝今回の体重と、これまで走った体重 ══ */
+.B .hd-top{display:grid;grid-template-columns:minmax(0,1fr) 64px;gap:var(--s2);padding:var(--s1) var(--s2) 0;align-items:start}
+.B .hd-pic{width:64px;height:52px;padding-bottom:4px}
+.B .hd-pic svg{width:56px}
+.kg-now{display:flex;justify-content:space-between;align-items:flex-end;padding:var(--s3) var(--s2) 0}
+.kg-now__l{font-size:var(--fs-caption);color:var(--muted);line-height:1.4}
+.kg-now__v{font-size:var(--fs-display);font-weight:700;line-height:1;font-family:"M PLUS 1 Code","M PLUS 1p",monospace}
+.kg-now__v small{font-size:var(--fs-body);font-weight:400;color:var(--muted);font-family:"M PLUS 1p",sans-serif;margin-left:2px}
+.kg-now__v em{font-style:normal;font-size:var(--fs-lead);font-family:"M PLUS 1p",sans-serif;margin-left:var(--sh)}
+.kg-now__gap{text-align:right;font-size:var(--fs-lead);font-weight:700;line-height:1.2}
+.plot{position:relative;margin:var(--s2) var(--s2) 0;background:var(--board);padding:0 var(--s2)}
+.plot__in{position:relative}
+.plot__dot{position:absolute;width:24px;height:24px;border-radius:50%;margin-left:-12px;background:var(--panel2);color:var(--muted);font-size:var(--fs-caption);font-weight:700;line-height:24px;text-align:center}
+.plot__dot.is-p{background:var(--fg);color:var(--board)}
+.plot__dot.is-w{background:var(--accent);color:var(--board)}
+.plot__now{position:absolute;top:var(--s1);transform:translateX(-50%);font-size:var(--fs-caption);color:var(--fg);white-space:nowrap;line-height:1.2}
+.plot__now::after{content:"";display:block;margin:2px auto 0;width:0;height:0;border:5px solid transparent;border-top-color:var(--fg);border-bottom-width:0}
+.plot__ax{position:absolute;left:0;right:0;bottom:var(--s1);height:12px;box-shadow:inset 0 1px 0 var(--rule)}
+.plot__ax span{position:absolute;top:3px;transform:translateX(-50%);font-size:var(--fs-caption);color:var(--dim);line-height:1}
+.plot__none{position:absolute;left:0;right:0;bottom:var(--s4);text-align:center;font-size:var(--fs-body);color:var(--muted)}
+.plot__cap{padding:var(--s1) var(--s2) 0;font-size:var(--fs-caption);color:var(--dim)}
+.B .hd-run{grid-template-columns:44px minmax(0,1fr) auto;padding:var(--s1) 0}
+.B .hd-run__pos{font-size:var(--fs-lead);line-height:1.2}
+.B .hd-run__sub{grid-column:2 / -1}
+.ab-list{display:grid;grid-template-columns:repeat(2,1fr);gap:0 var(--s3)}
+.ab-list.c4{grid-template-columns:repeat(4,1fr)}
+.ab-li{display:flex;justify-content:space-between;align-items:baseline;gap:var(--sh);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted);white-space:nowrap}
+.ab-li b{font-size:var(--fs-body);font-weight:700;color:var(--fg)}
+.ab-li.is-q b{color:var(--dim);font-weight:400}
+.ab-li.is-w{grid-column:1 / -1}
+
+/* ══ 案C 馬の姿：主役＝絵と名前。下は1列の表 ══ */
+.C .hd-pic{height:216px;margin-top:var(--s1);padding-bottom:var(--s2)}
+.C .hd-pic svg{width:216px}
+.C .hd-name{font-size:var(--fs-title);padding:var(--s2) var(--s2) 0;line-height:1.2}
+.C .hd-name .mk{font-size:var(--fs-body)}
+.C .hd-look{padding:var(--sh) var(--s2) 0;font-size:var(--fs-body);color:var(--muted);line-height:1.6}
+.C .hd-look span{white-space:nowrap}
+.C .hd-look span+span{margin-left:var(--s2)}
+.C .hd-look+.hd-look{padding-top:0}
+.dl{padding:var(--s2) var(--s2) 0}
+.dl.in{padding:0}
+.dl.two{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s3)}
+.dl__r{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1);padding:var(--s1) 0;box-shadow:inset 0 -1px 0 var(--rule);font-size:var(--fs-caption);color:var(--muted);line-height:1.5}
+.dl__r b{font-size:var(--fs-body);font-weight:700;color:var(--fg);text-align:right}
+.dl__r b i{font-style:normal;font-weight:400;color:var(--muted)}
+.dl__r.is-q b{color:var(--dim);font-weight:400}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wk-m2" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="wk-m1" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="wk-m3" viewBox="0 0 20 20"><path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="wk-mx" viewBox="0 0 20 20"><path d="M3 3 L17 17 M17 3 L3 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+<div class="wrap">
+<h1>馬の詳しい画面　候補3案</h1>
+<p class="intro">週の画面で依頼の行を開くと、「乗る」「出馬表」の隣に<b>「馬を見る」</b>が出ます。押すとこの画面が開きます。乗るかどうかを、これまで乗って分かったことと、走った体重から決めるための画面です。<br>
+3案とも出す項目は同じで、<b>どれを一番大きく見せるか</b>が違います。案A＝乗って分かった能力／案B＝体重と戦績／案C＝馬の絵と名前。<br>
+馬・レース・体重・着順・能力はすべて実際のゲームのコードが出した値です（1994年開始・世界の種7）。「自分」の印だけは、今の記録に乗った人が残っていないので、台本側で数えて付けました。</p>
+<div id="root"></div>
+</div>
+<script>
+const D = {"part":{"kind":"part","i":71,"weekLabel":"1995年 5月3週","revN":4,"rides":8,"race":{"label":"京都 11R","surface":"dirt","sf":"ダート","dist":"1700m","distance":1700,"cls":"オープン特別","day":"sun"},"h":{"id":"horse-2201","name":"トモシビストライド","sexAge":"牝4","coat":"鹿毛","coatId":"bay","face":"star","faceLabel":"星","legs":[0,0,0,0],"legsTxt":[],"svg":"<svg class=\"hs\" viewBox=\"0 0 41 34\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect fill=\"#1e1612\" x=\"2\" y=\"13\" width=\"4\" height=\"9\"/><rect fill=\"#1e1612\" x=\"1\" y=\"20\" width=\"3\" height=\"3\"/><rect fill=\"#8a5a32\" x=\"7\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#1e1612\" x=\"7\" y=\"27.5\" width=\"4\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"7\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"11\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#1e1612\" x=\"11\" y=\"26.5\" width=\"3\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"11\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"21\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#1e1612\" x=\"21\" y=\"27.5\" width=\"4\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"21\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"25\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#1e1612\" x=\"25\" y=\"26.5\" width=\"3\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"25\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"5\" y=\"13\" width=\"22\" height=\"11\"/><rect fill=\"#5a3a1e\" x=\"7\" y=\"22\" width=\"18\" height=\"2\"/><rect fill=\"#a17b5b\" x=\"6\" y=\"13\" width=\"6\" height=\"1.5\"/><rect fill=\"#8a5a32\" x=\"24\" y=\"7\" width=\"7\" height=\"10\"/><rect fill=\"#8a5a32\" x=\"27\" y=\"4\" width=\"6\" height=\"7\"/><rect fill=\"#1e1612\" x=\"24\" y=\"4\" width=\"4\" height=\"6\"/><rect fill=\"#1e1612\" x=\"22\" y=\"9\" width=\"3\" height=\"3\"/><rect fill=\"#8a5a32\" x=\"28\" y=\"4\" width=\"11\" height=\"9\"/><rect fill=\"#2a1c14\" x=\"35\" y=\"9\" width=\"5\" height=\"4\"/><rect fill=\"#8a5a32\" x=\"35\" y=\"8\" width=\"5\" height=\"1.5\"/><rect fill=\"#5a3a1e\" x=\"28\" y=\"1\" width=\"3\" height=\"3\"/><rect fill=\"#a17b5b\" x=\"29\" y=\"10.5\" width=\"5\" height=\"1.2\"/><rect fill=\"#f6f3ec\" x=\"31\" y=\"4\" width=\"2.5\" height=\"2\"/><rect fill=\"#111\" x=\"33\" y=\"7\" width=\"2\" height=\"2\"/></svg>","kg":442,"diff":8,"kgText":"442kg（+8）","interval":"中7週","trainer":"塚本遼","own":false,"main":true,"cls":"オープン特別","record":"28戦4勝","starts":28,"wins":4,"seconds":2,"thirds":2,"turf":"◎","dirt":"◎","mark":"wk-m2","revealed":["power","grit","speed","idealDistance"],"band":"1000〜1800m","bandLo":1000,"bandHi":1800,"ab":{"speed":28,"sharpness":"C","grit":"B","flexibility":"C","power":"C+"},"strategy":"先行","runs":[{"date":"95.03.22","course":"中山","sf":"芝","surface":"turf","distance":1600,"cond":"良","name":"オープン特別","pos":12,"field":18,"pop":4,"kg":434,"kgDiff":6,"kgDiffText":"+6","mine":true},{"date":"95.03.01","course":"阪神","sf":"ダ","surface":"dirt","distance":2600,"cond":"良","name":"オープン特別","pos":6,"field":10,"pop":6,"kg":428,"kgDiff":-6,"kgDiffText":"−6","mine":true},{"date":"95.01.15","course":"中山","sf":"芝","surface":"turf","distance":1600,"cond":"重","name":"オープン特別","pos":15,"field":21,"pop":7,"kg":434,"kgDiff":-8,"kgDiffText":"−8","mine":true},{"date":"95.01.08","course":"京都","sf":"ダ","surface":"dirt","distance":1800,"cond":"良","name":"オープン特別","pos":5,"field":11,"pop":1,"kg":442,"kgDiff":10,"kgDiffText":"+10","mine":true},{"date":"94.10.28","course":"京都","sf":"芝","surface":"turf","distance":1400,"cond":"良","name":"3勝クラス","pos":1,"field":16,"pop":12,"kg":432,"kgDiff":-4,"kgDiffText":"−4","mine":true},{"date":"94.10.22","course":"東京","sf":"芝","surface":"turf","distance":2000,"cond":"良","name":"関西テレビ放送賞 ローズステークス （エリザベス女王杯トライアル）","pos":9,"field":18,"pop":8,"kg":436,"kgDiff":0,"kgDiffText":"±0","mine":false}]}},"full":{"kind":"full","i":74,"weekLabel":"1995年 6月2週","revN":6,"rides":11,"race":{"label":"阪神 9R","surface":"turf","sf":"芝","dist":"2000m","distance":2000,"cls":"3勝クラス","day":"sat"},"h":{"id":"horse-2051","name":"ツバクロシャイン","sexAge":"牝4","coat":"鹿毛","coatId":"bay","face":"none","faceLabel":"なし","legs":[0,2,0,3],"legsTxt":["右前中","右後長白"],"svg":"<svg class=\"hs\" viewBox=\"0 0 41 34\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect fill=\"#1e1612\" x=\"2\" y=\"13\" width=\"4\" height=\"9\"/><rect fill=\"#1e1612\" x=\"1\" y=\"20\" width=\"3\" height=\"3\"/><rect fill=\"#8a5a32\" x=\"7\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#1e1612\" x=\"7\" y=\"27.5\" width=\"4\" height=\"4.5\"/><rect fill=\"#f6f3ec\" x=\"7\" y=\"25\" width=\"4\" height=\"5.5\"/><rect fill=\"#c9b89c\" x=\"7\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"11\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#1e1612\" x=\"11\" y=\"26.5\" width=\"3\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"11\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"21\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#1e1612\" x=\"21\" y=\"27.5\" width=\"4\" height=\"4.5\"/><rect fill=\"#f6f3ec\" x=\"21\" y=\"27.3\" width=\"4\" height=\"3.2\"/><rect fill=\"#c9b89c\" x=\"21\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"25\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#1e1612\" x=\"25\" y=\"26.5\" width=\"3\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"25\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#8a5a32\" x=\"5\" y=\"13\" width=\"22\" height=\"11\"/><rect fill=\"#5a3a1e\" x=\"7\" y=\"22\" width=\"18\" height=\"2\"/><rect fill=\"#a17b5b\" x=\"6\" y=\"13\" width=\"6\" height=\"1.5\"/><rect fill=\"#8a5a32\" x=\"24\" y=\"7\" width=\"7\" height=\"10\"/><rect fill=\"#8a5a32\" x=\"27\" y=\"4\" width=\"6\" height=\"7\"/><rect fill=\"#1e1612\" x=\"24\" y=\"4\" width=\"4\" height=\"6\"/><rect fill=\"#1e1612\" x=\"22\" y=\"9\" width=\"3\" height=\"3\"/><rect fill=\"#8a5a32\" x=\"28\" y=\"4\" width=\"11\" height=\"9\"/><rect fill=\"#2a1c14\" x=\"35\" y=\"9\" width=\"5\" height=\"4\"/><rect fill=\"#8a5a32\" x=\"35\" y=\"8\" width=\"5\" height=\"1.5\"/><rect fill=\"#5a3a1e\" x=\"28\" y=\"1\" width=\"3\" height=\"3\"/><rect fill=\"#a17b5b\" x=\"29\" y=\"10.5\" width=\"5\" height=\"1.2\"/><rect fill=\"#111\" x=\"33\" y=\"7\" width=\"2\" height=\"2\"/></svg>","kg":454,"diff":14,"kgText":"454kg（+14）","interval":"中8週","trainer":"塚本遼","own":false,"main":true,"cls":"3勝クラス","record":"18戦3勝","starts":18,"wins":3,"seconds":2,"thirds":1,"turf":"○","dirt":"△","mark":"wk-m1","revealed":["power","flexibility","grit","speed","sharpness","idealDistance"],"band":"1900〜3000m","bandLo":1900,"bandHi":3000,"ab":{"speed":65,"sharpness":"C+","grit":"D","flexibility":"B+","power":"B+"},"strategy":"差し","runs":[{"date":"95.04.01","course":"福島","sf":"芝","surface":"turf","distance":2400,"cond":"稍重","name":"2勝クラス","pos":1,"field":5,"pop":5,"kg":440,"kgDiff":-8,"kgDiffText":"−8","mine":false},{"date":"95.03.28","course":"中京","sf":"芝","surface":"turf","distance":1800,"cond":"良","name":"2勝クラス","pos":8,"field":11,"pop":2,"kg":448,"kgDiff":2,"kgDiffText":"+2","mine":true},{"date":"95.02.15","course":"小倉","sf":"芝","surface":"turf","distance":2600,"cond":"良","name":"2勝クラス","pos":5,"field":10,"pop":3,"kg":446,"kgDiff":2,"kgDiffText":"+2","mine":true},{"date":"94.12.22","course":"中京","sf":"ダ","surface":"dirt","distance":2500,"cond":"重","name":"2勝クラス","pos":2,"field":5,"pop":3,"kg":444,"kgDiff":8,"kgDiffText":"+8","mine":true},{"date":"94.11.22","course":"京都","sf":"芝","surface":"turf","distance":2400,"cond":"良","name":"2勝クラス","pos":7,"field":22,"pop":5,"kg":436,"kgDiff":-10,"kgDiffText":"−10","mine":true},{"date":"94.11.15","course":"東京","sf":"ダ","surface":"dirt","distance":1700,"cond":"良","name":"2勝クラス","pos":5,"field":10,"pop":4,"kg":446,"kgDiff":2,"kgDiffText":"+2","mine":true}]}},"debut":{"kind":"debut","i":31,"weekLabel":"1994年 8月2週","revN":0,"rides":0,"race":{"label":"札幌 5R","surface":"dirt","sf":"ダート","dist":"1700m","distance":1700,"cls":"新馬","day":"sun"},"h":{"id":"horse-684","name":"ヴァラーグリント","sexAge":"牡2","coat":"栗毛","coatId":"chestnut","face":"starSnip","faceLabel":"星鼻白","legs":[3,0,2,1],"legsTxt":["左前長白","左後中","右後微白"],"svg":"<svg class=\"hs\" viewBox=\"0 0 41 34\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect fill=\"#c98f52\" x=\"2\" y=\"13\" width=\"4\" height=\"9\"/><rect fill=\"#c98f52\" x=\"1\" y=\"20\" width=\"3\" height=\"3\"/><rect fill=\"#b0682f\" x=\"7\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#f6f3ec\" x=\"7\" y=\"29\" width=\"4\" height=\"1.5\"/><rect fill=\"#c9b89c\" x=\"7\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#b0682f\" x=\"11\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#f6f3ec\" x=\"11\" y=\"26.3\" width=\"3\" height=\"3.2\"/><rect fill=\"#c9b89c\" x=\"11\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#b0682f\" x=\"21\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#221a14\" x=\"21\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#b0682f\" x=\"25\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#f6f3ec\" x=\"25\" y=\"24\" width=\"3\" height=\"5.5\"/><rect fill=\"#c9b89c\" x=\"25\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#b0682f\" x=\"5\" y=\"13\" width=\"22\" height=\"11\"/><rect fill=\"#7a4520\" x=\"7\" y=\"22\" width=\"18\" height=\"2\"/><rect fill=\"#c08659\" x=\"6\" y=\"13\" width=\"6\" height=\"1.5\"/><rect fill=\"#b0682f\" x=\"24\" y=\"7\" width=\"7\" height=\"10\"/><rect fill=\"#b0682f\" x=\"27\" y=\"4\" width=\"6\" height=\"7\"/><rect fill=\"#c98f52\" x=\"24\" y=\"4\" width=\"4\" height=\"6\"/><rect fill=\"#c98f52\" x=\"22\" y=\"9\" width=\"3\" height=\"3\"/><rect fill=\"#b0682f\" x=\"28\" y=\"4\" width=\"11\" height=\"9\"/><rect fill=\"#7a4520\" x=\"35\" y=\"9\" width=\"5\" height=\"4\"/><rect fill=\"#b0682f\" x=\"35\" y=\"8\" width=\"5\" height=\"1.5\"/><rect fill=\"#7a4520\" x=\"28\" y=\"1\" width=\"3\" height=\"3\"/><rect fill=\"#c08659\" x=\"29\" y=\"10.5\" width=\"5\" height=\"1.2\"/><rect fill=\"#f6f3ec\" x=\"31\" y=\"4\" width=\"2.5\" height=\"2\"/><rect fill=\"#f6f3ec\" x=\"38\" y=\"8\" width=\"2\" height=\"2.5\"/><rect fill=\"#111\" x=\"33\" y=\"7\" width=\"2\" height=\"2\"/></svg>","kg":468,"diff":null,"kgText":"468kg（初出走）","interval":"初出走","trainer":"前川雅人","own":false,"main":false,"cls":"新馬","record":"0戦0勝","starts":0,"wins":0,"seconds":0,"thirds":0,"turf":"○","dirt":"○","mark":"wk-m1","revealed":[],"band":"1300〜2100m","bandLo":1300,"bandHi":2100,"ab":{"speed":32,"sharpness":"B","grit":"D+","flexibility":"D+","power":"A"},"strategy":"差し","runs":[]}},"none":{"kind":"none","i":74,"weekLabel":"1995年 6月2週","revN":0,"rides":0,"race":{"label":"東京 8R","surface":"turf","sf":"芝","dist":"2000m","distance":2000,"cls":"1勝クラス","day":"sun"},"h":{"id":"horse-2034","name":"ドリームブレイブ","sexAge":"牡3","coat":"芦毛","coatId":"gray","face":"strip","faceLabel":"作","legs":[1,1,0,0],"legsTxt":["左前微白","右前微白"],"svg":"<svg class=\"hs\" viewBox=\"0 0 41 34\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect fill=\"#525255\" x=\"2\" y=\"13\" width=\"4\" height=\"9\"/><rect fill=\"#525255\" x=\"1\" y=\"20\" width=\"3\" height=\"3\"/><rect fill=\"#818388\" x=\"7\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#424348\" x=\"7\" y=\"27.5\" width=\"4\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"7\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#818388\" x=\"11\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#424348\" x=\"11\" y=\"26.5\" width=\"3\" height=\"4.5\"/><rect fill=\"#221a14\" x=\"11\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#818388\" x=\"21\" y=\"23\" width=\"4\" height=\"9\"/><rect fill=\"#424348\" x=\"21\" y=\"27.5\" width=\"4\" height=\"4.5\"/><rect fill=\"#f6f3ec\" x=\"21\" y=\"29\" width=\"4\" height=\"1.5\"/><rect fill=\"#c9b89c\" x=\"21\" y=\"30.5\" width=\"4\" height=\"2\"/><rect fill=\"#818388\" x=\"25\" y=\"23\" width=\"3\" height=\"8\"/><rect fill=\"#424348\" x=\"25\" y=\"26.5\" width=\"3\" height=\"4.5\"/><rect fill=\"#f6f3ec\" x=\"25\" y=\"28\" width=\"3\" height=\"1.5\"/><rect fill=\"#c9b89c\" x=\"25\" y=\"29.5\" width=\"3\" height=\"2\"/><rect fill=\"#818388\" x=\"5\" y=\"13\" width=\"22\" height=\"11\"/><rect fill=\"#5e5f62\" x=\"7\" y=\"22\" width=\"18\" height=\"2\"/><rect fill=\"#a1a2a6\" x=\"6\" y=\"13\" width=\"6\" height=\"1.5\"/><rect fill=\"#c0c1c4\" x=\"7\" y=\"15.5\" width=\"2\" height=\"2\"/><rect fill=\"#c0c1c4\" x=\"10\" y=\"18\" width=\"1.5\" height=\"1.5\"/><rect fill=\"#c0c1c4\" x=\"6.5\" y=\"19.5\" width=\"1.5\" height=\"1.5\"/><rect fill=\"#c0c1c4\" x=\"23\" y=\"14\" width=\"1.5\" height=\"1.5\"/><rect fill=\"#c0c1c4\" x=\"24.5\" y=\"17\" width=\"2\" height=\"2\"/><rect fill=\"#818388\" x=\"24\" y=\"7\" width=\"7\" height=\"10\"/><rect fill=\"#818388\" x=\"27\" y=\"4\" width=\"6\" height=\"7\"/><rect fill=\"#525255\" x=\"24\" y=\"4\" width=\"4\" height=\"6\"/><rect fill=\"#525255\" x=\"22\" y=\"9\" width=\"3\" height=\"3\"/><rect fill=\"#818388\" x=\"28\" y=\"4\" width=\"11\" height=\"9\"/><rect fill=\"#3e3e42\" x=\"35\" y=\"9\" width=\"5\" height=\"4\"/><rect fill=\"#818388\" x=\"35\" y=\"8\" width=\"5\" height=\"1.5\"/><rect fill=\"#5e5f62\" x=\"28\" y=\"1\" width=\"3\" height=\"3\"/><rect fill=\"#a1a2a6\" x=\"29\" y=\"10.5\" width=\"5\" height=\"1.2\"/><rect fill=\"#f6f3ec\" x=\"31\" y=\"4\" width=\"8\" height=\"1.5\"/><rect fill=\"#f6f3ec\" x=\"38.5\" y=\"5.5\" width=\"1.5\" height=\"3.5\"/><rect fill=\"#111\" x=\"33\" y=\"7\" width=\"2\" height=\"2\"/></svg>","kg":472,"diff":2,"kgText":"472kg（+2）","interval":"中2週","trainer":"前川雅人","own":false,"main":false,"cls":"1勝クラス","record":"7戦1勝","starts":7,"wins":1,"seconds":0,"thirds":2,"turf":"△","dirt":"○","mark":"wk-m3","revealed":[],"band":"1400〜2300m","bandLo":1400,"bandHi":2300,"ab":{"speed":27,"sharpness":"B+","grit":"D+","flexibility":"C","power":"C"},"strategy":"差し","runs":[{"date":"95.05.15","course":"京都","sf":"ダ","surface":"dirt","distance":1800,"cond":"稍重","name":"1勝クラス","pos":4,"field":11,"pop":3,"kg":470,"kgDiff":0,"kgDiffText":"±0","mine":false},{"date":"95.04.22","course":"阪神","sf":"ダ","surface":"dirt","distance":1800,"cond":"稍重","name":"未勝利","pos":1,"field":15,"pop":3,"kg":470,"kgDiff":-2,"kgDiffText":"−2","mine":false},{"date":"95.04.01","course":"中山","sf":"ダ","surface":"dirt","distance":1800,"cond":"良","name":"未勝利","pos":3,"field":13,"pop":3,"kg":472,"kgDiff":-6,"kgDiffText":"−6","mine":false},{"date":"95.02.22","course":"阪神","sf":"ダ","surface":"dirt","distance":1800,"cond":"良","name":"未勝利","pos":4,"field":9,"pop":5,"kg":478,"kgDiff":0,"kgDiffText":"±0","mine":false},{"date":"95.02.15","course":"京都","sf":"芝","surface":"turf","distance":2000,"cond":"良","name":"未勝利","pos":6,"field":9,"pop":4,"kg":478,"kgDiff":12,"kgDiffText":"+12","mine":false},{"date":"94.09.01","course":"中山","sf":"ダ","surface":"dirt","distance":1800,"cond":"良","name":"未勝利","pos":5,"field":7,"pop":3,"kg":466,"kgDiff":6,"kgDiffText":"+6","mine":false}]}}};
+const MARK = {"◎":"wk-m2","○":"wk-m1","△":"wk-m3","×":"wk-mx"};
+const sym = (lv) => `<svg class="sym" aria-hidden="true"><use href="#${MARK[lv]}"/></svg>`;
+const GRADES = ["G","G+","F","F+","E","E+","D","D+","C","C+","B","B+","A","A+","S","S+"];
+const RACE_ITEMS = [["speed","スピード"],["sharpness","瞬発力"],["grit","勝負根性"],["flexibility","柔軟性"],["power","パワー"]];
+const TRAIN_ITEMS = ["賢さ","健康","脚質","精神力"];
+const Q = "？";
+const knows = (h, k) => h.revealed.includes(k);
+const known6 = (h) => h.revealed.length;
+
+function ctx(o){ const r=o.race; return `<div class="hd-ctx">${o.weekLabel}　<span class="d">${r.label}</span>　<b class="sf-${r.surface}">${r.sf}</b><span class="d">${r.dist}</span>　${r.cls}</div>`; }
+function foot(){ return `<div class="hd-foot"><span class="wk-btn">乗る</span><span class="wk-lnk">閉じる</span></div>`; }
+function pic(h){ return `<div class="hd-pic">${h.svg}</div>`; }
+function nameHtml(h){ return `<div class="hd-name">${h.name}${h.main?`<span class="mk">主戦</span>`:""}</div>`; }
+function surf(h){ return `芝${sym(h.turf)}　ダート${sym(h.dirt)}`; }
+function trainer(h){ return `${h.trainer}${h.own?`　所属厩舎`:""}`; }
+function kgParts(h){ const m=h.kgText.match(/^(\d+)kg(.*)$/); return {n:m[1], d:m[2]==="（初出走）"?"":m[2]}; }
+function run(r){
+  return `<div class="hd-run${r.pos===1?" is-win":""}">
+    <span class="hd-run__pos num">${r.pos}<small>着</small></span>
+    <span class="hd-run__where">${r.course} <b class="sf-${r.surface}">${r.sf}</b>${r.distance}m ${r.cond}</span>
+    <span class="hd-run__kg num">${r.kg!=null?`<b>${r.kg}</b>${r.kgDiffText?`（${r.kgDiffText}）`:""}`:""}</span>
+    <span class="hd-run__sub">${r.date}　${r.name}　${r.pop}番人気／${r.field}頭${r.mine?`　<span class="mk">自分</span>`:""}</span>
+  </div>`;
+}
+function runs(h){
+  return `<div class="hd-sec"><div class="hd-h"><span>戦績</span><span class="n">${h.record}</span></div>${
+    h.runs.length? h.runs.map(run).join("") : `<div class="hd-empty">まだ走っていません。</div>`}</div>`;
+}
+
+/* ── 案A ── */
+function distBox(o){
+  const h=o.h, k=knows(h,"idealDistance"), MIN=1000, MAX=4000, pc=(m)=>((m-MIN)/(MAX-MIN)*100);
+  const now=Math.min(94,Math.max(8,pc(o.race.distance)));
+  return `<div class="dist${k?"":" is-q"}">
+    <div class="dist__hd"><span class="dist__l">適距離</span><span class="dist__v num">${k?h.band:Q}</span></div>
+    <div class="dist__bar">
+      <div class="dist__track"></div>
+      ${k?`<div class="dist__band" style="left:${pc(h.bandLo)}%;width:${pc(h.bandHi)-pc(h.bandLo)}%"></div>`:""}
+      <div class="dist__now num" style="left:${pc(o.race.distance)}%">今回</div>
+      <div class="dist__ax num"><span>1000m</span><span>2000</span><span>3000</span><span>4000m</span></div>
+    </div></div>`;
+}
+function cellA(label, val, ratio){
+  const q = val==null;
+  return `<div class="ab${q?" is-q":""}"><div class="ab__l">${label}</div><div class="ab__v">${q?Q:val}</div><div class="ab__m"><i style="width:${q?0:Math.round(ratio*100)}%"></i></div></div>`;
+}
+function screenA(o){
+  const h=o.h;
+  const cells = RACE_ITEMS.map(([k,l])=>{ if(!knows(h,k)) return cellA(l,null);
+    const v=h.ab[k]; return cellA(l, v, k==="speed"? v/100 : GRADES.indexOf(v)/15); }).join("");
+  return ctx(o)+`<div class="hd-top">${pic(h)}<div>${nameHtml(h)}
+      <div class="hd-id"><span><b>${h.sexAge}</b></span><span><b>${h.coat}</b></span><span>${h.cls}</span></div>
+      <div class="hd-id"><span>${trainer(h)}</span></div></div></div>
+    <div class="hd-facts">
+      <div class="hd-fact"><small>調教後の体重</small><span class="num">${kgParts(h).n}kg<i>${kgParts(h).d}</i></span></div>
+      <div class="hd-fact"><small>前走から</small>${h.interval}</div>
+      <div class="hd-fact"><small>相性</small>${surf(h)}</div>
+    </div>
+    <div class="hd-sec"><div class="hd-h"><span>レースで乗って分かること</span><span class="n num"><b>${known6(h)}</b>／6</span></div>
+      ${distBox(o)}<div class="ab-grid c5">${cells}</div></div>
+    <div class="hd-sec"><div class="hd-h"><span>朝の調教で分かること</span><span class="n num"><b>0</b>／4</span></div>
+      <div class="ab-grid c4">${TRAIN_ITEMS.map((l)=>`<div class="ab is-q is-s"><div class="ab__l">${l}</div><div class="ab__v">${Q}</div></div>`).join("")}</div></div>
+    ${runs(h)}${foot()}`;
+}
+
+/* ── 案B ── */
+function plot(o){
+  const h=o.h, W=390-32-32, R=13;
+  const kgs=h.runs.filter(r=>r.kg!=null).map(r=>r.kg).concat([h.kg]);
+  let lo=Math.floor((Math.min(...kgs)-6)/10)*10, hi=Math.ceil((Math.max(...kgs)+6)/10)*10; if(hi-lo<30){hi+=10}
+  const x=(kg)=>(kg-lo)/(hi-lo)*100;
+  const rows=[]; const dots=[];
+  [...h.runs].filter(r=>r.kg!=null).sort((a,b)=>a.pos-b.pos).forEach((r)=>{
+    const px=x(r.kg)/100*W; let row=0;
+    while((rows[row]||[]).some(p=>Math.abs(p-px)<R*2+2)) row++;
+    (rows[row] ||= []).push(px); dots.push({r,row});
+  });
+  const nRows=Math.max(1,rows.length), H=34+nRows*28+28;
+  const ticks=[]; for(let k=lo;k<=hi;k+=10) ticks.push(k);
+  return `<div class="plot"><div class="plot__in" style="height:${H}px">
+      <div class="plot__now num" style="left:${x(h.kg)}%">今回 ${h.kg}</div>
+      ${dots.map(({r,row})=>`<span class="plot__dot num${r.pos===1?" is-w":r.pos<=3?" is-p":""}" style="left:${x(r.kg)}%;top:${36+(nRows-1-row)*28}px">${r.pos}</span>`).join("")}
+      ${dots.length?"":`<div class="plot__none">まだ走っていません。</div>`}
+      <div class="plot__ax num">${ticks.map(k=>`<span style="left:${x(k)}%">${k}</span>`).join("")}</div>
+    </div></div>`;
+}
+function liB(label,val,wide){ const q=val==null; return `<div class="ab-li${q?" is-q":""}${wide?" is-w":""}"><span>${label}</span><b class="num">${q?Q:val}</b></div>`; }
+function screenB(o){
+  const h=o.h, kp=kgParts(h);
+  return ctx(o)+`<div class="hd-top"><div>${nameHtml(h)}
+      <div class="hd-id"><span><b>${h.sexAge}</b></span><span><b>${h.coat}</b></span><span>${h.cls}</span><span>${surf(h)}</span></div>
+      <div class="hd-id"><span>${trainer(h)}</span></div></div>${pic(h)}</div>
+    <div class="kg-now"><div><div class="kg-now__l">調教後の体重</div><div class="kg-now__v num">${kp.n}<small>kg</small><em>${kp.d}</em></div></div>
+      <div class="kg-now__gap"><div class="kg-now__l">前走から</div>${h.interval}</div></div>
+    ${h.runs.length?plot(o)+`<div class="plot__cap">丸の数字は着順、横の位置はその日の体重です。</div>`:""}
+    <div class="hd-sec"><div class="hd-h"><span>戦績</span><span class="n">${h.record}</span></div>${
+      h.runs.length? h.runs.map(run).join("") : `<div class="hd-empty">まだ走っていません。</div>`}</div>
+    <div class="hd-sec"><div class="hd-h"><span>レースで乗って分かること</span><span class="n num"><b>${known6(h)}</b>／6</span></div>
+      <div class="ab-list">${liB("適距離", knows(h,"idealDistance")?h.band:null)}${RACE_ITEMS.map(([k,l])=>liB(l, knows(h,k)?h.ab[k]:null)).join("")}</div></div>
+    <div class="hd-sec"><div class="hd-h"><span>朝の調教で分かること</span><span class="n num"><b>0</b>／4</span></div>
+      <div class="ab-list c4">${TRAIN_ITEMS.map((l)=>liB(l,null)).join("")}</div></div>
+    ${foot()}`;
+}
+
+/* ── 案C ── */
+function rowC(label,val,html){ const q=val==null&&!html; return `<div class="dl__r${q?" is-q":""}"><span>${label}</span><b class="num">${html ?? (q?Q:val)}</b></div>`; }
+function screenC(o){
+  const h=o.h, kp=kgParts(h);
+  const LEG=["左前","右前","左後","右後"];
+  const legs=h.legs.map((v,i)=>v?LEG[i]:null).filter(Boolean);
+  const look=[h.face!=="none"?`顔の白　${h.faceLabel}`:null, legs.length?`白い脚　${legs.join("・")}`:null].filter(Boolean);
+  return ctx(o)+pic(h)+nameHtml(h)+
+    `<div class="hd-look"><span>${h.sexAge}</span><span>${h.coat}</span></div>${look.length?`<div class="hd-look">${look.map(t=>`<span>${t}</span>`).join("")}</div>`:""}
+    <div class="dl two">
+      ${rowC("調教後",null,`${kp.n}kg<i>${kp.d}</i>`)}${rowC("前走から",h.interval)}
+      ${rowC("クラス",h.cls)}${rowC("相性",null,surf(h))}
+      ${rowC("調教師",null,trainer(h))}
+    </div>
+    <div class="hd-sec"><div class="hd-h"><span>レースで乗って分かること</span><span class="n num"><b>${known6(h)}</b>／6</span></div>
+      <div class="dl in two">${rowC("適距離", knows(h,"idealDistance")?h.band:null)}${RACE_ITEMS.map(([k,l])=>rowC(l, knows(h,k)?h.ab[k]:null)).join("")}</div></div>
+    <div class="hd-sec"><div class="hd-h"><span>朝の調教で分かること</span><span class="n num"><b>0</b>／4</span></div>
+      <div class="dl in two">${TRAIN_ITEMS.map((l)=>rowC(l,null)).join("")}</div></div>
+    ${runs(h)}${foot()}`;
+}
+
+/* ── 週の画面の行（入口） ── */
+function entryRow(o){
+  const h=o.h, r=o.race, kp=kgParts(h);
+  return `<div class="wk-race"><div class="wk-race__big"><span class="wk-race__no">${r.label}</span><span class="sf-${r.surface}">${r.sf}</span>${r.dist}<span class="wk-race__cls">${r.cls}</span></div></div>
+  <div class="wk-t"><div class="wk-th"><span>馬名</span><span>性齢</span><span>毛色</span><span class="r">調教後</span><span class="r">前走から</span></div>
+    <div class="wk-r is-open"><span class="wk-r__name">${h.name}</span><b>${h.sexAge}</b><b>${h.coat}</b><b class="r num">${kp.n}${kp.d}</b><b class="r">${h.interval}</b>
+      <span class="wk-r__l2"><span>${h.main?`<span class="mk">主戦</span>　`:""}${h.record}　${h.strategy}　${r.sf==="芝"?"芝":"ダ"}${sym(r.surface==="turf"?h.turf:h.dirt)}</span><span>${trainer(h)}</span></span>
+      <span class="wk-r__acts"><span class="wk-btn">乗る</span><span class="wk-lnk">出馬表</span><span class="wk-lnk">馬を見る</span></span>
+    </div></div>`;
+}
+
+const CANDS = [
+  ["A","案A　能力表","主役は「乗って分かったこと」。値を大きい枠で出し、分からない枠は暗い面に「？」。適距離は帯の図にして、今回のレースの距離の印を重ねます。体重と戦績は下に小さく。", screenA],
+  ["B","案B　体重と戦績","主役は「今回の体重」と「これまで走った体重」。着順を丸にして体重の位置に並べ、今回の体重の印を重ねます。能力は下の小さい表。", screenB],
+  ["C","案C　馬の姿","主役は馬の絵と名前。顔の白と白い脚を言葉でも出します。能力・戦績は1つの長い表として下に続きます。", screenC],
+];
+const STATES = [
+  ["part","<b>何度か乗った馬</b>（6つのうち4つが分かっている）"],
+  ["full","<b>何度も乗った馬</b>（6つとも分かっている。休み明けで体重が増えている）"],
+  ["debut","<b>初出走の馬</b>（戦績なし・能力は全部「？」）"],
+  ["none","<b>乗ったことのない馬</b>（戦績はあるが能力は全部「？」）"],
+];
+const only = new URLSearchParams(location.search).get("only");
+if (only) document.body.classList.add("only");
+document.getElementById("root").innerHTML = CANDS.map(([id,title,desc,fn]) =>
+  `<section class="cand ${id}${only===id?" is-only":""}"><h2>${title}<small>${desc}</small></h2><div class="gallery">
+    <div class="shot"><div class="cap"><b>入口</b>：週の画面で行を開いたところ（3案共通）</div><div class="frame">${entryRow(D.full)}</div></div>
+    ${STATES.map(([k,cap])=>`<div class="shot"><div class="cap">${cap}</div><div class="frame">${fn(D[k])}</div></div>`).join("")}
+  </div></section>`).join("");
+</script></body></html>
