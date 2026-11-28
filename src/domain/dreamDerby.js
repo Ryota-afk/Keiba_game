@@ -15,6 +15,9 @@ import { horseStrengthScore } from "./raceOutcome.js";
 import { TOTAL_DISTANCE, D_FINAL_STRETCH, D_MID_CARD } from "../data/dreamDerbyCourse.js";
 import { runRaceSim, resumeRaceSim, buildPlan } from "../sim/index.js";
 import { DERBY_WINNERS, KENSHO_DERBY_WINNERS } from "../data/derbyWinners.js";
+import { DERBY_HORSE_LOOKS } from "../data/derbyHorseLooks.js";
+import { DERBY_HORSE_MARKINGS } from "../data/derbyHorseMarkings.js";
+import { genesForCoat } from "./horseLooks.js";
 import { DERBY_HORSE_ABILITIES } from "../data/derbyHorseAbilities.js";
 import { displayJockeyName, displayTrainerName } from "../data/derbyPeopleNames.js";
 
@@ -147,9 +150,17 @@ export function generateDreamRivals(saveSeed) {
       power: real.power,
       mentalStrength: real.mentalStrength,
     };
+    // ⭐毛色は史実どおり（`derbyHorseLooks.js`）。遺伝子はその毛色に合わせる（別の乱数列＝他の値は動かない）。
+    // 模様は3頭だけ史実を手で変換した表（`derbyHorseMarkings.js`）。残りは生成のまま。
+    const looks = DERBY_HORSE_LOOKS[record.horse];
+    const coatGenes = genesForCoat(looks.coat, streamRandom(saveSeed, RNG_STREAMS.GENERATION, "dream-rival-coat", i));
+    const realMarkings = DERBY_HORSE_MARKINGS[record.horse];
     return {
       ...base,
       abilities,
+      coat: looks.coat,
+      coatGenes,
+      ...(realMarkings ? { markings: { face: realMarkings.face, legs: [...realMarkings.legs] } } : {}),
       name: record.horse,
       // ⭐実際に使っていた脚質。`startDreamDerbySim`がこれを最優先で読む（2026-09-08・
       // `devlog/wave05.md`§56）。⚠️能力値から導く`deriveFavoredStrategy`は架空馬用で、
@@ -197,6 +208,7 @@ export function assignPostPositions(saveSeed, dreamHorse, rivals) {
   return pool.map((p, i) => ({
     num: i + 1,
     name: p.horse.name,
+    age: 3, // ダービーは3歳限定。絵の芦毛の白さ・体つきに使う（馬に生年が無いので出走表の側で持つ）
     isSelf: p.isSelf,
     horse: p.horse,
     popularity: p.isSelf ? 1 : popularityByHorse.get(p.horse),

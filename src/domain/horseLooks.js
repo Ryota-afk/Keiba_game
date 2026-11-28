@@ -71,6 +71,31 @@ export function coatFromGenes(genes, rand01) {
   return weightedPickFromValue(BAY_FAMILY_SHARE, rand01());
 }
 
+/**
+ * 毛色から、それが出る遺伝子型を作る（実在馬の毛色を決め打ちするとき用）。
+ * 白毛→w=1／芦毛→g=1／栗毛系→e=0／青毛→e≥1・a=0／鹿毛系→e≥1・a≥1。残りの座は創始馬の頻度で引く。
+ * ⚠️鹿毛・黒鹿毛・青鹿毛（栗毛・栃栗毛）の違いは遺伝子に無い（`coatFromGenes`が乱数で引く）ので、
+ * `coatFromGenes(genes)`が返すのは同じ系の色。決め打ちした色そのものは`horse.coat`へ保存すること。
+ * @param {string} coat
+ * @param {() => number} rand01 - 能力などとは別の乱数列
+ */
+export function genesForCoat(coat, rand01) {
+  const f = FOUNDER_GENE_FREQUENCY;
+  const count = (p) => (rand01() < p ? 1 : 0) + (rand01() < p ? 1 : 0);
+  const drawAtLeast1 = (p) => {
+    const n = count(p);
+    return n === 0 ? (rand01() < 0.5 ? 1 : 2) : n; // 0を除いて引き直す代わりに、頻度に依らず1か2
+  };
+  const g = { e: count(f.pE), a: count(f.pA), g: 0, w: 0 };
+  if (coat === "white") g.w = 1;
+  else if (coat === "gray") g.g = 1;
+  else if (coat === "chestnut" || coat === "liverChestnut") g.e = 0;
+  else if (coat === "black") { g.e = drawAtLeast1(f.pE); g.a = 0; }
+  else if (coat === "bay" || coat === "darkBay" || coat === "brown") { g.e = drawAtLeast1(f.pE); g.a = drawAtLeast1(f.pA); }
+  else throw new Error(`unknown coat: ${coat}`);
+  return g;
+}
+
 /** 親の居ない馬の遺伝子を引く（上の頻度どおり）。 */
 export function drawFounderGenes(rand01) {
   const f = FOUNDER_GENE_FREQUENCY;

@@ -352,6 +352,7 @@
 | 乱数 | 見た目は**専用の列**（`looksRandomFor`＝`"horse-looks"`＋馬id）。⚠️能力・適性・名前の列に混ぜない（混ぜると同じシードの既存の馬の能力が変わる。初期ロースターで前後一致を確認済み） |
 | 親からの受け渡し | `yearBoundary.js`が父母の`coatGenes`を`generateHorse`の`sireGenes`・`damGenes`へ渡す。繁殖プールの馬は馬オブジェクトそのもの（見た目の欄を持ったまま） |
 | 古いセーブ | `ensureHorseLooks(馬, saveSeed)`／`ensureRosterLooks`が欄の無い馬に補う（親の居ない馬として引く・同じidなら同じ結果）。`app.jsx`の続きから再開で呼ぶ。`SAVE_SCHEMA_VERSION`は据え置き |
+| 毛色の決め打ち | `genesForCoat(coat, rand01)`：毛色から遺伝子型を作る（白→w／芦→g／栗系→e=0／青毛→e≥1・a=0／鹿系→e≥1・a≥1。残りの座は創始馬の頻度）。⚠️系の中の細かい色は遺伝子に無いので`coatFromGenes`の戻りは同じ系まで＝決め打ちの色は`horse.coat`が正本。夢のダービーの相手は`DERBY_HORSE_LOOKS`の毛色で使う（3頭の模様は`data/derbyHorseMarkings.js`） |
 | 触ると壊れるもの | `RNG_STREAMS`・`generateHorse`の乱数の消費順（見た目は別列なので影響しない）／`FRAME_KG_SD`（当日の体重の性×年齢の標準偏差を2024年に合わせた）／毛色の割合の逆算（`COAT_SHARE_2024`を変えると創始馬の頻度が動く） |
 | 計測（2026-11-27） | 初期ロースター5,250頭の毛色は2024年±0.5ポイント以内。⚠️22年回すと芦毛6.2→2.2%・青毛0.7→0.2%に減る（繁殖プールの偏り＝遺伝の仕組みではない。大集団でランダムに交配すると安定する）。1頭あたりセーブ+112B |
 

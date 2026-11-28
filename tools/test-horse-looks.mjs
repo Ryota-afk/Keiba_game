@@ -116,3 +116,43 @@ test("ベスト体重：性×年齢ごとの平均（年の平均は表どおり
     }
   }
 });
+
+// --- ダービー勝ち馬の史実の毛色（夢のダービー） ---
+import { genesForCoat } from "../src/domain/horseLooks.js";
+import { generateDreamRivals } from "../src/domain/dreamDerby.js";
+import { DERBY_HORSE_LOOKS } from "../src/data/derbyHorseLooks.js";
+import { DERBY_HORSE_MARKINGS } from "../src/data/derbyHorseMarkings.js";
+import { DERBY_WINNERS } from "../src/data/derbyWinners.js";
+
+const COAT_FAMILY = { bay: "bay", darkBay: "bay", brown: "bay", chestnut: "chestnut", liverChestnut: "chestnut", black: "black", gray: "gray", white: "white" };
+const familyOf = (c) => COAT_FAMILY[c];
+
+test("genesForCoat：8毛色すべてで、遺伝子から出る毛色が同じ系（芦毛・白毛・青毛は同じ色）", () => {
+  const r = rng("genesForCoat");
+  for (const coat of COAT_IDS) {
+    for (let i = 0; i < 300; i += 1) {
+      const genes = genesForCoat(coat, r);
+      const back = coatFromGenes(genes, r);
+      assert.equal(familyOf(back), familyOf(coat), `${coat} → ${back}`);
+      if (["gray", "white", "black"].includes(coat)) assert.equal(back, coat);
+    }
+  }
+});
+
+test("夢のダービーの相手：相手に出た馬すべての毛色が史実どおり（51頭分の表の有無も確認）・遺伝子も同じ系・3頭の模様が表どおり", () => {
+  for (const winner of DERBY_WINNERS) assert.ok(DERBY_HORSE_LOOKS[winner.horse], winner.horse);
+  const seen = new Set();
+  for (let seed = 1; seed <= 200; seed += 1) {
+    const rivals = generateDreamRivals(seed);
+    for (const h of rivals) {
+      seen.add(h.name);
+      assert.equal(h.coat, DERBY_HORSE_LOOKS[h.name].coat, h.name);
+      assert.equal(familyOf(coatFromGenes(h.coatGenes, () => 0)), familyOf(h.coat), h.name);
+      assert.ok(hasHorseLooks(h));
+      const m = DERBY_HORSE_MARKINGS[h.name];
+      if (m) assert.deepEqual(h.markings, { face: m.face, legs: m.legs });
+    }
+  }
+  // 騎手が重なる馬は同じ年の顔ぶれに入れない仕組みなので、全51頭が相手に出るとは限らない（200シードで43頭）
+  assert.ok(seen.size >= 40, `相手に出た馬が${seen.size}頭しか無い`);
+});
