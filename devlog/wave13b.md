@@ -201,3 +201,7 @@
   （空白で区切り、丸ごと括弧の区切りを捨て、最後の区切りを残す。最後が数字で始まるときだけ直前の冠を付ける＝「報知杯4歳牝馬特別」。重賞データ285種のうち137種が変わる。全件`tools/test-race-name.mjs`）。
   `identity.endAge`→`lastAge`(47)。よく乗った馬は重賞の勝ち数→乗った回数。動きは`--m-bar-*`（bar-chart-stagger・400ms・間隔24ms・計1,096ms）。選んだ年の印は`--action-on-dark` #5b9bea（actionと同じ色相213°を暗い板用に明るくした）。
   確認：build・test 33本・Playwright（iPhone 13・31MBのセーブをそのまま注入＝23〜26秒）で2本とも横はみ出し0・エラー0。絵は作業用フォルダの`ceimpl/`。人間の通しプレイは未実施。
+
+## §36 SessionStartフック（2026-11-28・ユーザーが`/session-start-hook`を実行）
+`.claude/hooks/session-start.sh`（クラウドのセッションだけ・同期）：`package.json`・`package-lock.json`・フック自身のハッシュが前回と違うときだけ`npm install`。ハッシュは`node_modules/.session-start.sha256`。
+確かめたこと：2回目は0.004秒で何もしない／`package.json`を変えると入れ直す／空のフォルダで30個を約1.4秒で入れる。リンターは入っていない（ESLint等なし）ので、確認はビルドと`node --test`で代えた。`.gitignore`の許可リストに`.claude/hooks/`を足した。
