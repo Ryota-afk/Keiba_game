@@ -54,3 +54,6 @@ __pycache__/
 data-src/ahonoora/raw/
 data-src/ahonoora/parsed/
 data-src/ahonoora/fetch.log
+# --- Claude Codeのプロジェクト設定（報告を日本語に保つフック。2026-11-28・devlog/wave13b.md §34）---
+!.claude/
+!.claude/settings.json
