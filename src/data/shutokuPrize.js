@@ -97,6 +97,18 @@ const calendarWeekOf = (month, weekOfMonth) =>
 export const TWO_YEAR_OLD_AUTUMN_WEEK = calendarWeekOf(9, 2);
 /** 3歳の夏（6月1日〜）。第22週。 */
 export const THREE_YEAR_OLD_SUMMER_WEEK = calendarWeekOf(6, 1);
+/**
+ * 降級（4歳馬の収得賞金を半分にする）を行う最後の年。⭐出典：Wikipedia日本語版「日本の競馬の競走体系」
+ * ——2006〜2019年春は4歳馬が夏季開催（6月1日）を迎えた時点で収得賞金が半額になり、
+ * 2019年の夏季開催から廃止。年代ごとの細かい数字は承認済みの出典に無いので、2018年までは
+ * どの年代にも同じ形を当てはめる（`devlog/wave14.md`§12）。
+ */
+export const DEMOTION_LAST_YEAR = 2018;
+/** 降級の対象の馬齢（満4歳）。時期は`THREE_YEAR_OLD_SUMMER_WEEK`（6月1日の週）以降。 */
+export const DEMOTION_AGE = 4;
+/** 降級で残す割合（半分）。 */
+export const DEMOTION_KEEP_RATIO = 0.5;
+
 /** 3歳の9月7日（第36週）。未勝利のまま迎えた馬は中央を去る。 */
 export const MAIDEN_LEAVE_WEEK = TWO_YEAR_OLD_AUTUMN_WEEK;
 

@@ -9,6 +9,10 @@ import {
   classByShutoku,
   SHUTOKU_STARTING_BY_CLASS,
   MAIDEN_LEAVE_WEEK,
+  THREE_YEAR_OLD_SUMMER_WEEK,
+  DEMOTION_LAST_YEAR,
+  DEMOTION_AGE,
+  DEMOTION_KEEP_RATIO,
 } from "../data/shutokuPrize.js";
 
 /**
@@ -47,6 +51,26 @@ export function withReclassedClass(horse, absWeek, year) {
   return classId === horse.classId ? horse : { ...horse, classId };
 }
 
+/**
+ * 降級：満4歳の馬が、その年の6月1日の週以降に1度だけ、収得賞金を半分にする（端数は切り捨て）。
+ * 2019年の夏から後は行わない（`DEMOTION_LAST_YEAR`）。済ませた年を`record.demotedYear`に持つので、
+ * 同じ週に何度呼んでも・週をまたいでも二重にはならない（欄が無い古いセーブも「まだ」として扱う）。
+ * 収得賞金0・記録の無い馬は何もしない（同じオブジェクトを返す）。
+ * @returns {object} 降級した馬（しなければ引数のhorse）
+ */
+export function demoteIfDue(horse, absWeek, year) {
+  if (year > DEMOTION_LAST_YEAR || !horse.record) return horse;
+  if (ageOf(horse, year) !== DEMOTION_AGE) return horse;
+  if (weekOfYear(absWeek) < THREE_YEAR_OLD_SUMMER_WEEK) return horse;
+  if (horse.record.demotedYear === year) return horse;
+  const shutoku = shutokuOf(horse);
+  if (!(shutoku > 0)) return horse;
+  return {
+    ...horse,
+    record: { ...horse.record, shutokuPrize: Math.floor(shutoku * DEMOTION_KEEP_RATIO), demotedYear: year },
+  };
+}
+
 /** 未勝利（収得賞金0円）のまま、3歳の9月7日以降を迎えたか（＝中央を去る）。 */
 function mustLeaveForLocal(horse, absWeek, year) {
   const age = ageOf(horse, year);
@@ -75,7 +99,7 @@ export function reclassAndRetireMaidens(horses, absWeek, year) {
       leftForLocal.push(gone);
       return gone;
     }
-    return withReclassedClass(horse, absWeek, year);
+    return withReclassedClass(demoteIfDue(horse, absWeek, year), absWeek, year);
   });
   return { horses: next, leftForLocal };
 }
