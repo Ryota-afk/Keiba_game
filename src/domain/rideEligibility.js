@@ -17,13 +17,24 @@ import { trustFor } from "./player.js";
 export const GRADED_RIDE_TRAINER_TRUST_THRESHOLD = 8;
 export const GRADED_RIDE_OWNER_TRUST_THRESHOLD = 3;
 
+// ⭐GIには通算31勝しないと乗れない（2026-11-28にユーザーが決定）。
+// 出典：Wikipedia日本語版「見習騎手」——「JRAの内規により…通算勝利度数が31回に満たない騎手はGIおよび
+// JpnI競走に騎乗することができない」。GII・GIIIには勝利数の下限が無い（同記事の記述なし）。
+// ⚠️この内規ができた年は確認できていない（2005年には運用されていた）。**開始年に関係なく全年代に適用する**
+// （1974・1984・1994のどの開始年でも、1983年までの「大レース」＝`g1Like`も含めてGI扱い）。
+// 数える勝利数は`player.record.wins`（`domain/playerRecord.js`の通算勝利数）。
+export const G1_RIDE_MIN_CAREER_WINS = 31;
+
 /**
  * その馬の重賞に乗れるか。⚠️ランクは見ない。
  * @param {object} player
  * @param {{stableId: string, ownerId: string}} horse
+ * @param {"g1"|"g2"|"g3"} [tier] - そのレースの格（`data/gradedTier.js`の`gradedTierOf`）。
+ *   省略すると信頼だけで判定する（GIの通算勝利数の条件は見ない）。
  * @returns {boolean}
  */
-export function canRideGradedRace(player, horse) {
+export function canRideGradedRace(player, horse, tier) {
+  if (tier === "g1" && (player.record?.wins ?? 0) < G1_RIDE_MIN_CAREER_WINS) return false;
   return (
     trustFor(player.trainerTrust, horse.stableId) >= GRADED_RIDE_TRAINER_TRUST_THRESHOLD &&
     trustFor(player.ownerTrust, horse.ownerId) >= GRADED_RIDE_OWNER_TRUST_THRESHOLD

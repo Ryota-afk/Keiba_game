@@ -15,6 +15,8 @@ import { rankIndex, rankSpec } from "../data/ranks.js";
 import { gradeToNumber } from "../data/grades.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
 import { canRideGradedRace } from "./rideEligibility.js";
+import { gradedRaceById } from "../data/shutokuPrize.js";
+import { gradedTierOf } from "../data/gradedTier.js";
 
 // 乗れる鞍数（2026-09-17にユーザーが決定・`devlog/wave10.md`§2）。
 export const RIDABLE_SLOTS_PER_WEEK = 6;
@@ -83,7 +85,13 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
   for (const horse of dueHorses) {
     const race = plannedRaceThisWeek(card, horse, week);
     if (!race) continue; // 整合性エラー（通常は起きない）——依頼にしない
-    if (race.source === RACE_SOURCE.GRADED && !canRideGradedRace(player, horse)) continue;
+    // ⭐重賞の門：信頼に加えて、GIは通算31勝が要る（`rideEligibility.js`）。GIかどうかは番組表の依頼に
+    // `g1Like`が無いので実データを引いて判定する（`weekResults.js`の`gradedTierForRide`と同じ引き方）。
+    if (race.source === RACE_SOURCE.GRADED) {
+      const gradedRace = gradedRaceById(year, race.raceId);
+      const tier = gradedRace ? gradedTierOf(gradedRace, year) : (race.grade ?? "g3");
+      if (!canRideGradedRace(player, horse, tier)) continue;
+    }
     const stable = stableById.get(horse.stableId);
     const trust = trustFor(player.trainerTrust, horse.stableId);
     const quality =
@@ -111,10 +119,13 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const requestCount = RIDABLE_SLOTS_PER_WEEK * REQUEST_COUNT_MULTIPLIER;
 
   // 1レースあたりの依頼数をランクの上限で絞る（2026-09-20にユーザーが決定）。
-  // 同じraceIdの候補がその上限を超えたら、quality の低い方から落とす。
-  // ⚠️ここで`candidates`を絞ってから下のown/others選定に渡すことで、落ちた分は
-  // （候補が十分にあれば）他のレースの候補が自動的に繰り上がり、合計は
-  // 引き続き`requestCount`に近づく——ownとothersの選び方自体は変えない。
+  // 同じraceIdの候補がその上限を超えたら落とす。
+  // ⭐**所属厩舎の馬が先に枠を取る**（2026-11-28にユーザーが決定・`devlog/wave14.md`§4・#105）：
+  // 各レースの中で所属厩舎の候補を先（その中は質の順）、他厩舎を後（質の順）に並べて上位`maxPerRace`を残す。
+  // 以前は質だけで並べていたため、所属厩舎の馬の多くが優先される前に落ちていた。
+  // ⚠️所属厩舎の候補が上限より多いレースでは、所属厩舎の中で質の高い順に上限の頭数。
+  // ここで絞ってから下のown/others選定に渡すことで、落ちた分は（候補が十分にあれば）
+  // 他のレースの候補が自動的に繰り上がる——ownとothersの選び方自体は変えない。
   const maxPerRace = rankSpec(player.jockey.rank)?.maxRequestsPerRace ?? Infinity;
   const byRace = new Map();
   for (const c of candidates) {
@@ -123,7 +134,9 @@ export function generateWeeklyRequests(saveSeed, week, roster, player) {
   }
   const cappedCandidates = [];
   for (const raceCandidates of byRace.values()) {
-    raceCandidates.sort((a, b) => b.quality - a.quality);
+    raceCandidates.sort(
+      (a, b) => Number(b.isFromOwnStable) - Number(a.isFromOwnStable) || b.quality - a.quality
+    );
     cappedCandidates.push(...raceCandidates.slice(0, maxPerRace));
   }
 

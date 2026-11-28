@@ -2,8 +2,11 @@
 // ⚠️段3（断るコスト）・段4（重賞に乗れる判定）は信頼の増減に触るので、定数を動かしたら
 // 必ずこれを走らせ直すこと（`devlog/wave09.md`§9 段6）。
 //
-// 使い方： node tools/measure-trust-growth.mjs [週数] [シード数]
-//   既定は52週・5シード。3年で測るなら `node tools/measure-trust-growth.mjs 156 10`。
+// 使い方： node tools/measure-trust-growth.mjs [週数] [シード数] [開始年]
+//   既定は52週・5シード・1976年開始。3年で測るなら `node tools/measure-trust-growth.mjs 156 10`。
+//   ゲームで選べる開始年（1974・1984・1994）で測るなら第3引数に渡す。
+//   ⭐2026-11-28（`devlog/wave14.md`§4）：所属厩舎の依頼の割合・GIの依頼が初めて来た週とそのときの通算勝利数・
+//   通算31勝に届いた週も出す。
 //
 // ⚠️⚠️**2026-10-12に直した（全行NaN・信頼0の原因）**：本編は事前シミュレーション104週の続き
 // （`MAIN_TIMELINE_START_WEEK`＝105）から始まる（`createPlayer`）のに、以前は
@@ -31,10 +34,12 @@ import { DAY } from "../src/data/weekDays.js";
 import { canRideGradedRace, GRADED_RIDE_TRAINER_TRUST_THRESHOLD, GRADED_RIDE_OWNER_TRUST_THRESHOLD } from "../src/domain/rideEligibility.js";
 import { isMainMount } from "../src/domain/mainMount.js";
 import { isSidelined } from "../src/domain/fall.js";
+import { gradedRaceById } from "../src/data/shutokuPrize.js";
+import { gradedTierOf } from "../src/data/gradedTier.js";
 
 const WEEKS = Number(process.argv[2] ?? 52);
 const SEEDS = Number(process.argv[3] ?? 5);
-const START_YEAR = 1976;
+const START_YEAR = Number(process.argv[4] ?? 1976);
 
 /**
  * その週に確定できる鞍数の上限。⚠️1日1場・1レース1頭・最大3鞍の3つの制約の下で、
@@ -71,6 +76,11 @@ function runOneSeed(saveSeed) {
   let firstGradedOfferWeek = null;
   let declineOfMainMountCount = 0;
   let weeksCounted = 0;
+  let requestTotal = 0;
+  let requestOwn = 0;
+  let firstG1OfferWeek = null; // GIの依頼が初めて来た相対週
+  let winsAtFirstG1Offer = null; // そのときの通算勝利数
+  let firstWins31Week = null; // 通算31勝に届いた相対週（週の終わりの時点）
   let firstEligibleWeek = null; // 重賞に乗れる信頼（調教師・馬主の両方）が初めて揃った相対週
 
   const startWeek = player.currentWeek; // 本編の開始週（絶対週・105）
@@ -80,6 +90,17 @@ function runOneSeed(saveSeed) {
     const requests = generateWeeklyRequests(saveSeed, week, roster, player);
 
     ceilingSum += bestFillableMounts(requests);
+    requestTotal += requests.length;
+    requestOwn += requests.filter((r) => r.isFromOwnStable).length;
+    // ⚠️GIかどうかは番組表の依頼に`g1Like`が無いので、実データを引いて`gradedTierOf`で判定する（1983年までは`g1Like`）。
+    if (firstG1OfferWeek === null && requests.some((r) => {
+      if (r.raceName == null) return false;
+      const gr = gradedRaceById(player.currentYear, r.raceId);
+      return gr != null && gradedTierOf(gr, player.currentYear) === "g1";
+    })) {
+      firstG1OfferWeek = relWeek;
+      winsAtFirstG1Offer = player.record.wins;
+    }
     // ⚠️重賞かどうかは`raceName`で見る。1983年までの重賞は格付けが無く`grade`が`null`なので、
     // `grade != null`で数えると1976年開始では重賞の依頼が0件に見えていた（2026-11-28・#91）。
     if (requests.some((r) => r.raceName != null)) {
@@ -115,6 +136,7 @@ function runOneSeed(saveSeed) {
     roster = res.roster;
     player = res.player;
     weeksCounted += 1;
+    if (firstWins31Week === null && player.record.wins >= 31) firstWins31Week = relWeek;
     // 信頼の閾値（`rideEligibility.js`）に届いた馬が1頭でもいるか（この週の終わりの時点）
     if (firstEligibleWeek === null && roster.horses.some((h) => canRideGradedRace(player, h))) {
       firstEligibleWeek = relWeek;
@@ -130,6 +152,12 @@ function runOneSeed(saveSeed) {
     weeksWithGradedOffer,
     firstGradedOfferWeek,
     firstEligibleWeek,
+    requestTotal,
+    requestOwn,
+    firstG1OfferWeek,
+    winsAtFirstG1Offer,
+    firstWins31Week,
+    finalWins: player.record.wins,
     declineOfMainMountCount,
     trainer: summarize(trainerTrusts),
     owner: summarize(ownerTrusts),
@@ -155,12 +183,17 @@ for (let i = 0; i < SEEDS; i += 1) {
       `${row.trainer.max.toFixed(0).padStart(6)}/${row.trainer.avg.toFixed(1).padStart(6)}/${String(row.trainerCount).padStart(4)}  ` +
       `${row.owner.max.toFixed(0).padStart(8)}/${row.owner.avg.toFixed(1).padStart(6)}/${String(row.ownerCount).padStart(4)}  ` +
       `${String(row.trainerNegative + row.ownerNegative).padStart(6)}  ` +
-      `${String(row.firstEligibleWeek ?? "無し").padStart(8)}`
+      `${String(row.firstEligibleWeek ?? "無し").padStart(8)}  ` +
+      `所属${row.requestOwn}/${row.requestTotal}(${((100 * row.requestOwn) / Math.max(1, row.requestTotal)).toFixed(1)}%)  ` +
+      `GI初依頼週${row.firstG1OfferWeek ?? "無し"}(勝${row.winsAtFirstG1Offer ?? "-"})  31勝週${row.firstWins31Week ?? "無し"}(最終${row.finalWins}勝)`
   );
 }
 
 const avg = (f) => rows.reduce((a, r) => a + f(r), 0) / rows.length;
 console.log("\n--- まとめ ---");
+console.log(
+  `所属厩舎の依頼の割合（全シード合計）：${((100 * rows.reduce((a, r) => a + r.requestOwn, 0)) / Math.max(1, rows.reduce((a, r) => a + r.requestTotal, 0))).toFixed(1)}%`
+);
 console.log(`1週に埋められる鞍数の上限の平均：${avg((r) => r.ceilingAvg).toFixed(2)}鞍（上限${RIDABLE_SLOTS_PER_WEEK}鞍）`);
 console.log(`厩舎への信頼：最大の平均${avg((r) => r.trainer.max).toFixed(1)}・相手数の平均${avg((r) => r.trainerCount).toFixed(1)}`);
 console.log(`馬主への信頼：最大の平均${avg((r) => r.owner.max).toFixed(1)}・相手数の平均${avg((r) => r.ownerCount).toFixed(1)}`);

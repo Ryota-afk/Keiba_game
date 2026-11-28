@@ -345,8 +345,11 @@ JRA公式の表では1974年は272日・1日平均10.67本・1975〜81年は約1
 依頼が複数あれば質の高いほうだけを残してから鞍を選ぶ。
 
 **重賞に乗れるかの判定**（`domain/rideEligibility.js`の`canRideGradedRace`）は
-`weeklyRequests.js`の`matchRaceForHorse`に組み込んだ——プレイヤーが乗れない重賞の依頼を
+`weeklyRequests.js`の`generateWeeklyRequests`に組み込んだ——プレイヤーが乗れない重賞の依頼を
 月曜に見せない。実測・較正の経緯は`devlog/wave09.md`§9。
+⭐**GIだけは通算31勝（`player.record.wins`）も要る**（2026-11-28・`G1_RIDE_MIN_CAREER_WINS`。`canRideGradedRace(player, horse, tier)`の
+第3引数`tier`が`"g1"`のときだけ見る。省略すると信頼だけ）。格は`gradedRaceById`＋`gradedTierOf`で引く（番組表のレースに`g1Like`が無いため。
+1983年までは`g1Like`の「大レース」がGI扱い）。全年代に適用（内規ができた年は未確認）。`devlog/wave14.md`§4。
 
 ## 12. レース番号（1R〜12R。第13弾§22・2026-11-27のユーザー決定）
 
