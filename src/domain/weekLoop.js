@@ -328,7 +328,7 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     }
   }
 
-  nextPlayer = { ...nextPlayer, fatigue: applyWeeklyFatigue(fatigueBefore, mounts.length) };
+  nextPlayer = { ...nextPlayer, fatigue: applyWeeklyFatigue(fatigueBefore, mounts.length, nextPlayer.jockey?.physicalStamina) };
   if (crossedDangerThreshold(fatigueBefore, nextPlayer.fatigue)) {
     notifications.push(fatigueDangerNotification(nextPlayer.fatigue));
   }
