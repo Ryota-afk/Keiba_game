@@ -15,6 +15,9 @@ export function createEmptyPlayerRecord() {
     // 番付の「自分が乗った馬」。⭐gradedWins＝重賞の勝ち数・g1Wins＝G1〈1983年までは1984年にG1だったレース〉の勝ち数・
     // income＝騎乗手当＋進上金・prize＝乗った馬が稼いだ獲得賞金。年末のまとめが使う。古いセーブは`?? 0`で読む）
     byYear: {},
+    // 重賞を勝った鞍の通算の一覧（勝った順）。{ year, week(暦の週1〜52), raceName, tier(g1|g2|g3), horseId, horseName,
+    // courseId, distance, surface }。古いセーブは欄が無い→`?? []`で読む。キャリア終わりの画面が使う
+    gradedWinList: [],
     byAptitude: {}, // 適性キー（strategy:.../distance:.../surface:...） -> { starts, wins }
   };
 }
@@ -46,13 +49,15 @@ function bumpYearBucket(bucket, won, horseId, extra) {
  * @param {object} record - `createEmptyPlayerRecord`の形
  * @param {{ won: boolean, grade: string|null|undefined, raceName: string|null|undefined,
  *   year: number, aptitudeKeys: string[], horseId?: string, tier?: string|null, income?: number,
- *   prize?: number }} ride - `aptitudeKeys`はその鞍で宣言した3つ
+ *   prize?: number, detail?: { week: number, horseName?: string, courseId?: string|null, distance?: number|null,
+ *   surface?: string|null }|null }} ride - `aptitudeKeys`はその鞍で宣言した3つ
  *   （`strategy:...`・`distance:...`・`surface:...`）。`horseId`はその年に乗った馬の一覧
  *   （`byYear[year].horseIds`）に積む。⭐`tier`＝重賞の格（`data/gradedTier.js`。1983年までの「G1扱い」を含む。
  *   年ごとの`g1Wins`に使う。⚠️`bigRaceWins`〈昇格の条件〉は従来どおり八大競走で数える）。`income`＝その鞍の収入、
- *   `prize`＝その馬がその鞍で稼いだ獲得賞金（年ごとの欄へ）
+ *   `prize`＝その馬がその鞍で稼いだ獲得賞金（年ごとの欄へ）。
+ *   ⭐`detail`＝重賞を勝ったとき`gradedWinList`へ積む材料（週は暦の週1〜52）
  */
-export function applyRideToRecord(record, { won, grade, raceName, year, aptitudeKeys, horseId, tier = null, income = 0, prize = 0 }) {
+export function applyRideToRecord(record, { won, grade, raceName, year, aptitudeKeys, horseId, tier = null, income = 0, prize = 0, detail = null }) {
   // ⚠️「重賞かどうか」は`grade`ではなく`raceName`の有無で判定する——`grade`（G1/G2/G3）は
   // 1984年より前は格付け制度そのものが無く全部nullだが、`raceName`は`weeklyCard.js`の
   // 重賞（`RACE_SOURCE.GRADED`）だけが持つ値で、年代を問わず「重賞」を指す
@@ -82,6 +87,22 @@ export function applyRideToRecord(record, { won, grade, raceName, year, aptitude
     starts: record.starts + 1,
     wins: record.wins + (won ? 1 : 0),
     gradedWins: record.gradedWins + (isGradedWin ? 1 : 0),
+    gradedWinList: isGradedWin
+      ? [
+          ...(record.gradedWinList ?? []),
+          {
+            year,
+            week: detail?.week ?? null,
+            raceName,
+            tier: tier ?? "g3",
+            horseId: horseId ?? null,
+            horseName: detail?.horseName ?? null,
+            courseId: detail?.courseId ?? null,
+            distance: detail?.distance ?? null,
+            surface: detail?.surface ?? null,
+          },
+        ]
+      : record.gradedWinList ?? [],
     bigRaceWins: record.bigRaceWins + (isBigRaceWin ? 1 : 0),
     byYear,
     byAptitude,

@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import "./TitleScreen.css";
 import { START_YEARS } from "../data/startYears.js";
+import { assertStartYearData } from "../domain/bootstrap.js";
+
+// 重賞データが揃っている開始年だけを選べる（#79）
+const AVAILABLE_START_YEARS = START_YEARS.filter(assertStartYearData);
 import { DIFFICULTIES, DIFFICULTY_LABELS } from "../data/difficulty.js";
 
 // タイトル画面（案A・CLAUDE.md §8の手順で2026-09-06に確定）。
@@ -154,7 +158,7 @@ export function TitleScreen({ onStart, hasSave = false, onContinue, saveSummary 
           <div className="title-screen__row">
             <div className="title-screen__row-label">はじまる年</div>
             <div className="title-screen__opts title-screen__opts--3" role="group" aria-label="はじまる年">
-              {START_YEARS.map((y) => (
+              {AVAILABLE_START_YEARS.map((y) => (
                 <button
                   key={y}
                   type="button"

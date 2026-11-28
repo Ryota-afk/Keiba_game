@@ -17,6 +17,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { advanceWeek } from "../domain/weekLoop.js";
+import { endCareer } from "../domain/careerEnd.js";
 import { writeSave } from "../state/saveGame.js";
 import { prepareWeek } from "../domain/weekPrepare.js";
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK } from "../domain/weeklyRequests.js";
@@ -103,7 +104,7 @@ function notificationText(n, horsesById, stablesById) {
  * @param {{ saveSeed: number|string, startYear: number, initialRoster: object,
  *           initialPlayer: object }} props
  */
-export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }) {
+export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer, onCareerEnd }) {
   const [roster, setRoster] = useState(initialRoster);
   const [player, setPlayer] = useState(initialPlayer);
   const [lastNotifications, setLastNotifications] = useState([]);
@@ -250,7 +251,12 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer }
   // 年末のまとめ →（載せる馬が居る年だけ）引退した馬 → 1月の最初の週
   function handleYearEndNext() {
     if (yearEndStep === "summary" && yearEnd.retired.length > 0) setYearEndStep("retired");
-    else {
+    else if (yearEnd.careerEnd) {
+      // ⭐最後のキャリア年の年末を閉じた：終わりを保存して終わりの画面へ（`domain/careerEnd.js`）
+      const ended = endCareer(player);
+      writeSave(saveSeed, startYear, roster, ended);
+      onCareerEnd?.({ roster, player: ended });
+    } else {
       setYearEndStep(null);
       setYearEnd(null);
     }

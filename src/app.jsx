@@ -6,6 +6,8 @@ import { TitleScreen } from "./screens/TitleScreen.jsx";
 import { DreamDerbyScreen } from "./screens/DreamDerbyScreen.jsx";
 import { GraduationScreen } from "./screens/GraduationScreen.jsx";
 import { WeekScreen } from "./screens/WeekScreen.jsx";
+import { CareerEndScreen } from "./screens/CareerEndScreen.jsx";
+import { isCareerOver } from "./domain/careerEnd.js";
 import { createSaveSeed } from "./core/rng.js";
 import { cssMs, scheduleOnce, afterNextPaint } from "./screens/motionTiming.js";
 import { generateDreamHorse, generateDreamRivals, assignPostPositions } from "./domain/dreamDerby.js";
@@ -23,7 +25,7 @@ import { formatWeekLabel } from "./view/weekOffersView.js";
 // 出しているか」に加えて「今どの遷移の途中か」も表す。値・秒数は`styles/motion.css`が
 // 正本（このファイルはgetComputedStyle経由で読むだけで、生の数値は持たない）。
 //
-// phase: "title" | "m1" | "derby" | "m2" | "grad" | "m6" | "week"
+// phase: "title" | "m1" | "derby" | "m2" | "grad" | "m6" | "week" | "careerEnd"
 //   m1 = タイトル→夢のダービー（黒フェード＋実況1行目）
 //   m2 = 目覚め→卒業式（縦スライド、夢のダービー画面と卒業式画面が両方マウントされる）
 //   m6 = 卒業式→週の画面（白フェード）
@@ -114,9 +116,23 @@ export function App() {
     setDreamResult(null);
     setBootstrappedRoster(null);
     // 毛色などの欄が無い古いセーブの馬に見た目を補う（⑭・`domain/horseLooks.js`）
-    setGameState({ roster: ensureRosterLooks(existingSave.roster, existingSave.saveSeed), player: existingSave.player });
+    // startYearが無い古いセーブには、セーブの開始年を補う（キャリアの終わりの判定に使う）
+    const player = existingSave.player.startYear != null ? existingSave.player : { ...existingSave.player, startYear: existingSave.startYear };
+    setGameState({ roster: ensureRosterLooks(existingSave.roster, existingSave.saveSeed), player });
     setWeekReady(true);
-    setPhase("week");
+    // ⭐終わったキャリアは、つづきからで直接「終わりの画面」へ（`domain/careerEnd.js`）
+    setPhase(isCareerOver(player) ? "careerEnd" : "week");
+  }
+
+  function handleCareerEnd(state) {
+    setGameState(state);
+    setPhase("careerEnd");
+  }
+
+  function handleBackToTitle() {
+    startedRef.current = false;
+    readSave().then(setExistingSave);
+    setPhase("title");
   }
 
   // ----- ①タイトル→夢のダービーの段取り -----
@@ -176,6 +192,7 @@ export function App() {
   const derbyMounted = (phase === "m1" && derbyReady) || phase === "derby" || phase === "m2";
   const gradMounted = phase === "m2" || phase === "grad" || (phase === "m6" && !weekReady);
   const weekMounted = (phase === "m6" && weekReady) || phase === "week";
+  const careerEndMounted = phase === "careerEnd";
 
   const derbyPaneClass = phase === "m2" && m2Active ? "screen-pane pane-m2-exit" : "screen-pane";
   const gradPaneClass =
@@ -243,7 +260,14 @@ export function App() {
             startYear={career.year}
             initialRoster={gameState.roster}
             initialPlayer={gameState.player}
+            onCareerEnd={handleCareerEnd}
           />
+        </div>
+      )}
+
+      {careerEndMounted && gameState && (
+        <div className="screen-pane">
+          <CareerEndScreen player={gameState.player} roster={gameState.roster} onBackToTitle={handleBackToTitle} />
         </div>
       )}
 

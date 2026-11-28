@@ -11,14 +11,16 @@ export const MAIN_MOUNT_RIDES_REQUIRED = 5;
  * @param {string} horseId
  * @param {boolean} won
  */
-export function recordRide(mainMounts, horseId, won) {
+export function recordRide(mainMounts, horseId, won, horseName = null) {
   const current = mainMounts[horseId] ?? { rides: 0, hasWon: false, isMain: false };
   const rides = current.rides + 1;
   const hasWon = current.hasWon || won;
   // ⚠️既に主戦なら再判定しない（下の`loseMainMountToRival`が明示的にfalseへ落とすまで維持）。
   // まだ主戦でない場合のみ、累積5回＋1勝の条件を満たした瞬間に主戦になる。
   const isMain = current.isMain || (rides >= MAIN_MOUNT_RIDES_REQUIRED && hasWon);
-  return { ...mainMounts, [horseId]: { rides, hasWon, isMain } };
+  // horseName＝名簿から引退して消えても終わりの画面で名前を出すための控え（古いセーブには無い）
+  const name = horseName ?? current.horseName ?? null;
+  return { ...mainMounts, [horseId]: { rides, hasWon, isMain, ...(name ? { horseName: name } : {}) } };
 }
 
 /**

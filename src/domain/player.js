@@ -47,6 +47,7 @@ export function createPlayer(saveSeed, opts = {}) {
     // そのまま本編でも通用するようにするため。
     currentWeek: MAIN_TIMELINE_START_WEEK,
     currentYear: opts.startYear ?? DEFAULT_START_YEAR,
+    startYear: opts.startYear ?? DEFAULT_START_YEAR, // キャリア開始年（最後の年＝startYear+29の判定。`domain/careerEnd.js`）
     difficulty: opts.difficulty ?? DEFAULT_DIFFICULTY, // §9「難易度（悪魔の釜）」。年1回のみ変更可
   };
 }

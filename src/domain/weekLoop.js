@@ -9,7 +9,7 @@
 // ——UIが無くてもヘッドレスに週を進められるようにするため（⑥計測ツールの土台）。
 
 import { generateWeeklyRequests, RIDABLE_SLOTS_PER_WEEK, horsesDueThisWeek } from "./weeklyRequests.js";
-import { WEEKS_PER_YEAR } from "../data/calendar.js";
+import { WEEKS_PER_YEAR, weekOfYear } from "../data/calendar.js";
 import { buildYearIndex } from "./weeklyCard.js";
 import { replanStaleHorses, ROTATION_SEARCH_WEEKS } from "./rotation.js";
 import { courseIdsAvailable, confirmMounts } from "./fridayConfirmation.js";
@@ -41,6 +41,7 @@ import {
 } from "./notifications.js";
 import { applyRideExperience } from "./aptitudeGrowth.js";
 import { applyRideToRecord } from "./playerRecord.js";
+import { isCareerOver, lastYearOf } from "./careerEnd.js";
 import { checkRankPromotions } from "./jockeyRank.js";
 import {
   recordJockeyWins,
@@ -130,7 +131,7 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   名簿から抜ける**前**の、その週の終わりの馬（年が替わらない週は`roster.horses`と同じ配列）。
  *   週の結果画面が最終週の重賞の勝ち馬を引くために使う（引退で名簿から消えても見せられるように）。
  *   `yearBoundary`＝年の区切りの`stats`（それ以外の週は`null`。計測用）。
- *   ⭐第13弾：`yearEnd`＝年の最終週（`week % 52 === 0`）だけ`{ year, summary, retired }`（それ以外は`null`）。
+ *   ⭐第13弾：`yearEnd`＝年の最終週（`week % 52 === 0`）だけ`{ year, careerEnd, summary, retired }`（`careerEnd`＝最後のキャリア年か）（それ以外は`null`）。
  *   `summary`＝年末のまとめ①（`domain/yearEnd.js`の`buildYearEndSummary`）・`retired`＝引退した馬②
  *   （`buildRetiredHorses`・空なら画面を出さない）。同じ値を`roster.lastYearEnd`にも置く（セーブから見直せる）。
  *   ⭐第13弾：`leftForLocal`＝この週の初めに、未勝利のまま3歳の9月7日を迎えて中央を去った
@@ -138,6 +139,8 @@ function defaultChooseCourse(coursesByDay, requests) {
  *   データだけで、画面はまだ使わない）
  */
 export function advanceWeek(saveSeed, roster, player, options = {}) {
+  // ⭐キャリアの最後の年を過ぎたあとは進めない（`domain/careerEnd.js`・ARCHITECTURE.md §1）。
+  if (isCareerOver(player)) throw new Error("キャリアは終わっています（最後の年を過ぎて週は進められません）");
   const week = player.currentWeek;
   // ⚠️古いセーブ対策（`record`・騎手の`aptitudeXp`等を持たないまま読み込まれても動くように、
   // 毎週の入口で既定値を補う。CLAUDE.md §4「古いセーブでも動くこと」・`devlog/wave12.md`§9）。
@@ -285,6 +288,13 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
         tier: res.ride.tier ?? null,
         income: res.ride.income,
         prize: res.ride.prize ?? 0,
+        detail: {
+          week: weekOfYear(week),
+          horseName: res.ride.horseName,
+          courseId: res.ride.courseId,
+          distance: res.ride.distance,
+          surface: res.ride.surface,
+        },
         aptitudeKeys: [
           `strategy:${mount.declaredStrategy}`,
           `distance:${distanceBandOf(mount.distance)}`,
@@ -525,6 +535,8 @@ export function advanceWeek(saveSeed, roster, player, options = {}) {
     const year = nextPlayer.currentYear;
     yearEnd = {
       year,
+      // ⭐最後のキャリア年の年末なら真（年末の画面を閉じたあと終わりの画面へ。`domain/careerEnd.js`）
+      careerEnd: lastYearOf(nextPlayer) === year,
       summary: buildYearEndSummary({
         year,
         horses: advancedHorses,

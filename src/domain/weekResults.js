@@ -145,7 +145,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
   nextPlayer = {
     ...nextPlayer,
     reputation: computeReputation(nextPlayer.trainerTrust, nextPlayer.ownerTrust),
-    mainMounts: recordRide(nextPlayer.mainMounts, horse.id, result.won),
+    mainMounts: recordRide(nextPlayer.mainMounts, horse.id, result.won, horse.name),
   };
 
   // 開示：プレイヤーが自分で判断した鞍なので、レースプールが進む（§3「能力の開示」）。
