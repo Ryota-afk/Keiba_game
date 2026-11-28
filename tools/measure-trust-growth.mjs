@@ -80,7 +80,9 @@ function runOneSeed(saveSeed) {
     const requests = generateWeeklyRequests(saveSeed, week, roster, player);
 
     ceilingSum += bestFillableMounts(requests);
-    if (requests.some((r) => r.grade != null)) {
+    // ⚠️重賞かどうかは`raceName`で見る。1983年までの重賞は格付けが無く`grade`が`null`なので、
+    // `grade != null`で数えると1976年開始では重賞の依頼が0件に見えていた（2026-11-28・#91）。
+    if (requests.some((r) => r.raceName != null)) {
       weeksWithGradedOffer += 1;
       if (firstGradedOfferWeek === null) firstGradedOfferWeek = relWeek;
     }
