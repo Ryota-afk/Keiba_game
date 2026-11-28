@@ -26,6 +26,7 @@ import { withReclassedClass } from "./horseClass.js";
 import { shutokuForGeneralRace } from "../data/shutokuPrize.js";
 import { isSidelined } from "./fall.js";
 import { runFieldRace, applyFall } from "./raceRun.js";
+import { drawPostOrder } from "./postDraw.js";
 import { horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 // 登録が集まらない週はレースが成立しない（`FIELD_SIZE_BUCKETS`の最小5頭に合わせる）。
@@ -59,7 +60,7 @@ function groupByPlannedRace(horses, excludeHorseIds) {
  * 同じ列を二重に消費しないよう、必ず一方（走らせる側が渡された枠を使う）だけが引く。
  * 引数の意味は`runNpcWeeklyRaces`と同じ。
  * @returns {{ race: object, field: object[], fieldSize: number }[]} 出走が成立したレース
- *   （並びは番組表の順＝走らせる順）。`field`の並びは馬番の元
+ *   （並びは番組表の順＝走らせる順）。`field`の並びは馬番（絞り込みの後に`domain/postDraw.js`で抽選済み）
  */
 export function planNpcWeeklyFields(
   saveSeed,
@@ -97,12 +98,12 @@ export function planNpcWeeklyFields(
     // 計画段階の「残り枠」が意味を持たなくなる。
     const desired = race.fieldSize ?? drawFieldSize(rand01); // 保険：本来undefinedにはならないはず
     const fieldSize = Math.min(desired, ordered.length);
-    const field = ordered.slice(0, fieldSize); // 出走馬（並び＝前走から空いた週数の多い順。馬番の元）
+    const field = ordered.slice(0, fieldSize); // 出走馬（絞り込みは前走から空いた週数の多い順。並びは下で抽選＝馬番）
     // ⚠️**枠から漏れた馬（`ordered.slice(fieldSize)`）はここでは何もしない。**
     // `plan`をそのままにしておけば、目標だった馬は`domain/rotation.js`の`isPlanStale`が
     // 「今週で期限切れ」と判定して次の計画を立て直す（前哨戦止まりの馬は目標がまだ先なので
     // 立て直さない＝前哨戦を1回逃しても目標へ向かい続ける）。
-    planned.push({ race, field, fieldSize });
+    planned.push({ race, field: drawPostOrder(saveSeed, `${year}-w${week}-${race.raceId}`, field), fieldSize });
   }
   return planned;
 }

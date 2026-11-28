@@ -177,7 +177,7 @@ export function runNpcGradedRaces(
   let startsRun = 0;
 
   for (const { race, entries } of fields) {
-    // ⚠️`entries`の並び（優先出走権→収得賞金順・馬番の元）はそのまま使う。
+    // ⚠️`entries`の並び（馬番。計画の段階で抽選済み＝`domain/weekFields.js`・`domain/postDraw.js`）はそのまま使う。
     const run = runFieldRace({
       saveSeed,
       week,

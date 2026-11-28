@@ -8,6 +8,7 @@
 
 import { planNpcGradedFields } from "./npcGradedRace.js";
 import { planNpcWeeklyFields } from "./npcWeeklyRace.js";
+import { drawPostOrder } from "./postDraw.js";
 
 /**
  * @param {number|string} saveSeed
@@ -19,7 +20,11 @@ import { planNpcWeeklyFields } from "./npcWeeklyRace.js";
  *   weeklyFields: { race: object, field: object[], fieldSize: number }[], gradedRacedHorseIds: Set<string> }}
  */
 export function planWeekFields(saveSeed, week, year, horses, trialResults = {}) {
-  const gradedFields = planNpcGradedFields(week, year, horses, trialResults);
+  // ⭐誰が出るかは今までの順で決め、決まった後に馬番だけを抽選にする（`domain/postDraw.js`）。
+  const gradedFields = planNpcGradedFields(week, year, horses, trialResults).map((f) => ({
+    ...f,
+    entries: drawPostOrder(saveSeed, `${year}-w${week}-${f.race.id}`, f.entries),
+  }));
   const gradedRacedHorseIds = new Set();
   for (const f of gradedFields) for (const h of f.entries) gradedRacedHorseIds.add(h.id);
   const weeklyFields = planNpcWeeklyFields(saveSeed, week, year, horses, gradedRacedHorseIds);

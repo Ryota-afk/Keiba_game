@@ -60,6 +60,8 @@ export const RNG_STREAMS = Object.freeze({
   JOCKEY_BOOKING: "jockeyBooking",
   // ⭐馬の調子と当日の馬体重（`domain/horseForm.js`・⑭ step2）。週×馬idで固定。既存の列の消費を変えないための別列。
   FORM: "form",
+  // ⭐馬番の抽選（`domain/postDraw.js`・`devlog/wave16.md`§3）。レースごとに固定。既存の列を動かさない別列。
+  POST_DRAW: "postDraw",
 });
 
 /**
