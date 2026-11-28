@@ -1,0 +1,621 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>週の画面に疲れを出す v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/*
+ * 週の画面に「今の疲れ」と「選んだ鞍数で来週いくつになるか」を出す——候補3案。2026-11-28・Fable 5.2。
+ * 要素（載せるもの4つ・載せないもの）：
+ *   1 今の疲れ＝player.fatigue（整数に丸める。0のときは0と出す）
+ *   2 来週の疲れ＝fatigueAfterRides(player.fatigue, pickedHorseIds.size, player.jockey.physicalStamina)（domain/fatigue.js）。
+ *     何も選んでいないときは0鞍での値
+ *   3 能力が下がり始める50（FATIGUE_PENALTY_START）と、危険水域70（FATIGUE_DANGER_THRESHOLD）の位置
+ *   4 来週の能力の下がり幅＝0.2×(来週の疲れ−50)÷50。50以下のときは出さない
+ *   載せない：式の説明文・「休む」
+ * データ：実際のゲームで作った1974年5月4週（世界の種 fatigue-ui-1）の依頼12件を、今の画面からそのまま写した。
+ *   疲れは 今62・体力50（1鞍7.98）。
+ * 週の画面の部品（.wk-*）のCSSは src/screens/WeekScreen.css をそのまま貼ってある。足したのは「疲れの部品」の節だけ。
+ * 級数は --fs-caption と --fs-body だけ。縦線なし（帯の区切りは面の明暗）。絵文字なし。
+ * 動き：帯と枠が動く時間・緩急は src/styles/motion.css にある --m-bar-dur（400ms）・--m-bar-ease（easeOutCubic）。
+ *   参考：モーションリファレンス bar-chart-stagger（今のトークンの元）／width-reveal（左端を固定して横幅だけ変える・
+ *   周りのレイアウトを動かさない）。数字は動かさず、その場で入れ替える（tx-ticker-flash は引いたが使わない——
+ *   上昇を緑・下落を赤で光らせる作りで、good／badを結果の判定以外に使うことになるため）。
+ * 注意：.frame の幅390px・高さ720pxは並べて見せるための値。実装へ持ち込まない
+ *   （実装では .screen-pane--week が縦に流れる器で、張り付く帯はその中で position: sticky）。
+ * ?only=A（B・C）でその案だけを画面いっぱいに出す。&picks=3（上から順に3鞍選ぶ）&f=62（今の疲れ）&open=馬名 &day=sun &scroll=px
+ */
+:root{
+  --fs-caption:11px; --fs-body:14px; --fs-lead:19px; --fs-title:26px;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:40px; --s6:48px;
+  --m-bar-dur:400ms; --m-bar-ease:cubic-bezier(0.33,1,0.68,1);
+}
+@media (prefers-reduced-motion: reduce){ :root{ --m-bar-dur:0ms } }
+*{box-sizing:border-box}
+body{margin:0;background:#0f0c0a;color:#f2ede0;font-family:"M PLUS 1p",sans-serif;padding:var(--s3) var(--s2) var(--s6);line-break:strict}
+.wrap{max-width:1260px;margin:0 auto}
+h1{margin:0;font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.intro{margin:var(--s1) 0 0;font-size:var(--fs-body);color:#9fb896;line-height:1.8;max-width:62em}
+.ctl{display:flex;align-items:center;gap:var(--s1);margin-top:var(--s2);font-size:var(--fs-body);color:#9fb896}
+.ctl button{all:unset;cursor:pointer;min-width:var(--s6);min-height:var(--s5);text-align:center;background:#223a20;color:#f2ede0;font-size:var(--fs-body);font-variant-numeric:tabular-nums}
+.ctl button.is-on{background:#f2ede0;color:#0f0c0a;font-weight:700}
+.cands{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-start;margin-top:var(--s3)}
+.cand{width:390px;flex:none}
+.cand h2{margin:0;font-size:var(--fs-lead);font-weight:700;line-height:1.4}
+.cand p{margin:var(--s1) 0 var(--s2);font-size:var(--fs-body);color:#9fb896;line-height:1.7;min-height:8.5em}
+.frame{width:390px;height:720px;overflow-y:auto;overflow-x:hidden;box-shadow:0 0 0 1px #000;background:#1a2a18}
+body.only{padding:0}
+body.only .wrap>h1,body.only .intro,body.only .ctl,body.only .cand h2,body.only .cand p{display:none}
+body.only .cands{display:block;margin:0}
+body.only .cand{display:none;width:100%}
+body.only .cand.is-only{display:block}
+body.only .frame{width:100%;height:100dvh;box-shadow:none}
+
+/* ══ 週の画面（src/screens/WeekScreen.css をそのまま） ══ */
+.week-screen {
+  --panel: #1a2a18;
+  --panel2: #223a20;
+  --panel3: #2b482a;
+  --fg: #f2ede0;
+  --muted: #9fb896;
+  --dim: #5f7659;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --on-action: #ffffff;
+  --on-action-sub: #dbe8ff;
+  --turf: #8fd07e;
+  --rule: rgba(255, 255, 255, 0.1);
+  --tap: 44px;
+  --dirt: #d8b27a; 
+  --col-sexage: 34px;
+  --col-coat: 36px;
+  --col-kg: 64px;
+  --col-since: 46px;
+  --col-gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  background: var(--panel);
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  padding-bottom: max(var(--s3), env(safe-area-inset-bottom, 0px));
+}
+.week-screen *,
+.week-screen *::before,
+.week-screen *::after {
+  box-sizing: border-box;
+}
+.wk-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: max(var(--s2), env(safe-area-inset-top, 0px)) var(--s2) var(--s1);
+}
+.wk-hd__week {
+  font-size: var(--fs-body);
+}
+.wk-hd__left {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wk-hd__left b {
+  font-size: var(--fs-lead);
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 2px;
+}
+.wk-notes {
+  padding: 0 var(--s2) var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  line-height: 1.6;
+}
+.wk-notes p {
+  margin: 0;
+}
+.wk-notes.is-bad {
+  color: var(--accent);
+}
+.wk-days {
+  display: flex;
+  padding: 0 var(--s2);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.wk-days button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+.wk-days button.is-on {
+  color: var(--action);
+  border-bottom-color: var(--action);
+}
+.wk-days button.is-zero {
+  color: var(--dim);
+}
+.wk-days button.is-zero.is-on {
+  color: var(--action);
+}
+.wk-days button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.wk-courses {
+  display: flex;
+  gap: var(--s1);
+  padding: var(--s1) var(--s2) 0;
+  flex-wrap: wrap;
+}
+.wk-courses button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: var(--tap);
+  padding: 0 var(--s2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-body);
+  color: var(--muted);
+  background: var(--panel2);
+}
+.wk-courses button.is-on {
+  background: var(--action);
+  color: var(--on-action);
+}
+.wk-courses button .wk-courses__n {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.wk-courses button.is-lock {
+  opacity: 0.4;
+}
+.wk-courses button.is-lock.is-on {
+  opacity: 1;
+}
+.wk-courses button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.wk-empty {
+  padding: var(--s4) var(--s2);
+  font-size: var(--fs-body);
+  color: var(--muted);
+  line-height: 1.8;
+}
+.wk-empty.is-lock {
+  padding-bottom: var(--s2);
+}
+.wk-race {
+  padding: var(--s2) var(--s2) 0;
+}
+.wk-race__big {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.1;
+}
+.wk-race__no {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.wk-race__sf {
+  color: var(--turf);
+}
+.wk-race__sf.is-dirt {
+  color: var(--dirt);
+}
+.wk-race__cls {
+  font-size: var(--fs-body);
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: var(--s1);
+}
+.wk-t {
+  padding: var(--s1) var(--s2) 0;
+}
+.wk-th,
+.wk-r {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--col-sexage) var(--col-coat) var(--col-kg) var(--col-since);
+  gap: 0 var(--col-gap);
+  align-items: center;
+}
+.wk-t.is-nokg .wk-th,
+.wk-t.is-nokg .wk-r {
+  grid-template-columns: minmax(0, 1fr) var(--col-sexage) var(--col-coat) var(--col-since);
+}
+.wk-th {
+  font-size: var(--fs-caption);
+  color: var(--dim);
+  padding: var(--s1) 0 4px;
+}
+.wk-n {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.wk-r {
+  cursor: pointer;
+  min-height: 52px;
+  padding: 6px 0;
+  box-shadow: inset 0 1px 0 var(--rule);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.wk-r:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.wk-r__name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wk-r b {
+  font-weight: 500;
+  color: var(--fg);
+}
+.wk-r__l2 {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s1);
+  line-height: 1.6;
+}
+.wk-r__l2 span + span {
+  margin-left: var(--s1);
+}
+.wk-r__main {
+  color: var(--accent);
+  font-weight: 700;
+}
+.wk-r__sym {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  color: var(--fg);
+}
+.wk-r__warn {
+  grid-column: 1 / -1;
+  font-size: var(--fs-caption);
+  color: var(--accent);
+  padding-top: 2px;
+}
+.wk-r__warn.is-muted {
+  color: var(--muted);
+}
+.wk-r.is-on {
+  background: var(--action);
+  color: var(--on-action-sub);
+  margin: 0 calc(var(--s2) * -1);
+  padding: 6px var(--s2);
+}
+.wk-r.is-on .wk-r__name,
+.wk-r.is-on .wk-r__sym,
+.wk-r.is-on b {
+  color: var(--on-action);
+}
+.wk-r.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+.wk-r.is-open {
+  background: var(--panel2);
+  margin: 0 calc(var(--s2) * -1);
+  padding: 6px var(--s2) var(--s1);
+}
+.wk-r__acts {
+  grid-column: 1 / -1;
+  display: none;
+  gap: var(--s1);
+  align-items: center;
+  padding-top: var(--s1);
+}
+.wk-r.is-open .wk-r__acts {
+  display: flex;
+}
+.wk-r.is-on.is-open {
+  background: var(--action);
+}
+.wk-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  text-align: center;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.wk-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.wk-lnk {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  padding: 0 var(--s2);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--action);
+  white-space: nowrap;
+}
+.wk-lnk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.wk-r__acts .wk-btn {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  line-height: var(--tap);
+}
+.wk-r__acts .wk-lnk {
+  flex: 0 0 auto;
+}
+.wk-r.is-on.is-open .wk-r__acts .wk-btn {
+  background: var(--on-action);
+  color: var(--action);
+}
+.wk-r.is-on.is-open .wk-r__acts .wk-lnk {
+  color: var(--on-action);
+}
+.wk-adv {
+  padding: var(--s4) var(--s2) var(--s2);
+}
+.wk-adv.is-tight {
+  padding-top: 0;
+}
+.week-screen{display:flex;flex-direction:column;font-variant-numeric:tabular-nums}
+.wk-adv{margin-top:auto}
+
+/* ══ 疲れの部品（この見本で足したもの） ══ */
+.week-screen{
+  --board:#0f160e;
+  --sh:calc(var(--s1) / 2);
+  /* 帯の地：0〜50／50〜70／70〜100を面の明暗で分ける（線を引かない） */
+  --fz0:rgba(255,255,255,.05); --fz1:rgba(255,255,255,.1); --fz2:rgba(255,255,255,.17);
+  /* 帯の中身（来週の疲れ）：50までは沈めた色、50を超えた分は一段明るく、70を超えた分だけaccent */
+  --ff0:var(--dim); --ff1:var(--muted); --ff2:var(--accent);
+  --fz-h:var(--s1);
+}
+/* 文字の行：「疲れ　今 62　来週 75　……　能力 −10%」。ラベルはcaption、数字はbody */
+.ft{display:flex;align-items:baseline;gap:var(--s2);font-size:var(--fs-caption);color:var(--muted);line-height:1.5;white-space:nowrap}
+.ft b{font-size:var(--fs-body);font-weight:500;color:var(--fg);margin-left:var(--sh)}
+.ft .is-next b{font-weight:700}
+.ft .is-next.is-danger b{color:var(--accent)}
+.ft__pen{margin-left:auto}
+/* 帯：三角＝今の疲れ、帯の中身＝来週の疲れ */
+.fz{display:block;position:relative;padding-top:6px}
+.fz__now{position:absolute;top:0;width:8px;height:5px;margin-left:-4px;background:var(--muted);transition:left var(--m-bar-dur) var(--m-bar-ease);clip-path:polygon(0 0,100% 0,50% 100%);left:calc(var(--now) * 1%)}
+.fz__track{display:block;position:relative;height:var(--fz-h);background:linear-gradient(90deg,var(--fz0) 0 50%,var(--fz1) 50% 70%,var(--fz2) 70% 100%)}
+.fz__fill{position:absolute;inset:0;background:linear-gradient(90deg,var(--ff0) 0 50%,var(--ff1) 50% 70%,var(--ff2) 70% 100%);clip-path:inset(0 calc(100% - var(--next) * 1%) 0 0);transition:clip-path var(--m-bar-dur) var(--m-bar-ease)}
+.fz__lab{display:block;position:relative;height:1.6em;font-size:var(--fs-caption);line-height:1.6;color:var(--dim)}
+.fz__lab span{position:absolute;top:0;transition:color var(--m-bar-dur) var(--m-bar-ease)}
+.fz__lab span:nth-child(1){left:50%}
+.fz__lab span:nth-child(2){left:70%}
+.fz__lab span.is-in{color:var(--fg)}
+.fz__lab span:nth-child(2).is-in{color:var(--accent)}
+
+/* 案A 帯：見出しのすぐ下。一覧を下へ送っても画面の上に残る */
+.fa{position:sticky;top:0;z-index:2;background:var(--panel);padding:var(--sh) var(--s2) var(--sh);box-shadow:inset 0 -1px 0 var(--rule)}
+.A .wk-hd{padding-bottom:var(--sh)}
+
+/* 案B 6つの枠：画面の下に張り付く。1枠＝1鞍。選んだ分だけ背が伸びる */
+.fb{position:sticky;bottom:0;z-index:2;background:var(--board);padding:var(--s1) var(--s2) max(var(--sh), env(safe-area-inset-bottom, 0px))}
+.fc{display:flex;gap:var(--sh);align-items:flex-end;height:12px;margin-top:var(--sh)}
+.fc i{flex:1;height:4px;background:var(--fz0);transition:height var(--m-bar-dur) var(--m-bar-ease),background-color var(--m-bar-dur) var(--m-bar-ease)}
+.fc i.z1{background:var(--fz1)} .fc i.z2{background:var(--fz2)}
+.fc i.is-on{height:12px;background:var(--ff0)}
+.fc i.is-on.z1{background:var(--ff1)} .fc i.is-on.z2{background:var(--ff2)}
+.fc__lab{display:flex;gap:var(--sh);height:1.6em;font-size:var(--fs-caption);line-height:1.6;color:var(--dim)}
+.fc__lab span{flex:1}
+.fc__lab span.is-in{color:var(--fg)}
+.fc__lab span.is-in.z2{color:var(--accent)}
+.week-screen.B{padding-bottom:0}
+.B .wk-adv{padding-bottom:var(--s3)}
+
+/* 案C 行の中：見出しに数字だけ。帯は、行を開いたときに「乗る」の上に出る */
+.C .wk-hd{flex-wrap:wrap}
+.wk-hd__ft{flex-basis:100%}
+.wk-r__ft{grid-column:1 / -1;display:none;padding-top:var(--s1)}
+.wk-r.is-open .wk-r__ft{display:block}
+.wk-r.is-open .wk-r__ft + .wk-r__acts{padding-top:0}
+.wk-r.is-on .ft{color:var(--on-action-sub)}
+.wk-r.is-on .ft b{color:var(--on-action)}
+.wk-r.is-on .ft .is-next.is-danger b{color:var(--accent)}
+.wk-r.is-on .wk-r__ft{--ff0:rgba(255,255,255,.55);--ff1:var(--on-action);--fz0:rgba(255,255,255,.1);--fz1:rgba(255,255,255,.2);--fz2:rgba(255,255,255,.3)}
+.wk-r.is-on .fz__now{background:var(--on-action)}
+.wk-r.is-on .fz__lab{color:var(--on-action-sub)}
+.wk-r.is-on .fz__lab span.is-in{color:var(--on-action)}
+.wk-r.is-on .fz__lab span:nth-child(2).is-in{color:var(--accent)}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="wk-m2" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="wk-m1" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="wk-m3" viewBox="0 0 20 20"><path d="M10 2.5 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="wk-mx" viewBox="0 0 20 20"><path d="M3 3 L17 17 M17 3 L3 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+<div class="wrap">
+<h1>週の画面に疲れを出す——候補3案</h1>
+<p class="intro">行を押して「乗る」を押すと、来週の疲れが動きます。もう一度開いて「外す」で戻ります。土曜と日曜、競馬場の切り替えも今の画面と同じように動きます。「自分」「番付」「出馬表」「馬を見る」「この週を進める」は、この見本では動きません。</p>
+<div class="ctl" id="ctl"><span>今の疲れを変えて見る</span></div>
+<div class="cands">
+  <section class="cand" id="cand-A"><h2>案A　帯</h2><p>見出しのすぐ下に、0から100までの帯を1本。帯の中身が来週の疲れ、上の三角が今の疲れです。帯の地は50と70で明るさが変わり、その下に「能力が落ちる」「落馬しやすい」と書きます。一覧を下へ送っても、この段だけ画面の上に残ります。</p><div class="frame"><main class="week-screen A"></main></div></section>
+  <section class="cand" id="cand-B"><h2>案B　6つの枠</h2><p>画面の下に張り付く段に、1鞍＝1枠の枠を6つ。選んだ分だけ枠の背が伸びます。枠の色は、その鞍数まで乗ったときの来週の疲れで決まり、50を超える枠と70を超える枠の下に数字を書きます。</p><div class="frame"><main class="week-screen B"></main></div></section>
+  <section class="cand" id="cand-C"><h2>案C　行の中</h2><p>見出しには数字だけを出します。行を開くと、「乗る」の上に「乗ると来週の疲れがいくつになるか」と帯が出ます。決める前に、その1頭の分が見えます。帯の下の目盛りは数字の50と70です。</p><div class="frame"><main class="week-screen C"></main></div></section>
+</div>
+</div>
+<script>
+const DATA = [{"day":"土曜","courses":[{"name":"京都","n":"4","races":[{"no":"京都 4R","sf":"ダート","dirt":true,"dist":"1800m","cls":"未勝利","rows":[{"name":"ボヤージュウィロー","sa":"牡3","coat":"青鹿毛","kg":"450（−2）","since":"連闘","main":false,"l2":["5戦0勝","先行","ダ"],"mark":"wk-m3","tr":"三宅浩二","warn":null},{"name":"オーロラアステル","sa":"牝3","coat":"鹿毛","kg":"448（±0）","since":"中14週","main":false,"l2":["3戦0勝","先行","ダ"],"mark":"wk-m1","tr":"篠原智也　所属厩舎","warn":null}]},{"no":"京都 7R","sf":"ダート","dirt":true,"dist":"1800m","cls":"未勝利","rows":[{"name":"トモシビセレーネ","sa":"セン3","coat":"黒鹿毛","kg":"508（±0）","since":"中13週","main":false,"l2":["3戦0勝","先行","ダ"],"mark":"wk-m3","tr":"三宅隆司","warn":null}]},{"no":"京都 9R","sf":"ダート","dirt":true,"dist":"1700m","cls":"オープン特別","rows":[{"name":"オリーブアズール","sa":"牝4","coat":"黒鹿毛","kg":"476（+8）","since":"中10週","main":false,"l2":["22戦4勝","先行","ダ"],"mark":"wk-m1","tr":"篠原智也　所属厩舎","warn":null}]}]}]},{"day":"日曜","courses":[{"name":"新潟","n":"4","races":[{"no":"新潟 7R","sf":"芝","dirt":false,"dist":"1200m","cls":"1勝クラス","rows":[{"name":"ビアンコソナタ","sa":"セン4","coat":"鹿毛","kg":"462（+4）","since":"中1週","main":false,"l2":["17戦1勝","逃げ","芝"],"mark":"wk-m1","tr":"谷口剛志","warn":null}]},{"no":"新潟 8R","sf":"ダート","dirt":true,"dist":"1800m","cls":"2勝クラス","rows":[{"name":"ユウナギゼファー","sa":"セン4","coat":"鹿毛","kg":"470（±0）","since":"中2週","main":false,"l2":["26戦2勝","差し","ダ"],"mark":"wk-m1","tr":"篠原智也　所属厩舎","warn":null}]},{"no":"新潟 9R","sf":"芝","dirt":false,"dist":"1200m","cls":"オープン特別","rows":[{"name":"シルバーシャドウ","sa":"牡3","coat":"黒鹿毛","kg":"426（−16）","since":"連闘","main":false,"l2":["10戦2勝","逃げ","芝"],"mark":"wk-m1","tr":"三宅浩二","warn":null},{"name":"キャロルグリント","sa":"牡3","coat":"黒鹿毛","kg":"488（−6）","since":"中1週","main":false,"l2":["9戦2勝","逃げ","芝"],"mark":"wk-m2","tr":"篠原智也　所属厩舎","warn":null}]}]},{"name":"東京","n":"2","races":[{"no":"東京 1R","sf":"ダート","dirt":true,"dist":"1200m","cls":"未勝利","rows":[{"name":"リュウジンミネルバ","sa":"牡3","coat":"黒鹿毛","kg":"500（−10）","since":"中15週","main":false,"l2":["4戦0勝","逃げ","ダ"],"mark":"wk-m3","tr":"谷口剛志","warn":null}]},{"no":"東京 2R","sf":"ダート","dirt":true,"dist":"1300m","cls":"2勝クラス","rows":[{"name":"ハツシモノヴァ","sa":"セン5","coat":"栗毛","kg":"506（±0）","since":"中1週","main":false,"l2":["30戦2勝","先行","ダ"],"mark":"wk-m1","tr":"篠原智也　所属厩舎","warn":null}]}]},{"name":"京都","n":"2","races":[{"no":"京都 1R","sf":"ダート","dirt":true,"dist":"1400m","cls":"未勝利","rows":[{"name":"チャージルーチェ","sa":"セン3","coat":"鹿毛","kg":"484（±0）","since":"中14週","main":false,"l2":["4戦0勝","逃げ","ダ"],"mark":"wk-m1","tr":"三宅隆司","warn":null}]},{"no":"京都 6R","sf":"ダート","dirt":true,"dist":"1700m","cls":"1勝クラス","rows":[{"name":"パルスプレスト","sa":"牡3","coat":"青鹿毛","kg":"450（+8）","since":"中3週","main":false,"l2":["4戦1勝","先行","ダ"],"mark":"wk-m1","tr":"谷口剛志","warn":null}]}]}]}];
+const WEEK_LABEL = "1974年 5月4週";
+const SLOTS = 6;               // RIDABLE_SLOTS_PER_WEEK
+const STAMINA = 50;            // player.jockey.physicalStamina
+const Q = new URLSearchParams(location.search);
+let fatigueNow = Q.has("f") ? Number(Q.get("f")) : 62;   // player.fatigue
+
+/* domain/fatigue.js と同じ式（実装ではそちらを import する。ここに式を書き写さない） */
+const perRide = (st) => 8 * (1.2 - (0.4 * st) / 99);
+const fatigueAfterRides = (f, n, st) => Math.max(0, Math.min(100, f + n * perRide(st) - 35));
+const zoneOf = (v) => (v >= 70 ? 2 : v > 50 ? 1 : 0);
+/* 来週の能力の下がり幅。50以下は出さない。四捨五入して0になるときは「1%未満」 */
+function penaltyText(next) {
+  if (next <= 50) return "";
+  const pct = Math.round(((0.2 * (next - 50)) / 50) * 100);
+  return "能力<b>−" + (pct < 1 ? "1%未満" : pct + "%") + "</b>";
+}
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+/* 文字の行。key＝先頭の言葉、now＝今の疲れ（nullなら出さない）、nextLabel＝来週の数字の前の言葉 */
+function ftHtml(key, now, next, nextLabel) {
+  return '<span class="ft__k">' + key + "</span>" +
+    (now == null ? "" : "<span>今<b>" + Math.round(now) + "</b></span>") +
+    '<span class="is-next' + (zoneOf(next) === 2 ? " is-danger" : "") + '">' + nextLabel + "<b>" + Math.round(next) + "</b></span>" +
+    '<span class="ft__pen">' + penaltyText(next) + "</span>";
+}
+function fzHtml(now, next, words) {
+  const z = zoneOf(next);
+  return '<span class="fz" style="--now:' + now + ";--next:" + next + '"><i class="fz__now"></i>' +
+    '<span class="fz__track"><i class="fz__fill"></i></span>' +
+    '<span class="fz__lab"><span class="' + (z === 1 ? "is-in" : "") + '">' + (words ? "能力が落ちる" : "50") + "</span>" +
+    '<span class="' + (z === 2 ? "is-in" : "") + '">' + (words ? "落馬しやすい" : "70") + "</span></span></span>";
+}
+
+const screens = [];
+function makeScreen(variant) {
+  const root = document.querySelector(".week-screen." + variant);
+  const st = { day: 0, course: [0, 0], picks: new Map(), open: null }; // picks: 馬名→{day,course,race}
+  root.innerHTML =
+    '<div class="wk-hd"><div class="wk-hd__week">' + WEEK_LABEL + '</div><div class="wk-hd__left">あと<b data-left></b>件</div>' +
+    (variant === "C" ? '<div class="wk-hd__ft ft" data-ft></div>' : "") + "</div>" +
+    (variant === "A" ? '<div class="fa"><div class="ft" data-ft></div><div data-fz>' + fzHtml(fatigueNow, fatigueNow, true) + "</div></div>" : "") +
+    '<div class="wk-days" data-days></div><div data-body></div>' +
+    '<div class="wk-adv"><button type="button" class="wk-btn">この週を進める</button></div>' +
+    (variant === "B" ? '<div class="fb"><div class="ft" data-ft></div><div class="fc" data-fc>' + "<i></i>".repeat(SLOTS) + '</div><div class="fc__lab" data-fcl>' + "<span></span>".repeat(SLOTS) + "</div></div>" : "");
+  const $ = (s) => root.querySelector(s);
+
+  const goingCourse = (d) => { for (const p of st.picks.values()) if (p.day === d) return p.course; return null; };
+  const raceTaken = (d, c, r) => [...st.picks.values()].some((p) => p.day === d && p.course === c && p.race === r);
+  function toggle(name, d, c, r) {
+    if (st.picks.has(name)) st.picks.delete(name); else st.picks.set(name, { day: d, course: c, race: r });
+    st.open = null; render();
+  }
+
+  function renderFatigue() {
+    const n = st.picks.size, next = fatigueAfterRides(fatigueNow, n, STAMINA);
+    $("[data-left]").textContent = SLOTS - n;
+    const ft = $("[data-ft]"); if (ft) ft.innerHTML = ftHtml("疲れ", fatigueNow, next, "来週");
+    if (variant === "A") {
+      const fz = $("[data-fz] .fz"); fz.style.setProperty("--now", fatigueNow); fz.style.setProperty("--next", next);
+      const labs = fz.querySelectorAll(".fz__lab span"), z = zoneOf(next);
+      labs[0].className = z === 1 ? "is-in" : ""; labs[1].className = z === 2 ? "is-in" : "";
+    }
+    if (variant === "B") {
+      const cells = $("[data-fc]").children, labs = $("[data-fcl]").children;
+      let seen1 = false, seen2 = false;
+      for (let k = 1; k <= SLOTS; k++) {
+        const z = zoneOf(fatigueAfterRides(fatigueNow, k, STAMINA));
+        cells[k - 1].className = (z ? "z" + z : "") + (k <= n ? " is-on" : "");
+        let t = "";
+        if (z === 2 && !seen2) { t = "70"; seen2 = true; seen1 = true; }
+        else if (z >= 1 && !seen1) { t = "50"; seen1 = true; }
+        labs[k - 1].textContent = t;
+        labs[k - 1].className = (t && k <= n ? "is-in" : "") + (z === 2 ? " z2" : "");
+      }
+    }
+  }
+
+  function render() {
+    renderFatigue();
+    const n = st.picks.size, full = n >= SLOTS;
+    $("[data-days]").innerHTML = ["土曜", "日曜", "自分", "番付"].map((l, i) => '<button type="button" data-day="' + i + '" class="' + (i === st.day ? "is-on" : "") + '">' + l + "</button>").join("");
+    const courses = DATA[st.day].courses, ci = st.course[st.day], course = courses[ci], going = goingCourse(st.day);
+    const locked = going != null && going !== ci;
+    let h = '<div class="wk-courses">' + courses.map((c, i) => '<button type="button" data-course="' + i + '" class="' + (i === ci ? "is-on" : "") + (going != null && going !== i ? " is-lock" : "") + '">' + c.name + '<span class="wk-courses__n">' + c.n + "</span></button>").join("") + "</div>";
+    if (locked) h += '<div class="wk-empty is-lock">' + DATA[st.day].day + "は" + courses[going].name + "へ行きます。" + course.name + "の依頼には乗れません。</div>";
+    course.races.forEach((race, ri) => {
+      h += '<div class="wk-race"><div class="wk-race__big"><span class="wk-race__no">' + race.no + '</span><span class="wk-race__sf ' + (race.dirt ? "is-dirt" : "is-turf") + '">' + race.sf + "</span>" + race.dist + '<span class="wk-race__cls">' + race.cls + "</span></div></div>";
+      h += '<div class="wk-t"><div class="wk-th"><span>馬名</span><span>性齢</span><span>毛色</span><span class="wk-n">調教後</span><span class="wk-n">前走から</span></div>';
+      for (const row of race.rows) {
+        const on = st.picks.has(row.name);
+        const off = !on && (raceTaken(st.day, ci, ri) || locked || full);
+        const open = st.open === row.name && !off;
+        const l2 = row.l2.slice(); if (on) l2[0] = "乗ります";
+        h += '<div class="wk-r' + (on ? " is-on" : "") + (off ? " is-off" : "") + (open ? " is-open" : "") + '" role="button" data-row="' + esc(row.name) + '" data-race="' + ri + '">' +
+          '<span class="wk-r__name">' + esc(row.name) + "</span><b>" + row.sa + "</b><b>" + row.coat + '</b><b class="wk-n">' + row.kg + '</b><b class="wk-n">' + row.since + "</b>" +
+          '<span class="wk-r__l2"><span><span>' + l2[0] + "</span><span>" + l2[1] + "</span><span>" + l2[2] + '<svg class="wk-r__sym" aria-hidden="true"><use href="#' + row.mark + '"/></svg></span></span><span>' + row.tr + "</span></span>";
+        if (variant === "C" && open) {
+          const after = fatigueAfterRides(fatigueNow, on ? n - 1 : n + 1, STAMINA);
+          h += '<span class="wk-r__ft"><span class="ft">' + ftHtml(on ? "外すと" : "乗ると", null, after, "来週の疲れ") + "</span>" + fzHtml(fatigueNow, after, false) + "</span>";
+        }
+        h += '<span class="wk-r__acts"><button type="button" class="wk-btn" data-pick>' + (on ? "外す" : "乗る") + '</button><button type="button" class="wk-lnk">出馬表</button><button type="button" class="wk-lnk">馬を見る</button></span></div>';
+      }
+      h += "</div>";
+    });
+    $("[data-body]").innerHTML = h;
+  }
+
+  root.addEventListener("click", (e) => {
+    const dayBtn = e.target.closest("[data-day]");
+    if (dayBtn) { const d = Number(dayBtn.dataset.day); if (d < 2) { st.day = d; st.open = null; render(); } return; }
+    const cBtn = e.target.closest("[data-course]");
+    if (cBtn) { st.course[st.day] = Number(cBtn.dataset.course); st.open = null; render(); return; }
+    const row = e.target.closest("[data-row]");
+    if (!row || row.classList.contains("is-off")) return;
+    const name = row.dataset.row;
+    if (e.target.closest("[data-pick]")) { toggle(name, st.day, st.course[st.day], Number(row.dataset.race)); return; }
+    if (e.target.closest(".wk-lnk")) return;
+    st.open = st.open === name ? null : name; render();
+  });
+
+  /* ?picks=n：土曜の京都→日曜の新潟の順に、各レースの1頭目をn鞍選んだ状態にする */
+  const auto = Number(Q.get("picks") || 0), order = [];
+  [[0, 0], [1, 0]].forEach(([d, c]) => DATA[d].courses[c].races.forEach((race, ri) => order.push([race.rows[0].name, d, c, ri])));
+  order.slice(0, auto).forEach(([name, d, c, ri]) => st.picks.set(name, { day: d, course: c, race: ri }));
+  if (Q.get("day") === "sun") st.day = 1;
+  if (Q.get("open")) st.open = Q.get("open");
+  render();
+  screens.push({ render });
+}
+["A", "B", "C"].forEach(makeScreen);
+
+/* 見本の外の操作：今の疲れを変えて、0のとき・低いとき・高いときの見え方を確かめる */
+const ctl = document.getElementById("ctl");
+[0, 30, 62, 90].forEach((v) => {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = v; if (v === fatigueNow) b.className = "is-on";
+  b.onclick = () => { fatigueNow = v; ctl.querySelectorAll("button").forEach((x) => x.classList.toggle("is-on", x === b)); screens.forEach((s) => s.render()); };
+  ctl.appendChild(b);
+});
+const only = Q.get("only");
+if (only) {
+  document.body.classList.add("only");
+  const c = document.getElementById("cand-" + only); c?.classList.add("is-only");
+  if (Q.get("scroll")) c.querySelector(".frame").scrollTop = Number(Q.get("scroll"));
+}
+</script>
+</body></html>

@@ -1,0 +1,22 @@
+{
+  "name": "keiba-game",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "競馬ゲーム・騎手モード（React + Vite + 単一HTML出力）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tools/test-horse-looks.mjs tools/test-horse-form.mjs tools/test-horse-detail.mjs tools/test-career-end.mjs tools/test-race-name.mjs tools/test-jockey-income.mjs tools/test-request-priority.mjs tools/test-fatigue.mjs tools/test-fatigue-band.mjs tools/test-demotion.mjs tools/test-player-field.mjs tools/test-post-draw.mjs tools/test-lane.mjs"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
+    "vite": "^8.1.4",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

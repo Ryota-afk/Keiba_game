@@ -1,0 +1,353 @@
+/*
+ * 年末の2枚の画面（①年末のまとめ・②引退した馬）。
+ * 見本：design/mocks/year-end-v1.html の①案A・②案B（devlog/wave12.md §36・wave13.md §9）。
+ * 色は週の結果画面（WeekResultScreen.css）と同じ値。accent（黄）＝読むもの、action（青）＝押すもの（1画面に1つ）。
+ * ⚠️見本の .frame の 390px 幅・min-height:720px は並べて見せるための値で、ここでは画面いっぱいに広げる。
+ * 級数は styles/type.css、余白は styles/space.css のトークンだけ。縦線を引かない。絵文字を使わない。
+ * 動き：年度代表馬→部門の行（①）、札（②）が上から順に現れる。styles/motion.css の --m-list-*
+ *   （モーションリファレンス t-stagger-seq。番付の行と同じ）。秒数・イージングをここに書かない。
+ *   動きを減らす設定では --m-list-gap・--m-list-shift が0になり、全部が一度にフェードする。
+ * ⚠️--ye-col-label（部門名の列の幅）は級数ではなく置き場所の幅。ここに1箇所だけ持つ。
+ */
+
+.year-end {
+  --panel: #1a2a18;
+  --board: #0f160e;
+  --fg: #f2ede0;
+  --muted: #9fb896;
+  --accent: #ffd83d;
+  --action: #1a5fb4;
+  --on-action: #ffffff;
+  --rule: rgba(255, 255, 255, 0.1);
+  --ye-col-label: 6.5em;
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  color: var(--fg);
+  font-family: "M PLUS 1p", sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding-bottom: max(var(--s2), env(safe-area-inset-bottom, 0px));
+}
+.year-end *,
+.year-end *::before,
+.year-end *::after {
+  box-sizing: border-box;
+}
+
+/* ── 見出し ── */
+.ye-hd {
+  margin: 0;
+  padding: max(var(--s2), env(safe-area-inset-top, 0px)) var(--s2) var(--s1);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+/* 上から順に現れる（--i 番目）。10番目より後は10番目と同時に出す（総尺を800ms以内に収める） */
+.ye-in {
+  animation: ye-in var(--m-list-dur) var(--m-list-ease) both;
+  animation-delay: calc(min(var(--i, 0), 10) * var(--m-list-gap));
+}
+@keyframes ye-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--m-list-shift));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 馬名の右の印（「主戦」「乗った馬」。番付と同じ） */
+.ye-mk {
+  margin-left: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ── ①年度代表馬（この画面の主役） ── */
+.ye-hero {
+  margin: 0 var(--s2);
+  padding: var(--s2);
+  background: var(--board);
+}
+.ye-hero__k {
+  font-size: var(--fs-caption);
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.ye-hero__nm {
+  margin-top: var(--s1);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.ye-hero__nm.is-none {
+  font-size: var(--fs-lead);
+  font-weight: 400;
+  color: var(--muted);
+}
+.ye-hero__sub {
+  margin-top: var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ye-hero__w {
+  margin-top: 2px;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: var(--accent);
+}
+
+/* 勝ったレース名：1つの名前を途中で折らない（幅に収まらない長い名前だけは中で折れる） */
+.ye-race {
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* ── 段（部門・騎手・自分の1年・G1） ── */
+.ye-sec {
+  padding: var(--s3) var(--s2) 0;
+}
+.ye-sec h2 {
+  margin: 0;
+  padding-bottom: var(--s1);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+
+/* 部門の行：左に部門名（固定幅）・右に馬名、2行目に勝ったレース */
+.ye-aw {
+  display: grid;
+  grid-template-columns: var(--ye-col-label) minmax(0, 1fr);
+  gap: 0 var(--s1);
+  align-items: baseline;
+  padding: var(--s1) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.ye-aw:last-child,
+.ye-jk:last-child,
+.ye-g1:last-child {
+  box-shadow: none;
+}
+.ye-aw__k,
+.ye-jk__k {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ye-aw__nm {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ye-aw__nm.is-none {
+  font-weight: 400;
+  color: var(--muted);
+}
+.ye-aw__w {
+  grid-column: 2;
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* 騎手の行：部門・名前・値。2行目に自分の順位と値 */
+.ye-jk {
+  display: grid;
+  grid-template-columns: var(--ye-col-label) minmax(0, 1fr) auto;
+  gap: 0 var(--s1);
+  align-items: baseline;
+  padding: var(--s1) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.ye-jk__nm {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ye-jk.is-me .ye-jk__nm {
+  color: var(--accent);
+}
+.ye-jk__v {
+  font-size: var(--fs-body);
+  color: var(--accent);
+  white-space: nowrap;
+  text-align: right;
+}
+.ye-jk__me {
+  grid-column: 2 / 4;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s1);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--muted);
+}
+.ye-jk__me b {
+  margin-right: var(--s1);
+  font-weight: 500;
+  color: var(--fg);
+}
+
+/* 自分の1年：小さな板を3枚（週の結果の掲示板と同じ面）。
+   お金の板だけ広くする（320px幅で「1,277万円」が2行に折れたため。実測） */
+.ye-mine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: var(--s1);
+  margin-top: var(--s1);
+}
+.ye-mine__b {
+  min-width: 0;
+  padding: var(--s1);
+  background: var(--board);
+}
+.ye-mine__k {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ye-mine__v {
+  margin-top: 2px;
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ye-mine__v.is-hot {
+  color: var(--accent);
+}
+/* 空の行も1行ぶんの高さを保ち、3枚の「前の年」の高さを揃える */
+.ye-mine__p {
+  min-height: 1.5em;
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* G1の行：月週とレース名（小）・勝ち馬（本文）・右に騎手 */
+.ye-g1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--s1);
+  padding: var(--s1) 0;
+  box-shadow: inset 0 -1px 0 var(--rule);
+}
+.ye-g1__race {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ye-g1__race span {
+  margin-right: var(--s1);
+}
+.ye-g1__win {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ye-g1__jk {
+  align-self: end;
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* 自分が乗って負けた行：勝った騎手の上に自分の着順 */
+.ye-g1__self {
+  display: block;
+  color: var(--fg);
+}
+/* 自分が乗って勝った行 */
+.ye-g1.is-me .ye-g1__win {
+  color: var(--accent);
+}
+.ye-g1.is-me .ye-g1__jk {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* ── ②引退した馬：1頭1枚の札 ── */
+.ye-cards {
+  display: grid;
+  gap: var(--s1);
+  padding: 0 var(--s2);
+}
+.ye-card {
+  min-width: 0;
+  padding: var(--s2);
+  background: var(--board);
+}
+.ye-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.ye-card__top b {
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.ye-card__nm {
+  margin-top: var(--s1);
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ye-card__g1 {
+  margin-top: 2px;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: var(--accent);
+}
+.ye-card__ft {
+  margin-top: var(--s1);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--muted);
+}
+.ye-card__ft b,
+.ye-card__ft span {
+  display: block;
+}
+.ye-card__ft b {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+/* ── 次へ（1画面に1つの押すもの） ── */
+.ye-foot {
+  margin-top: auto;
+  padding: var(--s4) var(--s2) 0;
+}
+.ye-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  min-height: var(--s6);
+  line-height: var(--s6);
+  text-align: center;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.ye-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -1,0 +1,214 @@
+# 騎乗の構造と週の流れ（ARCHITECTURE §2）
+
+⚠️**このファイルは`ARCHITECTURE.md`の一部**（2026-10-12に切り出した。`TODO.md` #115）。
+`ARCHITECTURE.md`が67,413バイトになり、1回で読める上限（64,000バイト・CLAUDE.md §4）を超えたため。
+⭐**正本はこちら。** `ARCHITECTURE.md`には索引だけを置く。
+
+## 2. 騎乗の構造
+
+| 項目 | 仕様 |
+|---|---|
+| 名目の騎乗数 | 地位で変動：新人80／中堅250／一線級500／トップ800鞍（**暫定**） |
+| 自分で操作する鞍 | **週1〜2鞍＝年約78鞍**。⚠️**どのランクでも同じくらい**（トップでも増やさない） |
+| 選び方 | ⭐**まず「どの競馬場へ行くか」を決め、その場の鞍から選ぶ**（下記C2） |
+| 関わる馬 | **年約12頭**（78鞍 ÷ 1頭あたり年6.3走）。内訳は**主戦5頭の全レース約31鞍＋単発約47鞍** |
+| 預けた鞍 | 騎手本人は乗っている。**騎乗回数に加算する**。⚠️**能力の開示は進まない** |
+| 馬に任せる | レース中に判断を放棄できる。⚠️**その鞍では能力の開示が進まない** |
+
+⭐**単発の47鞍が「これから主戦になるかもしれない馬との出会い」になる。**
+⚠️年33鞍だった頃は主戦馬の全レースでほぼ埋まり、**新しい馬に乗る余地が無かった**——
+出会いの4経路（§7）を作ったのに、乗る枠が存在しなかった。
+⭐**12頭に薄く乗るか5頭に集中するかがプレイヤーの判断**になる（分散すれば主戦が取れない）。
+
+⚠️**騎手はレースを選べない**（決めるのは調教師と馬主）。
+**同じ週に違うクラスへの依頼が複数来る**形にすることで、どれに乗るかの選択が格の選択になる。
+
+### ⚠️⚠️ 週末に乗れる競馬場は1つ（第1弾-Eで確定）
+
+**JRAは同じ週に2〜3場で開催するが、騎手の身体は1つ。**
+⚠️**海外・地方はこの限りでない**（地方は平日開催があるため）。
+
+⭐**選択が階層になる**：**どの競馬場へ行くか → その場の鞍から選ぶ**。
+競馬場を選んだ時点で他場の鞍は全部消える。
+
+⭐⭐**土曜と日曜で別々の競馬場へ行ける（1日1場）**（2026-09-16にユーザーが決定）。
+⚠️**2026-09-04の「週末に1つ」から変わった。** `design/mocks/riding-offers-v2.html`の案C
+（土日タブ＋競馬場タブ）がそのまま使える形になる。
+⚠️`src/domain/fridayConfirmation.js`の`confirmMounts`は**週に1つの`courseId`しか受け取らない**
+ので、土日で2つ受け取る形に直す必要がある。
+
+⭐⭐**新しい奪う側**：**主戦の馬が2頭、同じ日に別々の競馬場で走る週が来る。片方は諦めるしかない。**
+諦めた側は他の騎手が乗り、勝てば主戦の座を失いうる。
+⚠️**1日1場にしたぶん、この締め付けは「週末に1場」より弱い**（2頭が土日に分かれていれば両方
+乗れる）。⭐その代わり、断るコスト（上の行）を「主戦の馬を断ったときだけ下がる」に置いたので、
+締め付けは**同じ日に主戦が2頭重なった週**へ集まる。⚠️実際に何週に1回起きるかは未計測。
+
+### 週の流れ（第1弾-Eで更新）
+
+**月曜に今週の騎乗依頼一覧が届く → 平日（行動枠）→ 金曜に騎乗確定 → 週末のレース → 結果**
+
+⚠️**依頼一覧が平日より先に来ることが重要。** 従来は今週何に乗るか分からないまま
+「体を作る／休む」を選んでおり、⚠️**判断材料が無い選択**だった（§0-1が禁じる形）。
+⭐今は「今週は重い鞍があるから体力を回復しておく」という判断が生まれる。
+
+| 項目 | 仕様 |
+|---|---|
+| 依頼の件数 | **乗れる鞍数より多く来る**。⚠️**新人でも選択が成立する数にする** |
+| 断るコスト | ⭐**主戦を張っている馬の依頼を断ったときだけ、その厩舎の信頼が下がる**（2026-09-16にユーザーが決定）。それ以外の依頼は断っても下がらない。⚠️週6件で3件しか乗れず**毎週3件は必ず断る**ので、全件で下げると信頼が一方的に減り続ける。⭐断る痛みを「どの馬の主戦を続けるか」という1つの判断に集める。⭐**実装は`domain/weekLoop.js`の`DECLINE_MAIN_MOUNT_TRUST_LOSS`(2・根拠は無い暫定値)**。52週の通しで信頼が負に落ちる厩舎は実測0件（`devlog/wave09.md`§9） |
+| 所属厩舎の馬 | **優先的に回るが、断れる**。⭐所属の安定と外へ出る冒険の対立が新人期の中心。⭐**件数の上限は置かない**（2026-09-17にユーザーが決定・#94を締めた）。⭐**1レースあたりの上限（`maxRequestsPerRace`）の枠を先に取る**（2026-11-28にユーザーが決定・`devlog/wave14.md`§4・#105）：`weeklyRequests.js`の`generateWeeklyRequests`が、各レースの中で所属厩舎の候補を先（その中は質の順）、他厩舎を後（質の順）に並べて上位`maxPerRace`を残す。所属厩舎の候補が上限より多いレースでは所属厩舎の中で質の高い順に上限の頭数。⚠️以前は質だけで並べていたので、所属厩舎の馬の多くが優先される前に落ちていた（旧実測の74.8%は上限を入れる前の値）。⭐実測（5通りの初期値の合計・所属厩舎＝`stables[0]`・変更前→後）：104週で1974年開始24.2→31.2%・1994年開始19.3→25.7%、52週で1974年20.4→31.9%・1984年15.1→23.8%・1994年14.6→23.8%。⚠️期待したほど上がらない（1994年開始の104週で2.5割ほど）——所属厩舎の馬が今週の目標か前哨戦になっている頭数そのものが少ないため（上限の前に絞れるのは、その週に依頼になる所属厩舎の馬だけ）。⚠️シードごとの差は大きい（104週1974年のtrust-4は72.4%、他は15〜26%）。⭐**GIの依頼は通算31勝まで来ない**（`rideEligibility.js`の`G1_RIDE_MIN_CAREER_WINS`・同決定。GII・GIIIは信頼だけ。出典はWikipedia日本語版「見習騎手」） |
+| 依頼の来る競馬場 | **馬の目標レースがある競馬場から素直に来る。行ける範囲へ寄せることはしない**（2026-09-17にユーザーが決定・#89を締めた）。1日1場なので、実測で**98.8%**の週は同じ日の依頼が2か所以上に散り、どこへ行くかを選ぶと他の鞍は捨てることになる（1日あたり平均2.57か所・同§7）。⭐**捨てる判断が毎週起きるのは意図どおり**——画面は行けない競馬場を理由付きで見せる（合意済みのモック） |
+| 依頼の質 | **調教師の信頼 × ランク × 厩舎の強さ** |
+| 依頼のレース番号 | ⭐第13弾§22：依頼は`raceNumber`（その日の何レース目か・1〜12）を持ち、金曜の確定→`ride.raceNumber`→結果画面の`rides[].raceNumber/raceLabel`（「小倉 3R」・`view/raceNumberView.js`の`courseRaceLabel`）へそのまま渡る。週の画面の`groupRequestsByDay`の`races[]`・出馬表の`buildEntryListHeader`も同じ値を持つ（表示は別の担当）。決め方は`arch/race-program.md`§12 |
+| 乗る馬を決めるのは | ⭐**プレイヤー**（2026-09-17・`advanceWeek`の`options.chooseMounts`。`devlog/wave09.md`§12・`devlog/wave10.md`§9）。渡さなければ`defaultChooseMounts`（質の高い順の自動選択）——ヘッドレスの計測はこちら。同じレースは1頭・上限件数の2つは画面で押せなくするのが先で、`confirmMounts`側は安全網（先勝ちで1頭・超過は切り捨て） |
+| 月曜の画面 | ⭐**`src/screens/WeekScreen.jsx`＋`WeekScreen.css`＋`src/view/weekOffersView.js`**（2026-09-17・Fable・`devlog/wave10.md`§10）。見本は`design/mocks/week-offers-v3.html`案2（レースが主役・1レース＝1つの表）＋`week-offers-v4.html`案B（行を押すとその行の下に「乗る」と「出馬表」／「この週を進める」は一覧の末尾）。画面の決まり：あと◯件＝`RIDABLE_SLOTS_PER_WEEK`−決めた数／決めた表の残りは薄い／その日に別の場で決めると他の場のタブは薄く・押すと理由（`lockedCourseMessage`）／薄い行は押しても開かない／開く行は1つ／週を進めたら先頭へ戻す。⚠️**見本に無いのに置いたもの**：先週の出来事（怪我・主戦の喪失・信頼の大きな動き）を見出しの下に補足の段で出す（要否はユーザー確認待ち・§10） |
+| 疲労の帯 | 週の画面の見出し（と先週の知らせ）の下・土日のタブの上の`.wk-ft`（2026-11-28・`devlog/wave14.md`§9・§16・見本`design/mocks/fatigue-week-v2.html`案A）。文字の行は左に「疲労　▼今週◯　能力 −◯%」、右寄せで「来週◯　能力 −◯%」（「今週」の前の三角`.wk-ft__key`は帯の上の三角と同じ形）＋0〜100の帯（中身＝来週の疲労、上の三角＝今週の疲労、地は50と70で明るさが変わり、下に「能力が落ちる」「落馬しやすい」）。今週＝`player.fatigue`、来週＝`fatigueAfterRides(player.fatigue, pickedHorseIds.size, player.jockey.physicalStamina)`、下がり幅＝`1 − fatiguePenaltyFactor(今週)`と`1 − fatiguePenaltyFactor(来週)`、境目の位置＝`FATIGUE_PENALTY_START`・`FATIGUE_DANGER_THRESHOLD`÷`FATIGUE_MAX`（どれも`domain/fatigue.js`。CSSへは`--ft-now`・`--ft-next`・`--ft-start`・`--ft-danger`で渡す）。文字づくりは`view/fatigueBandView.js`（今週・来週とも：50以下は下がり幅を出さない・四捨五入で0%なら「−1%」＋小さい字の「未満」・70以上の週だけ数字がaccent。今週が70以上なら「今週」の前の三角と帯の上の三角もaccent。帯の下の「落馬しやすい」は今週か来週のどちらかが70以上でaccent＝`isAnyDanger`、「能力が落ちる」はどちらかが50超〜70未満で明るくなる＝`isAnyPenaltyZone`）。`position: sticky; top: 0`で`.screen-pane--week`の中に張り付く。「自分」「番付」のタブでも出す。⚠️`.week-screen`や`.screen-pane--week`の途中に`overflow`を持つ親を挟むと張り付かなくなる。⚠️文字の行は折り返さない。画面の幅が359px以下では項目のあいだ（`--ft-row-gap`）と数字の前（`--ft-num-gap`）のすき間を半分にして収めている（320pxで今週100・来週100のとき右側の空きは約10px）。行に言葉を足すときは320pxで測り直す。⚠️今週のレースに効くのは今週（今）の疲労（`weekLoop.js`は走ったあとに疲労を更新する） |
+| 馬の詳しい画面 | `src/screens/HorseDetail.jsx`＋`HorseDetail.css`＋`src/view/horseDetailView.js`の`buildHorseDetail`（2026-11-28・`devlog/wave13b.md`§33・見本`design/mocks/horse-detail-v1.html`案A）。週の画面の開いた行の「馬を見る」→`WeekScreen`の`detailHorseId`が立ち、週の画面の代わりに出る（出馬表と同じ）。「乗る／外す」は行と同じ`togglePick`、閉じると開く前のスクロール位置へ戻す。週を進めると閉じる。馬の絵は`view/dreamDerbySprite.js`の`standingHorseSvg(look)`（⚠️形の定数を走る絵と共有）。相性の線画は`screens/SurfaceMarkDefs.jsx`（週の画面と共用。idは`SURFACE_MARK_ID`）。⚠️domainの関数は画面が`deps`で渡す（viewはdomainをimportしない） |
+
+⭐**年の最終週（`week % 52 === 0`）の末尾に年の区切りの処理が走る**（2026-10-12・`TODO.md` #122）。`advanceWeek`は結果処理・
+騎手ランクの昇格のあと、①前の年の番付を`roster.lastYearBanzuke`へ保存 →②`processYearBoundary`（①引退→②繁殖入り→③捨てる〈プレイヤーが
+乗った馬は残す〉→④新2歳。`arch/race-program.md`§9）で`roster.horses`と`roster.breedingPool`を差し替え →③`currentYear`を繰り上げ、の順。
+⚠️**番付の保存が先**（馬が名簿から抜ける前の顔ぶれで作るため）。戻り値に`retiredMainMounts`（この区切りで引退したプレイヤーの主戦馬
+`[{horseId, horseName}]`・年が替わらない週は`[]`・データだけで画面は未使用）・`weekEndHorses`（区切りで馬が抜ける前のその週の馬。
+`WeekScreen`が週の結果画面〈最終週の重賞の勝ち馬〉に渡す）・`yearBoundary`（区切りの`stats`、無ければ`null`）が増えた。
+⚠️⑤調教師・⑥騎手の世代交代と⑦主戦の付け直し（`primaryJockeyId`は新2歳にも翌週の`assignHorsePrimaryJockeys`が付けるだけ）は未実装。
+
+⭐**年末のまとめ・引退した馬の画面用のデータ**（第13弾・`devlog/wave13.md`§10。画面は`screens/YearEndScreen.jsx`＋`view/yearEndView.js`・同§11）：年の最終週、②`processYearBoundary`の**直後**
+（馬が抜ける前の`advancedHorses`を使う）に`buildYearEndSummary`（`domain/yearEnd.js`・①まとめ）と`buildRetiredHorses`（同・②引退した馬）を呼び、
+戻り値`yearEnd = { year, summary, retired }`（年が替わらない週は`null`）と`roster.lastYearEnd`（同じ値・セーブから見直せる）に置く。
+`retired`が空配列の年は②を出さない（ユーザー決定Q7）。材料：
+- `roster.yearGradedLog = { year, rows }`：毎週、その週に行われた重賞の結果の行を足す（`domain/yearGradedLog.js`の`buildGradedLogRows`・勝ち馬の名前・騎手の名前・
+  格〈g1/g2/g3〉・暦の週・自分が乗ったか）。年が替わったら`null`に戻す（上限は1年ぶん・実測102行・約26KB）。
+- 馬の`record.yearStats.graded`（今年の重賞の着順）・`record.g1Wins`（生涯のG1の勝ち・`[{raceName, year}]`）。⚠️1983年までは「1984年にG1だったレース」
+  （重賞データの`g1Like: true`・`tools/build-graded-races.mjs`が書く。格の引き方は`data/gradedTier.js`の`gradedTierOf`）。
+- NPC騎手の`startsByYear`・`prizeByYear`（`countJockeyRideStats`）。プレイヤーの`record.byYear[年].{gradedWins,g1Wins,income,prize}`。
+- `player.leftForLocalThisYear`：その年に未勝利で地方へ移った主戦の馬（`[{horseId, horseName, year, week}]`）を貯め、年末に空へ戻す。
+- 賞の選び方は`view/yearEndAwards.js`（G1の勝ち数→重賞の着順の点数→今年の獲得賞金→馬id）。
+⚠️**E1〜E3の修正**：プレイヤーが乗った重賞は、レース名（クラス名ではなく）・そのレース本来の賞金（`prize1`×着順の配分）で馬に積み、`gradedWins`も積む
+（`weekResults.js`）。⭐2026-11-28（`devlog/wave14.md`§19）：プレイヤーが乗って負けた重賞の勝ち馬を別に積む仕組み（`applyLostPlayerRaceWinners`）は撤去した
+——プレイヤーが乗る重賞も世界の重賞として走り、勝ち馬・2着以下の出走と着順は他の重賞と同じに積まれる。
+
+⚠️**弱い厩舎で信頼を積んでも良い馬には乗れない。** ⭐どの厩舎に出入りするかが長期の賭けになり、
+調教師の「見抜く力」（§8）が生きる。
+
+### 週の結果画面（2026-09-25・「案C 掲示板」で合意・世界が動いている感じを出す1枚）
+
+**月曜〜金曜の確定 → 週末のレース（`advanceWeek`）→ 結果画面（1枚）→「次の週へ」で月曜へ戻る。**
+
+`WeekScreen.jsx`の`handleAdvance`が`advanceWeek`を呼んだ直後、その戻り値から
+`domain/weekResultSummary.js`の`buildWeekResultSummary({ beforePlayer, afterPlayer,
+afterRoster, rides, week, year })`が画面用データを組み、`state`（`weekResult`）に置く。
+`weekResult`がある間は週の画面の代わりに`screens/WeekResultScreen.jsx`を出し、
+「次の週へ」で`weekResult`を`null`に戻す（月曜の画面へ）。
+
+⭐**週の画面と結果画面は同じ名簿・同じ依頼・同じ並びを使う**（第13弾・`devlog/wave13.md`§17）：
+- 週の初めの処理（クラスの決め直し・未勝利のまま3歳の9月7日を迎えた馬を中央から外す）は`domain/weekPrepare.js`の`prepareWeek(roster, player)`（決定的・処理済みへ再度呼んでも何も起きない）。
+  `WeekScreen`が依頼を作る前に呼び（`weekRoster`）、`advanceWeek`も入口で呼ぶ。⚠️依頼の乱数は馬ごとに固定（`generateWeeklyRequests`の質の揺らぎは`streamRandom(seed, REQUESTS, week, horse.id)`）。
+  週の画面に出した依頼＝`advanceWeek`の依頼。触るなら両方が同じ名簿を見ることを保つ。
+- `rides`の各`ride`は`day`（"sat"/"sun"）を持ち、`advanceWeek`は返す前に`view/weekOffersView.js`の`requestDisplayOrder(requests)`（日→競馬場→レースの表→行＝週の画面の並び）で並べ替える（処理順は変えない）。⭐同じ競馬場の中のレースは`groupRequestsByDay`が**レース番号の小さい順**に並べる（2026-11-27のユーザー決定。競馬場と、同じレースの中の馬は依頼の質の順のまま）。行に出す文字（性齢・体重と前走比・「中6週」「連闘」・結果の曜日分け）は`view/horseRowView.js`。調教後の体重は`WeekScreen.jsx`冒頭の`trainingWeightFor`（今はnull＝列ごと出さない）を`domain/horseForm.js`からのimportに置き換えると出る。
+- 見出しは`raceHeadline`（部品）と`raceHeadlineText`（「ダート1700m 未勝利」）を週の画面・結果画面で共有する。`summary.rides[]`に`headline`・`headlineText`・`day`・`courseId`・`raceId`を載せてある。
+
+渡すデータの形（画面はこれ以上計算しない）：
+`{ weekLabel, moneyGained, moneyAfter, rides:[{horseId,horseName,day,courseId,courseName,raceId,surface,
+distance,className,headline,headlineText,fell,position,fieldSize,popularity,won,income}], mainMounts:[{horseId,
+horseName,status:"became"|"progress",ridesLeft,needsWin}], trust:[{stableId,trainerName,
+delta,change:"bigUp"|"up"|"down"|"bigDown"}], graded:[{raceName,courseName,surface,
+distance,winnerName,jockeyName,popularity,fieldSize}] }`。
+
+- `mainMounts`＝その週に乗った馬のうち**主戦でなかった馬だけ**（落馬した鞍は含まない）。
+- `trust`＝信頼が動いた**厩舎ごと**（変化0は含まない）。乗った厩舎が先、主戦を断って下がった
+  厩舎（乗っていない）が後。信頼が「大きく動いた」の
+  境目は`TRUST_BIG_CHANGE_WORD`(5)——`domain/notifications.js`の`BIG_TRUST_CHANGE_THRESHOLD`
+  （通知を出すかどうかの境目・4）とは別物。⚠️どちらも根拠の無い暫定値。
+- `graded`＝その週の重賞のうち**実際に行われたもの**（`afterRoster.horses`の
+  `record.recentFinishes[0]`が一致する1着馬が見つかったもの）だけ。騎手は
+  勝った1走の記録`recentFinishes[0].jockeyId`（実際にレースへ渡した騎手・上記「NPC騎手と厩舎の
+  結びつき」）から求める——プレイヤーがその馬に乗った週はプレイヤー自身。
+- ⚠️`domain/weekResultSummary.js`は`view/weekOffersView.js`の`formatWeekLabel`を
+  1本だけ参照する（週表記の書式を2箇所に持たないため）。`view/`側は`domain/`を
+  importしない一方通行を保ったままなので、依存はサイクルにならない。
+- 「先週の出来事」（`WeekScreen.jsx`の`wk-notes`・怪我／主戦の喪失／疲労／信頼の悪い知らせ）は
+  従来どおり月曜の画面に残す。結果画面は落馬を板に「落馬」と出すだけで、怪我の週数・
+  主戦を失った知らせを言い直さない（CLAUDE.md §7「画面に既に出ている情報を言い直さない」）。
+
+### 代打騎乗
+
+**空きが出たときに、信頼の高い順で回る。**
+
+1. 先約の騎手が乗れなくなり、**鞍が空く**（落馬・怪我・別のレースと重複）＝**きっかけは運**
+2. 空いた鞍が誰に回るかは、その厩舎・馬主への**信頼値の高い順**＝**行き先は積み上げ**
+
+⭐これが**信頼値の3つ目の使い道**（他の2つは依頼の質・無理を通すときの消費）。
+⭐**自分が動いていない時に効く**唯一の用途で、平日に人に会う枠の対価になる。
+
+⚠️**実装の必須確認**：代打の空きは**週×馬シードとは別の乱数ストリーム**から引く
+（`devlog/wave01.md`§15-4）。共有すると代打の有無で後続の乱数がずれ、C4が壊れる。
+
+---
+
+### 人気（`domain/popularity.js`・2026-09-20。厩舎の強さの材料は2026-09-24に差し替え）
+
+出馬表と戦績に出る「1番人気・2番人気…」の並び。⚠️**表示専用で、着順には一切入らない**
+（`RNG_STREAMS.POPULARITY`という人気専用の乱数を使い、simの乱数とは独立している）。
+
+⚠️⚠️**馬の本当の能力（`horse.abilities`）は使わない**——人気が「正解表示」になると、
+プレイヤーは上位人気の馬に乗るだけでよくなり、CLAUDE.md §0-①が壊れる。
+⭐**ユーザー決定（2026-09-20）：公開されている情報だけから作る。**
+
+出走馬ごとに0〜1の材料を重み付きで足し、台形分布の揺らぎ（±0.05）を足して降順に並べる。
+
+| 材料 | 重み | 中身 |
+|---|---|---|
+| 戦績 | 0.50 | 勝率0.4＋連対率0.3＋前走着順0.3（0戦なら0固定） |
+| 騎手ランク | 0.14 | 6段を0〜1へ（騎手不明なら0.5） |
+| クラス | 0.12 | 10段をそのまま0〜1へ |
+| 収得賞金 | 0.08 | 対数スケール（`DERBY_PURSE_1974`を目安に0〜1へ） |
+| 厩舎の強さ | 0.08 | **その厩舎の現役馬が実際に挙げた成績**（勝率0.5＋連対率0.5）。全体平均へ寄せるshrinkage付き |
+| 血統（父） | 0.08 | 父の収得賞金（対数）と重賞勝ち数を半々（`sireId`不明なら0.5） |
+
+⚠️**厩舎の強さ（2026-09-24差し替え・`TODO.md` #109の解消）**：以前は`stable.abilities`
+（育てる力・見抜く力・仕上げ）という画面のどこにも出ていない隠しパラメータを使っており、
+「公開されている情報だけ」という決定から厳密には外れていた。今は`computeStableStrengthById`が
+週に1回（`domain/weekLoop.js`の`advanceWeek`・`domain/bootstrap.js`の`runBootstrapWeek`。
+レースごとに計算し直さない）、厩舎に属する**現役馬**（引退していない馬）の`horse.record`
+（starts/wins/seconds/thirds）を合計し、勝率0.5＋連対率0.5にして作る。
+出走数が少ない厩舎は数字が暴れる（0走→未定義・1走1勝→100%等）ため、
+`STABLE_SHRINKAGE_STARTS`（30＝1頭が1年でこなす出走数の目安）ぶんの仮想成績を
+全体平均で足すshrinkageを掛ける：`winRate = (wins + K・avgWinRate) / (starts + K)`
+（`placeRate`も同形）。出走が1つも無い厩舎はちょうど全体平均になる。
+
+⚠️**新馬戦は全馬0戦なので、戦績・クラス・賞金が全馬で並ぶ。** 実質「騎手・厩舎・血統＋揺らぎ」
+（重み0.30ぶん）だけで並びが決まる。これは意図した形。
+
+**実測（`saveSeed`3通り・1974年開始・助走104週＋本編52週・全86,311走・2026-09-24に再測定。
+⚠️世界の中身が前回の測定〈98,108走・30.4%〉から変わっているため、直す前も同じ条件で
+測り直した）**：
+
+| | 直す前（`stable.abilities`） | 直した後（厩舎の実成績） |
+|---|---|---|
+| 1番人気の勝率 | 29.1% | **29.8%** |
+| 1番人気の3着内率 | 58.1% | 58.4% |
+| 2番人気の勝率 | 19.7% | 19.1% |
+| 3番人気の勝率 | 13.3% | 13.8% |
+| 4番人気の勝率 | 9.8% | 9.5% |
+| 5番人気の勝率 | 7.7% | 7.8% |
+| 1番人気の勝率・〜8頭 | 35.2% | 36.1% |
+| 1番人気の勝率・9〜12頭 | 28.7% | 29.0% |
+| 1番人気の勝率・13頭以上 | 23.0% | 24.0% |
+| 新馬戦だけの1番人気の勝率 | 15.6%（n=180） | 13.1%（n=176） |
+
+目標は実データの1番人気の勝率32.3%（`data-src/ahonoora/`1972〜1980の重賞899本）。
+直した後も30%未満（29.8%）——目標との差は縮まっていない。⚠️重みは変えていない
+（依頼どおり。原因はおそらく厩舎という材料自体の的中力の低さで、重みの配分だけでは
+埋まらない可能性がある）。
+⭐**着順は直す前と完全に一致**（86,311走の`{week, horseId, raceName, position, fieldSize}`を
+突き合わせてdiff差分0件。計測に使ったスクリプトはリポジトリの外・スクラッチパッドに置いた）。
+
+## 年末の2枚の画面（第13弾・`devlog/wave13.md`§11）
+流れ：年の最後の週の「この週を進める」→週の結果画面→「次の週へ」→**①年末のまとめ**（`YearEndSummaryScreen`）→「次へ」→
+**②引退した馬**（`RetiredHorsesScreen`・`yearEnd.retired`が1頭以上の年だけ。0頭の年は①のボタンが「◯◯年へ」）→「◯◯年へ」→1月の最初の週。
+- 出し分けは`screens/WeekScreen.jsx`の`yearEnd`（`advanceWeek`の戻り値）と`yearEndStep`（`null`／`"summary"`／`"retired"`）。`app.jsx`は変えていない。
+- 画面は計算しない。文字列（万円・億の表記、部門の短い名前、順位、「対象外」、札の行）は`view/yearEndView.js`の純関数。
+- ⚠️セーブは「この週を進める」の直後（年が替わった後の状態）に書く。年末の画面の途中で閉じて「つづきから」を押すと1月の最初の週から始まり、
+  年末の2枚は出ない（週の結果画面と同じ扱い）。データは`roster.lastYearEnd`に残っているが、見直す入口はまだ無い。
+- 動き：①は年度代表馬→部門の行、②は札が上から順に現れる（`styles/motion.css`の`--m-list-*`＝t-stagger-seq。番付と同じ値）。
+
