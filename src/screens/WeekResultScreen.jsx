@@ -15,6 +15,7 @@ import { raceNumberLabel } from "../view/raceNumberView.js";
 import { sexAgeLabel, bodyWeightText, groupRidesByDay } from "../view/horseRowView.js";
 import { GENDER_LABEL } from "../domain/horse.js";
 import { COAT_LABEL } from "../data/coat.js";
+import { MAIN_MOUNT_RIDES_REQUIRED } from "../domain/mainMount.js";
 import "./WeekResultScreen.css";
 
 const yen = (n) => `${n.toLocaleString("ja-JP")}円`;
@@ -23,15 +24,16 @@ const signedYen = (n) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toLocaleString("j
 const TRUST_WORDS = {
   bigUp: "大きく上がりました",
   up: "少し上がりました",
-  down: "下がりました",
+  down: "少し下がりました",
   bigDown: "大きく下がりました",
 };
 
+// 主戦の段は数で出す（2026-11-28のユーザー決定・`devlog/wave15.md`§4の2B）：「騎乗 1／5　勝ち 0／1」。
+// 条件は`domain/mainMount.js`（合わせて5回乗る・その間に1回勝つ）。5回を超えて乗っても「5／5」で止める。
 function mainMountText(m) {
   if (m.status === "became") return "主戦になりました";
-  if (!m.needsWin) return `あと${m.ridesLeft}回乗れば主戦`;
-  if (m.ridesLeft === 0) return "1勝すれば主戦";
-  return `あと${m.ridesLeft}回乗って、1勝すれば主戦`;
+  const rides = MAIN_MOUNT_RIDES_REQUIRED - m.ridesLeft;
+  return `騎乗 ${rides}／${MAIN_MOUNT_RIDES_REQUIRED}　勝ち ${m.needsWin ? 0 : 1}／1`;
 }
 
 /**

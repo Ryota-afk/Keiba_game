@@ -561,7 +561,7 @@ export function WeekScreen({ saveSeed, startYear, initialRoster, initialPlayer, 
                       <span className="wk-r__l2">
                         <span>
                           {isMain && <span className="wk-r__main">主戦</span>}
-                          <span>{isPicked ? "乗ります" : horse ? recordLabel(horse) : ""}</span>
+                          <span>{horse ? recordLabel(horse) : ""}</span>
                           <span>{horse ? STRATEGY_LABELS[deriveFavoredStrategy(horse)] : ""}</span>
                           <span>
                             {head.surfaceColumnLabel}
