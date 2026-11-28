@@ -64,4 +64,4 @@ export function stableConfirmedLine(trainerFamilyName) {
   return `${trainerFamilyName}厩舎に所属が決まりました`;
 }
 
-export const STABLE_OFFER_HEADING = "声をかけてきた厩舎";
+export const STABLE_OFFER_HEADING = "声をかけてくれた厩舎";

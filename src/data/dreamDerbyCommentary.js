@@ -1,5 +1,5 @@
 // 夢のダービー：実況文の全コーパス。
-// ⚠️文言は変えない（CLAUDE.md §7）。2026-09-07（devlog/wave04.md §32）に、状況を見ず
+// ⚠️2026-11-28に句読点と口調を直した（devlog/wave15.md §6）。それ以外は文言を変えない（CLAUDE.md §7）。2026-09-07（devlog/wave04.md §32）に、状況を見ず
 // 無作為に引いていた形から、行ごとに「いつ出してよいか」の条件（`when`）を持つ形へ書き直した。
 // 各行は{ text, when? }。`when`が無ければ常に候補（条件なし）。`when(vars)`は
 // `view/dreamDerbyCommentary.js`の`commentaryVars`が返すオブジェクトだけを見て真偽を返す、
@@ -221,7 +221,7 @@ export const COMMENTARY = {
       { text: "{self}が馬群の外へ出た。" },
     ],
     holdInside: [
-      { text: "{self}は{selfRank}番手で待つ。" },
+      { text: "{self}はまだ仕掛けない。" },
       { text: "{self}は内で我慢。{selfRank}番手のまま。" },
       { text: "{self}は脚を溜めているか。" },
       { text: "{self}の前が開くかどうか。" },

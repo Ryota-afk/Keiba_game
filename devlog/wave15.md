@@ -38,3 +38,15 @@
 ## 7. 内外をレースの計算に入れる（2026-11-28・ユーザー決定）
 ユーザーの問い：「内の概念を実装するつもりはないの？馬群形成とか風による消耗とかに若干繋がるけど」。今のsimは馬の位置を「先頭から何m後ろか」の1次元だけで持ち、風は位置係数（`stamina.js`：先頭との差30m以内で最大18%増）だけ、判断カードは積極性の強さを動かすだけ（`raceSim.js`の`moves`）。
 ⭐**決定：本筋に入れて次にやる**（TODO.md 本筋7.5）。内＝コーナーの距離が短い・前の馬が風よけ／前が詰まる危険、外＝確実に追える／距離が長い・風を受ける。棚上げ#44・#159を統合。文言の直しを入れ終えた次に、設計の案を出してから着手する。
+
+## 6. 句読点と口調の直しを入れた（Fableサブエージェント・2026-11-28）
+`design/mocks/wording-v2.html`の107件を、ユーザーの「次」を受けてゲームへ入れた。104件は一覧どおり、3件は本体の指示で差し替えた。
+**変えたファイル（13・107件）**：`data/dreamDerbyCommentary.js`（実況68＋目覚め3）／`data/graduationText.js`（12）／`data/judgmentSituations.js`（4）／`screens/dreamDerbyEngine.js`（4）／`screens/DreamDerbyScreen.jsx`（2）／`screens/WeekScreen.jsx`（4）／`view/weekOffersView.js`（4）／`screens/WeekResultScreen.jsx`・`view/horseRowView.js`・`screens/HorseDetail.jsx`・`view/jockeyProfileView.js`・`screens/Banzuke.jsx`・`screens/TitleScreen.jsx`（各1）。ほかに`dreamDerbyCommentary.js`冒頭のコメント（「文言は変えない」に今回の日付を足した）と`WeekResultScreen.css`のコメント1行。
+**3件の差し替え**（「内で待つ」を選んだ直後の実況。レースが内外の位置を持たない（#159）ので「内」と言わない）：
+- 「{self}、動かない。」→「{self}はまだ仕掛けない。」
+- 「内にいる{self}。脚を溜めているか。」→「{self}は脚を溜めているか。」
+- 「{self}、じっとしている。前が開くか。」→「{self}の前が開くかどうか。」
+⚠️1件目は初め「{self}は{selfRank}番手で待つ。」にした（`{selfRank}`は同じ枠の「{self}は内で我慢。{selfRank}番手のまま。」で使われており使える）が、画面で見ると同じ時刻に出る次の行「10番手の{self}。どこから動いていくか。」と順位が2行続いたので、順位を言わない形に変えた。
+**測り直し**（`/tmp/claude-0/-home-user/8710e87f-1c8d-5dd1-beac-9ef7f5207b91/scratchpad/wording3/measure.py`＝一覧と同じ測り方・608行）：読点45（一覧45）／10字以下の語句に読点がある行1（同1）／「〜だ」「〜ん」で言い切るセリフ0（同0）／実況の文末の「。」180（同180）／実況以外で「。」で終わる行0（同0）／15字以下で「。」で終わる行55（一覧53）。⚠️55と53の差は差し替えの2件——「内で」の2字が抜けて15字以下に入った（「{self}は脚を溜めているか。」「{self}の前が開くかどうか。」。馬名は6字として数える測り方）。実況の12字以下は20行（一覧21。「{self}は内のまま。」が無くなった分）。
+**確認**：テスト74本・ビルド通過。文言を見ているテストは無かった。ビルド版をiPhone 13で、タイトル→夢のダービー→目覚め→卒業式→週の画面→16週ぶんを通してJSエラー0件。絵を見た：`/tmp/claude-0/-home-user/8710e87f-1c8d-5dd1-beac-9ef7f5207b91/scratchpad/wording3/1-dream-intro.png`（始まる前）・`2b-card0-after.png`（「内で待つ」の直後＝「ゼファーシロッコはまだ仕掛けない。」）・`2b-card1-after.png`・`3-wake.png`・`4-grad00〜07.png`・`6-week-note0.png`（知らせ「疲労がたまって落馬しやすくなっています」）・`6-week-empty.png`（「日曜は東京へ行くので小倉の依頼には乗れません」）・`7-result0.png`。通しの記録は同じ場所の`flow.log`・`flow2.log`。
+**残っている「内」**（今回は触っていない・#159と同じ根）：実況「{self}は内で我慢。{selfRank}番手のまま。」「{self}は{selfRank}番手の内。落ち着いてレースを進めています。」と、直線の「内を突く」系の行。

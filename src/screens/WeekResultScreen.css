@@ -151,7 +151,7 @@
   font-size: var(--fs-body);
   color: var(--muted);
 }
-/* 曜日の見出しの下に出す「日曜は乗りませんでした。」 */
+/* 曜日の見出しの下に出す「日曜は乗りませんでした」 */
 .wr-empty.is-day {
   padding: var(--s1) var(--s2) var(--s2);
 }
