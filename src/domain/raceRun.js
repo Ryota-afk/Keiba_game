@@ -54,7 +54,10 @@ export function runFieldRace({
   const fallen = [];
   const runners = [];
   // ⭐馬番は抽選（`domain/postDraw.js`）。計画の段階で引いてあれば並びは変わらない（同じ関数・同じキー）。
-  for (const h of drawPostOrder(saveSeed, raceKey, field)) {
+  // ⭐走らない馬（落馬）の馬番は欠番のまま残す（JRAどおり・`devlog/wave16.md`§5）。ゲートの位置が馬番から決まるため。
+  const postNumById = new Map();
+  for (const [k, h] of drawPostOrder(saveSeed, raceKey, field).entries()) {
+    postNumById.set(h.id, k + 1);
     const fall = checkFall(saveSeed, week, h.id, h.abilities.health, riders.get(h.id)?.fatigue ?? 0);
     if (fall.fell) fallen.push({ h, fall });
     else runners.push(h);
@@ -68,10 +71,10 @@ export function runFieldRace({
   const popularityByHorseId = computePopularity(saveSeed, week, popularityKey, runners, horseById, stableStrengthById, jockeyOf);
   // ⭐調子と当日の馬体重（`domain/horseForm.js`）：倍率をsimの入口で渡し、体重を戦績に残す。
   const dayById = raceDayFormsFor(runners, saveSeed, week, year);
-  const entries = runners.map((h, i) => {
+  const entries = runners.map((h) => {
     const rider = riders.get(h.id);
     return {
-      num: i + 1,
+      num: postNumById.get(h.id),
       horse: h,
       isSelf: !!rider,
       jockey: jockeyOf(h),
@@ -89,6 +92,8 @@ export function runFieldRace({
     raceKey,
     distance: race.distance,
     surface: race.surface,
+    // ⭐コースの形（コーナーの区間と幅員。`data/raceCourseShapes.js`）。
+    courseId: race.courseId,
     condition,
     entries,
     plan,

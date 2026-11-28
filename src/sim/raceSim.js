@@ -16,6 +16,7 @@ import { streamRandom, RNG_STREAMS } from "../core/rng.js";
 import { parSecondsFor } from "../data/parTimes.js";
 import { surfaceFactorFor } from "../data/surfaceAptitude.js";
 import { mudFactorFor } from "../data/mudAptitude.js";
+import { courseShapeFor, genericCourseShape } from "../data/raceCourseShapes.js";
 import { decideRaceTrend, paceMultiplierAt, trendAdaptationOf, DERBY_TREND_BASE } from "./pace.js";
 import {
   normalizedAbilities,
@@ -115,7 +116,9 @@ export const FIELD_FACTOR_MAX = 1.05;
  * `現在値 ÷ ずれ率`に置き換える）。 */
 const SIM_START_OVERHEAD_SECONDS = 1.8;
 // ⚠️2026-11-27に0.961→1.0（直線の作り直しで勝ちタイムが狙いより約4%速くなったため。`devlog/wave13b.md`§26）。
-const SIM_SPEED_EFFICIENCY = 1.0;
+// ⚠️2026-11-28に1.0→0.997（内外を入れて外を回る距離と詰まりのぶん勝ちタイムが平均0.31%遅くなったため。
+// JRAのコースの形で300本ずつ・距離ごとに0.16〜0.50%。`devlog/wave16.md`§6）。
+const SIM_SPEED_EFFICIENCY = 0.997;
 
 const DASH_SECONDS = 3.6; // 発走の加速区間（一番遅い馬が走行速度に届くまで）
 const STRETCH_METERS = 600; // 最終直線として扱う残り距離
@@ -216,6 +219,52 @@ const STRETCH_GASSED_SLOPE = 0.55;
 const STRETCH_HOLD_GAP = 0.02;
 /** 追い出している間の脚の減り（`1 + この値 × 追い出しの強さ`倍）。 */
 const KICK_DRAIN = 0.5;
+
+// ===== 内外（横の位置）＝`devlog/wave16.md`§1-1・§1-2・§6 =====
+// ⭐各馬は`x`（内ラチからの横の距離m）を持ち、縦の`d`は「内ラチ沿いを走ったときの距離」。
+// コーナーでは`d += v·dt/(1+κ·x)`（κ＝角度÷区間の長さ）＝外を回るほど同じ脚で進む距離が減る（幾何どおり・Q1）。
+// ⚠️**規則は全馬同じ**（プレイヤーの馬だけの仕組みは無い。CLAUDE.md §1）。
+/** 1頭分の横幅(m)。⚠️仮（2026-11-28のユーザー決定Q2。出典に数字なし）。ゲートの位置＝(馬番−1)×この値。 */
+export const LANE_WIDTH = 1.1;
+/** 1馬身(m)。`data/raceMargins.js`の「1」と同じ。縦に重なる範囲＝鼻先の差がこれ未満。 */
+const HORSE_LENGTH = 2.4;
+/** 「前の馬」とみなす鼻先の差の上限（同じ筋で0〜これだけ前）。設計§1-1（1馬身＋0.5m）。仮。 */
+const BLOCK_LOOK = HORSE_LENGTH + 0.5;
+/** 詰まった馬の速さの上限＝前の馬の速さ＋これ(m/s)。設計§1-2のC。仮。 */
+const BLOCK_SPEED_MARGIN = 0.05;
+/** 横に動く速さ(m/s)＝下限＋幅×賢さ。仮（根拠なし）。 */
+const LATERAL_SPEED_MIN = 0.6;
+const LATERAL_SPEED_SPAN = 0.8;
+/** 前が詰まってから外（直線なら内も）へ出すまで我慢する秒数。脚質ごと（仮）。
+ * 騎手の度胸で`0.6 + 0.8 × 度胸`倍（度胸のある騎手ほど内で待つ。仮）、馬ごとに0.75〜1.25倍の揺れ。 */
+const PATIENCE_BY_STRATEGY = Object.freeze({ nige: 1.0, senko: 2.0, sashi: 2.5, oikomi: 1.5 });
+/** 我慢の秒数を超えたあと、1ステップ（0.25秒）ごとに進路を探す確率（平均0.5秒で探す）。仮。 */
+const LANE_TRY_PROB = 0.5;
+/** 最後の直線より前の直線で、1ステップごとに内の空いた筋へ寄ろうとする確率（平均1秒に1回）。仮。 */
+const DRIFT_IN_PROB = 0.25;
+/** 内へ寄るときに、寄った先の筋の前に空いていてほしい距離(m)。仮。 */
+const MERGE_AHEAD_CLEAR = 4;
+/** 筋を変えるときに、変えた先の筋の後ろに空いていてほしい距離(m)＝2馬身。
+ * ⭐JRA施行規程第112条「2馬身以上の距離がないのに後続馬の進路に入らない」（`design/jra-courses.md`§6-1）。 */
+const MERGE_BEHIND_CLEAR = 2 * HORSE_LENGTH;
+/** 最後の直線より前の直線で内へ寄るときに、寄った先の後ろに空いていてほしい距離(m)＝鼻先の差で1馬身＋0.5m。
+ * ⚠️2馬身（上）にすると、発走直後に横に並んだ外枠の馬が内の馬の前へ出られず、1コーナーまで外に残った
+ * （13番より外の馬がコーナーで余分に走った距離の中央値29m・実測）。仮。 */
+const DRIFT_BEHIND_CLEAR = HORSE_LENGTH;
+/** 「外へ出す位置」（設計§1-4）：差し・追込は4コーナー（最後の直線の手前この距離）から直線の入口のあたりで、
+ * 同じ筋の前`SWING_LOOK`m以内に馬がいれば、空いた外の筋へ持ち出す。仮。 */
+const SWING_OUT_STRATEGIES = Object.freeze({ sashi: true, oikomi: true });
+const SWING_ZONE_BEFORE = 150;
+const SWING_ZONE_AFTER = 50;
+const SWING_LOOK = 10;
+/** 直線で脚が直線入口の中央値×この値を切った馬は外へ流れる。`STRETCH_GASSED_FRAC`と同じ値（仮）。 */
+const FADE_DRIFT_FRAC = 0.7;
+/** 外へ流れる速さ(m/s)。仮。 */
+const FADE_DRIFT_SPEED = 0.2;
+/** 追突の歯止めのために、前の馬を「前の馬」の距離よりこれだけ遠くまで見る(m)。 */
+const FRONT_LOOK_EXTRA = 3;
+/** 横の重なりの判定の遊び（浮動小数の誤差でゲートの隣どうしが重なりと判定されないように）。 */
+const LANE_EPS = 1e-6;
 
 /** その距離の直線の水準（`STRETCH_KICK_BY_DISTANCE`を線形につなぐ）。 */
 export function stretchKickLevelAt(distance) {
@@ -518,12 +567,109 @@ export function runRaceSim(input) {
   stretchPace *= kickLevel;
   const abilityRef = traits.reduce((sum, tr) => sum + stretchAbilityOf(tr.ab), 0) / Math.max(1, n);
 
+  // ===== 内外（横の位置）の準備（`devlog/wave16.md`§6） =====
+  // ⭐コースの形は呼び出し側が`course`で渡すか、`courseId`から引く。どちらも無ければ一般形（仮）。
+  const course =
+    input.course ??
+    (input.courseId ? courseShapeFor(input.courseId, surface, distance) : genericCourseShape(distance));
+  const corners = course.corners;
+  const nCorner = corners.length;
+  const cornerKappa = corners.map((c) => c.angle / Math.max(1e-9, c.to - c.from));
+  // 外へ出られる上限＝幅員の狭いほう − 1頭分（外ラチに接しない）。
+  const xMax = Math.max(LANE_WIDTH, course.width.min - LANE_WIDTH);
+  const finalStraightFrom = distance - course.finalStraight;
+  // ⭐ゲートの位置は馬番から（走らない馬の馬番は欠番のまま＝その枠は空く。`devlog/wave16.md`§5）。
+  // ⚠️幅員に収まらない多頭数（昔の20頭を超えるレース）だけ、ゲートの間隔を詰める。
+  const maxNum = entries.reduce((m, e) => Math.max(m, e.num), 1);
+  const gateSpacing = maxNum > 1 ? Math.min(LANE_WIDTH, xMax / (maxNum - 1)) : LANE_WIDTH;
+  const x = new Float64Array(n);
+  const xTarget = new Float64Array(n);
+  const blockedNow = new Float64Array(n); // 今、続けて詰まっている秒数（我慢の判定に使う）
+  const blockedTotal = new Float64Array(n); // 詰まっていた秒数の合計（積分の中の秒）
+  const blockedStretch = new Float64Array(n); // そのうち直線（残り600m〜）
+  const extraMeters = new Float64Array(n); // コーナーで外を回って余分に走った距離(m)
+  const lateral = new Float32Array(n * steps);
+  const cornerPtr = new Int32Array(n);
+  const aheadOf = new Int32Array(n).fill(-1);
+  const swungOut = new Uint8Array(n); // 「外へ出す位置」で持ち出したか（1回だけ）
+  const dOld = new Float64Array(n);
+  const vOld = new Float64Array(n);
+  const ord = Array.from({ length: n }, (_, i) => i); // dの大きい順（毎ステップ挿入ソートで並べ直す）
+  const rankOf = new Int32Array(n);
+  const laneTraits = entries.map((e, i) => {
+    const laneRand = streamRandom(seed, RNG_STREAMS.SIM, raceKey, "lane", e.num);
+    const courage = typeof e.jockey?.courage === "number" ? 0.6 + 0.8 * clamp(e.jockey.courage / 100, 0, 1) : 1;
+    return {
+      laneRand,
+      latSpeed: LATERAL_SPEED_MIN + LATERAL_SPEED_SPAN * traits[i].ab.wisdom,
+      patience: (PATIENCE_BY_STRATEGY[traits[i].strategy] ?? 2) * courage * (0.75 + 0.5 * laneRand()),
+      swingOut: !!SWING_OUT_STRATEGIES[traits[i].strategy],
+    };
+  });
+  for (let i = 0; i < n; i += 1) {
+    x[i] = Math.min(xMax, (entries[i].num - 1) * gateSpacing);
+    xTarget[i] = x[i];
+  }
+  /** その馬の今の位置のコーナーの曲がり具合（κ＝角度÷区間の長さ。直線は0）。dは減らないので区間を前へ送るだけ。 */
+  function kappaAt(i, di) {
+    let p = cornerPtr[i];
+    while (p < nCorner && corners[p].to <= di) p += 1;
+    cornerPtr[i] = p;
+    return p < nCorner && di >= corners[p].from ? cornerKappa[p] : 0;
+  }
+  function sortOrd() {
+    for (let a = 1; a < n; a += 1) {
+      const k = ord[a];
+      const dk = d[k];
+      let b = a - 1;
+      while (b >= 0 && d[ord[b]] < dk) {
+        ord[b + 1] = ord[b];
+        b -= 1;
+      }
+      ord[b + 1] = k;
+    }
+    for (let r = 0; r < n; r += 1) rankOf[ord[r]] = r;
+  }
+  /** 横の位置`xNew`の筋が、前`aheadClear`m・後ろ`behindClear`mのあいだ空いているか。 */
+  function laneFree(i, xNew, aheadClear, behindClear) {
+    const r = rankOf[i];
+    for (let q = r - 1; q >= 0; q -= 1) {
+      const k = ord[q];
+      if (d[k] - d[i] >= aheadClear) break;
+      if (Math.abs(x[k] - xNew) < LANE_WIDTH - LANE_EPS) return false;
+    }
+    for (let q = r + 1; q < n; q += 1) {
+      const k = ord[q];
+      if (d[i] - d[k] >= behindClear) break;
+      if (Math.abs(x[k] - xNew) < LANE_WIDTH - LANE_EPS) return false;
+    }
+    return true;
+  }
+  /** `xNew`へ動くと、縦に重なっている馬（鼻先の差が1馬身未満）に横から近づきすぎるか。 */
+  function movesIntoOverlap(i, xNew) {
+    const r = rankOf[i];
+    for (let q = r - 1; q >= 0; q -= 1) {
+      const k = ord[q];
+      if (d[k] - d[i] >= HORSE_LENGTH) break;
+      const gap = Math.abs(x[k] - xNew);
+      if (gap < LANE_WIDTH - LANE_EPS && gap < Math.abs(x[k] - x[i])) return true;
+    }
+    for (let q = r + 1; q < n; q += 1) {
+      const k = ord[q];
+      if (d[i] - d[k] >= HORSE_LENGTH) break;
+      const gap = Math.abs(x[k] - xNew);
+      if (gap < LANE_WIDTH - LANE_EPS && gap < Math.abs(x[k] - x[i])) return true;
+    }
+    return false;
+  }
+
   for (let s = 0; s < steps; s += 1) {
     const t = s * dtRaw;
     let leaderD = -Infinity;
     let allFinished = true;
     for (let i = 0; i < n; i += 1) {
       dist[i * steps + s] = d[i];
+      lateral[i * steps + s] = x[i];
       if (d[i] > leaderD) leaderD = d[i];
       if (finishTime[i] == null) allFinished = false;
     }
@@ -536,7 +682,10 @@ export function runRaceSim(input) {
     if (leaderD >= distance + 60 && allFinished) {
       lastStep = s;
       for (let k = s + 1; k < steps; k += 1) {
-        for (let i = 0; i < n; i += 1) dist[i * steps + k] = dist[i * steps + s];
+        for (let i = 0; i < n; i += 1) {
+          dist[i * steps + k] = dist[i * steps + s];
+          lateral[i * steps + k] = lateral[i * steps + s];
+        }
       }
       break;
     }
@@ -547,17 +696,45 @@ export function runRaceSim(input) {
     // 直線に入るときの巡航の速さ＝直線入口の共通ペース（追い出す前はこの速さで運ぶ）。
     const vCruise = vPar * paceMultiplierAt(trend, uStretch);
 
+    // ⭐縦の更新は前の馬から順に行う（前の馬の新しい位置を見て、後ろの馬が追突しないようにする）。
+    // 「前の馬」の判定はこのステップの頭の位置（dOld・vOld）で行う。
+    sortOrd();
     for (let i = 0; i < n; i += 1) {
+      dOld[i] = d[i];
+      vOld[i] = v[i];
+    }
+    for (let r = 0; r < n; r += 1) {
+      const i = ord[r];
       const tr = traits[i];
       const isSelf = i === selfIndex;
       // ⚠️位相に関わらず毎ステップ必ず引く（乱数の消費順を固定してフォークを一致させる）。
       wanderNow[i] =
         WANDER_KEEP * wanderNow[i] +
         WANDER_KICK * (tr.wanderRand() + tr.wanderRand() + tr.wanderRand() - 1.5);
+      // 同じ筋（横の差が1頭分未満）で鼻先が前にいる一番近い馬（`front`）。0〜BLOCK_LOOK前なら「前の馬」（`ahead`）。
+      // ⚠️`front`は追突の歯止め用に少し遠くまで見る（直線で垂れた馬に1ステップで0.5m以上詰め寄ることがある）。
+      // ⚠️追突の歯止めは、見える範囲の同じ筋の馬**全部**に対して取る（一番近い1頭だけだと、そのステップの中で
+      // 前の2頭の縦の順が入れ替わったときに奥の馬と重なる）。`d[k]`は前の馬なので既にこのステップの値。
+      // ⚠️比較は1cmの遊びを持たせる（歯止めで縮めた組は、次のステップで差がちょうど1馬身−誤差になり、
+      // 遊びが無いと「もともと重なっている組（ゲート直後の多頭数）」と見なされて歯止めが外れる）。
+      let front = -1;
+      let dLimit = Infinity;
+      for (let q = r - 1; q >= 0; q -= 1) {
+        const k = ord[q];
+        const dd = dOld[k] - dOld[i];
+        if (dd > BLOCK_LOOK + FRONT_LOOK_EXTRA) break;
+        if (dd > 0 && Math.abs(x[k] - x[i]) < LANE_WIDTH - LANE_EPS) {
+          if (front < 0) front = k;
+          if (dd >= HORSE_LENGTH - 0.01) dLimit = Math.min(dLimit, d[k] - HORSE_LENGTH);
+        }
+      }
+      const ahead = front >= 0 && dOld[front] - dOld[i] <= BLOCK_LOOK ? front : -1;
+      aheadOf[i] = ahead;
       let effortMul = 1;
       let vWant;
+      const inStretch = d[i] >= dStretch;
 
-      if (d[i] >= dStretch) {
+      if (inStretch) {
         if (stretchEnterT[i] == null) {
           stretchEnterT[i] = t;
           energyAtStretch[i] = energy[i];
@@ -639,15 +816,43 @@ export function runRaceSim(input) {
       if (t >= DASH_SECONDS && d[i] < dStretch) {
         vWant = Math.min(vWant, vField * (0.94 + 0.19 * clamp(energy[i] / 0.3, 0, 1)));
       }
+      // ⭐詰まり（設計§1-2のC）：前の馬より速く走りたくても、前の馬＋0.05m/sで頭打ち。
+      // 詰まっている間は追い出しの強さ0・脚の減りも追わないときの値＝損は脚ではなく時間。
+      let blocked = false;
+      if (ahead >= 0) {
+        const cap = vOld[ahead] + BLOCK_SPEED_MARGIN;
+        if (vWant > cap) {
+          vWant = cap;
+          blocked = true;
+          if (inStretch) effortMul = 1;
+        }
+      }
+      if (blocked) {
+        blockedNow[i] += dtRaw;
+        blockedTotal[i] += dtRaw;
+        if (inStretch) blockedStretch[i] += dtRaw;
+      } else {
+        blockedNow[i] = 0;
+      }
       const accelLimit = t < DASH_SECONDS ? START_ACCEL_LIMIT : ACCEL_LIMIT;
       const dv = clamp(vWant - v[i], -DECEL_LIMIT * dtRaw, accelLimit * dtRaw);
       v[i] += dv;
       if (v[i] < 0) v[i] = 0;
 
       const prevD = d[i];
-      d[i] += v[i] * dtRaw;
+      // ⭐外を回る損（設計§1-2のA・Q1＝幾何どおり）：コーナーでは内ラチ沿いの距離が`1/(1+κ·x)`しか進まない。
+      const kap = kappaAt(i, prevD);
+      const adv = (v[i] * dtRaw) / (1 + kap * x[i]);
+      let nextD = prevD + adv;
+      extraMeters[i] += adv * kap * x[i];
+      // 同じ筋の前の馬に追突しない（鼻先の差を1馬身より縮めない）。もともと重なっている組は除く。
+      if (nextD > dLimit) {
+        nextD = Math.max(prevD, dLimit);
+        v[i] = ((nextD - prevD) * (1 + kap * x[i])) / dtRaw;
+      }
+      d[i] = nextD;
       if (finishTime[i] == null && d[i] >= distance) {
-        const frac = v[i] > 0 ? (distance - prevD) / (v[i] * dtRaw) : 0;
+        const frac = nextD > prevD ? (distance - prevD) / (nextD - prevD) : 0;
         finishTime[i] = t + clamp(frac, 0, 1) * dtRaw;
       }
 
@@ -655,12 +860,89 @@ export function runRaceSim(input) {
         paceRatio: v[i] / vPar,
         // 適正距離を下回るレースで下がったぶんは、風よけの得として打ち消す
         // （そのままだと下がったことで脚が温存され、不利が21%目減りする。`devlog/wave04.md`§40-2）。
+        // ⚠️風よけはまだ先頭との縦の差だけで決まる（横の位置を見るのは段2）。
         positionFactor: positionFactor(leaderD - prevD - lagNow[i]),
         weightFactor: tr.weight,
         capacity: tr.capacity,
         effortMultiplier: effortMul,
       }) * dtRaw;
       if (energy[i] < 0) energy[i] = 0;
+    }
+
+    // ===== 横の更新（全馬の縦が動いた後の位置で判定する） =====
+    // ⭐規則（設計§1-1・§1-4）：我慢できる秒数を超えて詰まったら空いた筋へ（直線なら内も・コーナー中は外だけ）／
+    // 最後の直線で脚が尽きた馬は外へ流れる／差し・追込は4コーナーで前に馬がいれば外へ持ち出す（外へ出す位置）／
+    // 最後の直線より前の直線で空いていれば内へ寄る／縦に重なっている馬に横から近づかない。
+    sortOrd();
+    for (let r = 0; r < n; r += 1) {
+      const i = ord[r];
+      const lt = laneTraits[i];
+      // ⚠️毎ステップ必ず1つ引く（使わなくても）。消費の数を固定してフォーク前を一致させる。
+      const u = lt.laneRand();
+      const inCorner = kappaAt(i, d[i]) > 0;
+      let tgt = xTarget[i];
+      const fading =
+        !inCorner && d[i] >= finalStraightFrom && energyRef != null && energy[i] < FADE_DRIFT_FRAC * energyRef;
+      // ⚠️詰まった馬の進路探しは、脚が尽きて外へ流れる動きより先に判定する（逆にすると、垂れた馬の後ろで
+      // 詰まった馬が自分も垂れていると前の馬と一緒に外へ流れるだけになり、直線でずっと詰まったままになる。実測）。
+      if (blockedNow[i] > lt.patience && u < LANE_TRY_PROB) {
+        const a = aheadOf[i];
+        let found = -1;
+        if (!inCorner && a >= 0) {
+          const xin = x[a] - LANE_WIDTH;
+          if (xin >= 0 && laneFree(i, xin, BLOCK_LOOK, MERGE_BEHIND_CLEAR)) found = xin;
+        }
+        const base = a >= 0 ? x[a] : x[i];
+        for (let k = 1; found < 0 && k <= 3; k += 1) {
+          const xo = base + LANE_WIDTH * k;
+          if (xo > xMax) break;
+          if (laneFree(i, xo, BLOCK_LOOK, MERGE_BEHIND_CLEAR)) found = xo;
+        }
+        if (found >= 0) tgt = found;
+        else if (fading) tgt = Math.max(tgt, x[i]) + FADE_DRIFT_SPEED * dtRaw;
+      } else if (fading) {
+        tgt = Math.max(tgt, x[i]) + FADE_DRIFT_SPEED * dtRaw;
+      } else if (
+        lt.swingOut &&
+        !swungOut[i] &&
+        d[i] >= finalStraightFrom - SWING_ZONE_BEFORE &&
+        d[i] <= finalStraightFrom + SWING_ZONE_AFTER &&
+        u < LANE_TRY_PROB &&
+        !laneFree(i, x[i], SWING_LOOK, 0)
+      ) {
+        // 外へ出す位置：前に馬がいる差し・追込は、4コーナーから直線の入口で外の空いた筋へ持ち出す（1回だけ）。
+        for (let k = 1; k <= 4; k += 1) {
+          const xo = x[i] + LANE_WIDTH * k;
+          if (xo > xMax) break;
+          if (laneFree(i, xo, SWING_LOOK, MERGE_BEHIND_CLEAR)) {
+            tgt = xo;
+            swungOut[i] = 1;
+            break;
+          }
+        }
+      } else if (
+        !inCorner &&
+        d[i] < finalStraightFrom &&
+        blockedNow[i] === 0 &&
+        x[i] > LANE_EPS &&
+        Math.abs(tgt - x[i]) < LANE_EPS &&
+        u > 1 - DRIFT_IN_PROB
+      ) {
+        // 最後の直線より前の直線（発走直後・向正面）では、空いていれば内へ寄る。空いている一番内の筋まで一度に狙う。
+        // ⚠️最後の直線では寄らない（追い比べの最中に内へ切れ込む動きは、詰まったときの「内を突く」だけ）。
+        for (let xin = Math.max(0, x[i] - LANE_WIDTH); ; xin = Math.max(0, xin - LANE_WIDTH)) {
+          if (!laneFree(i, xin, MERGE_AHEAD_CLEAR, DRIFT_BEHIND_CLEAR)) break;
+          tgt = xin;
+          if (xin === 0) break;
+        }
+      }
+      xTarget[i] = clamp(tgt, 0, xMax);
+      const maxStep = lt.latSpeed * dtRaw;
+      const stepX = clamp(xTarget[i] - x[i], -maxStep, maxStep);
+      if (stepX !== 0) {
+        const xn = x[i] + stepX;
+        if (!movesIntoOverlap(i, xn)) x[i] = xn;
+      }
     }
     dRef += vField * dtRaw;
   }
@@ -703,6 +985,16 @@ export function runRaceSim(input) {
     const i = indexByNum.get(num);
     if (i == null) return 0;
     return distanceAtStepTime(i, t);
+  }
+  /** ⭐その馬のその時刻(秒・画面の時計)の横の位置（内ラチからのm）。段3（判断カード）・段4（描画）が読む。 */
+  function lateralOf(num, t) {
+    const i = indexByNum.get(num);
+    if (i == null) return 0;
+    const xx = clamp(t / dt, 0, lastStep);
+    const s0 = Math.floor(xx);
+    const s1 = Math.min(lastStep, s0 + 1);
+    const f = xx - s0;
+    return lateral[i * steps + s0] * (1 - f) + lateral[i * steps + s1] * f;
   }
   /** その馬がその距離を通過した時刻(秒)。届かなければnull。 */
   function timeAtDistanceOf(num, target) {
@@ -751,6 +1043,12 @@ export function runRaceSim(input) {
     last3F,
     last4F,
     split1000,
+    // ⭐内外（`devlog/wave16.md`§6）。秒は画面の時計（正規化後）。配列は`entries`の並び。
+    lateralOf,
+    blockedSeconds: Array.from(blockedTotal, (x) => x * timeScale),
+    blockedStretchSeconds: Array.from(blockedStretch, (x) => x * timeScale),
+    extraMeters: Array.from(extraMeters),
+    course,
     energyLeft: Array.from(energy),
     energyAtStretch: Array.from(energyAtStretch),
     timeScale,

@@ -64,7 +64,7 @@ test("出走する顔ぶれは抽選の前後で同じ（並びだけが変わ�
   assert.ok(checked > 0);
 });
 
-test("走らせる側の馬番＝出馬表の並び（計画の枠の並び）・馬番は1〜頭数", () => {
+test("走らせる側の馬番＝出馬表の馬番（落馬で走らない馬の馬番は欠番のまま）", () => {
   let seen = 0;
   for (const { week, f } of weeksWithFields(6)) {
     const planned = new Map(f.weeklyFields.map((x) => [x.race.raceId, ids(x.field)]));
@@ -73,7 +73,9 @@ test("走らせる側の馬番＝出馬表の並び（計画の枠の並び）�
     runNpcWeeklyRaces(SEED, week, YEAR, roster.horses, f.gradedRacedHorseIds, undefined, new Map(), f.weeklyFields);
     setRaceObserver(null);
     for (const [raceId, entries] of raw) {
-      assert.deepEqual(entries.map((e) => e.num), entries.map((_, i) => i + 1));
+      // ⭐馬番＝出馬表（計画の並び）での位置＋1。走らない馬の馬番は詰めない（`devlog/wave16.md`§5）。
+      const plannedIds = planned.get(raceId);
+      assert.deepEqual(entries.map((e) => e.num), entries.map((e) => plannedIds.indexOf(e.horse.id) + 1));
       const order = entries.map((e) => e.horse.id);
       // 落馬した馬は走らないので、計画の並びからその馬を除いた順と同じ
       assert.deepEqual(order, planned.get(raceId).filter((id) => order.includes(id)));

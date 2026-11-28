@@ -268,8 +268,14 @@ export function courseShapeFor(courseId, surface, distance) {
     const layout = LAYOUTS[`${courseId}:${surface}:${loop}`] ?? GENERIC_LAYOUT;
     const fact = START_FACTS[key] ?? null;
     let corners = walkCorners(layout, distance);
-    if (fact?.pocket) {
-      // ポケット発走：発走地点に掛かるコーナーの切れ端は走らない。
+    // ⭐発走地点がコーナーの途中に来るときは、引き込み線（ポケット）からの発走とみなし、その切れ端は走らない。
+    // 出典に発走地点の記述がある距離は記述どおり（ポケットと書かれている）。記述の無い距離は仮（"startChute"）。
+    // ⚠️JRAの発走地点はほぼ直線かポケットに置かれている（`design/jra-courses.md`§4。コーナーの途中からの発走と
+    // 書かれているのは中山芝2500mの「外回りの3コーナー付近」と阪神芝2200mの「外回りの4コーナー付近」だけ）。
+    // 1周の形から辿ったコーナーの切れ端を残すと、外枠の馬だけが発走直後に大きく外を回る（中山ダ1200mで
+    // 69度・16番で20m。実測）。
+    const startPartial = corners.some((c) => c.partial);
+    if (fact?.pocket || (startPartial && !fact?.startsInCorner)) {
       corners = corners.filter((c) => !c.partial);
     }
     if (fact?.firstCorner) {
@@ -284,7 +290,12 @@ export function courseShapeFor(courseId, surface, distance) {
       corners: corners.map(({ from, to, angle, corner }) => Object.freeze({ from, to, angle, corner })),
       width: { min: layout.width[0], max: layout.width[1] },
       finalStraight: Math.min(layout.S, distance),
-      provisional: [...(layout.provisional ?? []), ...(guessed ? ["loop"] : []), ...(layout === GENERIC_LAYOUT ? ["generic"] : [])],
+      provisional: [
+        ...(layout.provisional ?? []),
+        ...(guessed ? ["loop"] : []),
+        ...(layout === GENERIC_LAYOUT ? ["generic"] : []),
+        ...(startPartial && !fact ? ["startChute"] : []),
+      ],
       startFact: fact,
     };
   }

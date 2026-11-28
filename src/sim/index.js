@@ -19,6 +19,7 @@ export {
   fieldSpeedFactor,
   NEUTRAL_MID_AGGRESSION,
   NEUTRAL_STRETCH_AGGRESSION,
+  LANE_WIDTH,
 } from "./raceSim.js";
 export {
   TREND_KEYS,

@@ -232,6 +232,8 @@ export function startDreamDerbySim(saveSeed, entries) {
     seed: saveSeed,
     raceKey: DREAM_RACE_KEY,
     distance: TOTAL_DISTANCE,
+    // ⭐東京芝2400m（Aコース）のコーナーと幅員（`data/raceCourseShapes.js`）。
+    courseId: "tokyo",
     entries,
     plan,
     // ⚠️**適性の係数を切っている（一時的）**。史実のダービー馬51頭は芝ダ適性が
