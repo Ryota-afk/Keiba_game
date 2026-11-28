@@ -11,6 +11,9 @@
 // （`devlog/wave09.md`§15）。今は**そのレースを目標か前哨戦にしている馬だけ**が登録される
 // ——`domain/rotation.js`の`planNextTarget`が事前に決めた計画を読むだけで、ここでは
 // 「合う馬を探す」処理そのものが要らなくなった。
+// ⭐⭐**2026-11-28（`devlog/wave14.md`§18・§19）：プレイヤーが乗るレースもここで走らせる。** プレイヤーの
+// 馬も「そのレースを計画で選んだ馬の1頭」として同じ枠に入り、違いは騎手がプレイヤーなことだけ
+// （`riders`。`domain/raceRun.js`）。プレイヤーのレースを世界から外す仕組みは無い。
 // ⚠️**このファイルは一般競走＋オープン特別だけを扱う。** 重賞のNPC出走（史実の実データ・
 // 優先出走権が絡む）は`domain/npcGradedRace.js`が別に行う。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
@@ -21,13 +24,9 @@ import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
 import { appendRaceResult, weeksSinceLastRace } from "./horse.js";
 import { withReclassedClass } from "./horseClass.js";
 import { shutokuForGeneralRace } from "../data/shutokuPrize.js";
-import { runRaceSim, buildPlan } from "../sim/index.js";
-import { deriveFavoredStrategy } from "./strategy.js";
-import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
-import { rollFractureRetirement } from "./retirement.js";
-import { rollActualCondition } from "./weather.js";
-import { computePopularity } from "./popularity.js";
-import { raceDayFormsFor, horseAfterRace, bodyKgFields } from "./horseForm.js";
+import { isSidelined } from "./fall.js";
+import { runFieldRace, applyFall } from "./raceRun.js";
+import { horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 // 登録が集まらない週はレースが成立しない（`FIELD_SIZE_BUCKETS`の最小5頭に合わせる）。
 const MIN_FIELD_SIZE = 5;
@@ -35,7 +34,7 @@ const MIN_FIELD_SIZE = 5;
 /**
  * 計画（`horse.plan`）を読んで、今週の各レースに登録している馬を`raceId`ごとに束ねる。
  * @param {object[]} horses
- * @param {Set<string>} excludeHorseIds - 今週プレイヤーが乗った馬
+ * @param {Set<string>} excludeHorseIds - 今週すでに別のレース（重賞）へ出る馬
  * @returns {Map<string, object[]>}
  */
 function groupByPlannedRace(horses, excludeHorseIds) {
@@ -67,13 +66,10 @@ export function planNpcWeeklyFields(
   week,
   year,
   horses,
-  excludeHorseIds = new Set(),
-  excludeRaceIds = new Set()
+  excludeHorseIds = new Set()
 ) {
   const rand01 = streamRandom(saveSeed, RNG_STREAMS.NPC_RACE, week);
-  const card = buildWeeklyCard(saveSeed, week, year).filter(
-    (race) => race.source !== RACE_SOURCE.GRADED && !excludeRaceIds.has(race.raceId)
-  );
+  const card = buildWeeklyCard(saveSeed, week, year).filter((race) => race.source !== RACE_SOURCE.GRADED);
   const byRaceId = groupByPlannedRace(horses, excludeHorseIds);
   const planned = [];
 
@@ -112,23 +108,24 @@ export function planNpcWeeklyFields(
 }
 
 /**
- * 一般競走（新馬〜3勝クラス）＋オープン特別のNPC週次レースを全部走らせる。自己完結の純関数。
+ * 一般競走（新馬〜3勝クラス）＋オープン特別の週次レースを全部走らせる（プレイヤーが乗るレースを含む）。自己完結の純関数。
  * @param {number|string} saveSeed
  * @param {number} week - 絶対週（折り返さない。`player.currentWeek`と同じ数え方）
  * @param {number} year - 番組表の実測値を引くための暦年（`player.currentYear`）
  * @param {object[]} horses - ロースター全馬
- * @param {Set<string>} [excludeHorseIds] - 今週プレイヤーが乗った馬（対象外にする）
- * @param {Set<string>} [excludeRaceIds] - 今週プレイヤーが乗ったレース（同じレースが
- *   二重に開催されないよう、週の番組表からその枠を外す）
- * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数。
- *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——プレイヤーの鞍だけ騎手が乗る
- *   状態を作らないため、呼び出し側は必ず渡すこと。
+ * @param {Set<string>} [excludeHorseIds] - 今週すでに重賞へ出た馬（同じ週に2つのレースへ出ない）
+ * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗るNPC騎手を引く関数。
+ *   ⚠️渡さないと全馬が騎手無し（適性の倍率1.0）になる——呼び出し側は必ず渡すこと。
  * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
  *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
  *   渡さないと中間値扱い）
  * @param {{ race: object, field: object[], fieldSize: number }[]} [plannedFields] - 先に
  *   `planNpcWeeklyFields`で求めた出走枠。渡せば同じ計算を繰り返さない（渡さなければここで求める）
- * @returns {{ horses: object[], racesRun: number, startsRun: number }}
+ * @param {Map<string, import("./raceRun.js").Rider>} [riders] - プレイヤーが乗る馬（馬id→騎乗）。
+ *   その馬の騎手がプレイヤーになる以外、他の馬と何も変わらない
+ * @returns {{ horses: object[], racesRun: number, startsRun: number, riderResults: Map<string, object> }}
+ *   `riderResults`＝`riders`の馬ごとの結果（`{ raceId, fell, fall?, position?, fieldSize?, popularity?,
+ *   finisherIds?, dayById?, horseAfter }`）。走らなかった（枠に入らなかった）馬は含まれない
  */
 export function runNpcWeeklyRaces(
   saveSeed,
@@ -136,56 +133,44 @@ export function runNpcWeeklyRaces(
   year,
   horses,
   excludeHorseIds = new Set(),
-  excludeRaceIds = new Set(),
   getJockey = undefined,
   stableStrengthById = new Map(),
-  plannedFields = undefined
+  plannedFields = undefined,
+  riders = new Map()
 ) {
-  const fields =
-    plannedFields ?? planNpcWeeklyFields(saveSeed, week, year, horses, excludeHorseIds, excludeRaceIds);
+  const fields = plannedFields ?? planNpcWeeklyFields(saveSeed, week, year, horses, excludeHorseIds);
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
-  const getJockeyForHorse = (h) => getJockey?.(h);
+  const riderResults = new Map();
 
   let racesRun = 0;
   let startsRun = 0;
 
-  for (const { race, field, fieldSize } of fields) {
-    // ⚠️`field`の並び（馬番の元）はそのまま使い、人気は別の並びとして「公開されている
-    // 情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
-    const popularityByHorseId = computePopularity(
+  for (const { race, field } of fields) {
+    const run = runFieldRace({
       saveSeed,
       week,
-      race.raceId,
+      year,
+      raceKey: `${year}-w${week}-${race.raceId}`,
+      popularityKey: race.raceId,
+      race,
       field,
+      getJockey,
+      riders,
       horseById,
       stableStrengthById,
-      getJockeyForHorse
-    );
-    const condition = rollActualCondition(saveSeed, week, race.courseId);
-
-    // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
-    // ⭐調子と当日の馬体重（`domain/horseForm.js`）：倍率をsimの入口で渡し、体重を戦績に残す。
-    const dayById = raceDayFormsFor(field, saveSeed, week, year);
-    const simEntries = field.map((h, i) => ({
-      num: i + 1,
-      horse: h,
-      jockey: getJockey?.(h),
-      formFactor: dayById.get(h.id).factor,
-    }));
-    const plan = buildPlan(simEntries, (e) => deriveFavoredStrategy(e.horse), 1);
-    const sim = runRaceSim({
-      seed: saveSeed,
-      raceKey: `${year}-w${week}-${race.raceId}`,
-      distance: race.distance,
-      surface: race.surface,
-      condition,
-      entries: simEntries,
-      plan,
     });
+    const { condition, fieldSize, dayById, popularityByHorseId } = run;
+    const finisherIds = run.finishers.map((f) => f.h.id);
 
-    sim.order.map((entryIndex) => ({ h: simEntries[entryIndex].horse })).forEach(({ h }, idx) => {
-      const position = idx + 1;
+    // 落馬した馬は走らない（怪我の反映だけ）。
+    for (const { h, fall } of run.fallen) {
+      const updated = applyFall(saveSeed, week, h, fall);
+      horseById.set(h.id, updated);
+      if (riders.has(h.id)) riderResults.set(h.id, { raceId: race.raceId, fell: true, fall, horseAfter: updated });
+    }
+
+    run.finishers.forEach(({ h, position }) => {
       // ⭐収得賞金は1着だけ積む（`data/shutokuPrize.js`）。クラスはレース後に収得賞金・馬齢・
       // 時期から決め直す（`domain/horseClass.js`）。⚠️オープン特別は`race.classId`が`open`。
       const age = h.bornYear != null ? year - h.bornYear : 4;
@@ -207,6 +192,7 @@ export function runNpcWeeklyRaces(
             surface: race.surface,
             distance: race.distance,
             condition,
+            ...(riders.has(h.id) ? { byPlayer: true } : {}), // 「自分」の印（騎手がプレイヤーの鞍）
             ...bodyKgFields(day),
           },
           null,
@@ -220,27 +206,28 @@ export function runNpcWeeklyRaces(
 
       updated = withReclassedClass(updated, week, year);
 
-      // 落馬・怪我（⚠️簡略化：この週の着順そのものには反映せず、次週以降の離脱と
-      // 引退判定③の材料だけに使う。`arch/horse.md`「⭐ 落馬・怪我」は本来プレイヤーの
-      // 鞍を主眼にした仕組みだが、引退規則③「骨折した馬の3割が引退」を成立させるには
-      // NPCの馬にも骨折が起こる必要があるため、ここでも`fall.js`の判定をそのまま使う）。
-      const fall = checkFall(saveSeed, week, h.id, h.abilities.health, 0);
-      if (fall.fell) {
-        updated = applyInjuryToHorse(updated, fall);
-        if (fall.injuryType === "fracture" && rollFractureRetirement(saveSeed, week, h.id)) {
-          updated = { ...updated, isRetired: true };
-        }
-      }
-
       horseById.set(h.id, updated);
+      if (riders.has(h.id)) {
+        riderResults.set(h.id, {
+          raceId: race.raceId,
+          fell: false,
+          position,
+          fieldSize,
+          popularity: popularityByHorseId.get(h.id) ?? null,
+          finisherIds,
+          dayById,
+          horseAfter: updated,
+        });
+      }
       startsRun += 1;
     });
-    racesRun += 1;
+    if (run.finishers.length > 0) racesRun += 1;
   }
 
   return {
     horses: horses.map((h) => horseById.get(h.id) ?? h),
     racesRun,
     startsRun,
+    riderResults,
   };
 }

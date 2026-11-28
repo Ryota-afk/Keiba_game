@@ -84,8 +84,8 @@
 - `player.leftForLocalThisYear`：その年に未勝利で地方へ移った主戦の馬（`[{horseId, horseName, year, week}]`）を貯め、年末に空へ戻す。
 - 賞の選び方は`view/yearEndAwards.js`（G1の勝ち数→重賞の着順の点数→今年の獲得賞金→馬id）。
 ⚠️**E1〜E3の修正**：プレイヤーが乗った重賞は、レース名（クラス名ではなく）・そのレース本来の賞金（`prize1`×着順の配分）で馬に積み、`gradedWins`も積む
-（`weekResults.js`）。プレイヤーが乗って負けた重賞は、勝ち馬（`runPlaceholderRace`の`finisherIds[0]`）にだけ勝ちを積む
-（`applyLostPlayerRaceWinners`。⚠️2着以下の相手馬の出走・着順は積まない＝NPC騎手の賞金も勝った馬の分だけ）。
+（`weekResults.js`）。⭐2026-11-28（`devlog/wave14.md`§19）：プレイヤーが乗って負けた重賞の勝ち馬を別に積む仕組み（`applyLostPlayerRaceWinners`）は撤去した
+——プレイヤーが乗る重賞も世界の重賞として走り、勝ち馬・2着以下の出走と着順は他の重賞と同じに積まれる。
 
 ⚠️**弱い厩舎で信頼を積んでも良い馬には乗れない。** ⭐どの厩舎に出入りするかが長期の賭けになり、
 調教師の「見抜く力」（§8）が生きる。

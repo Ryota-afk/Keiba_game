@@ -138,8 +138,8 @@
 
 **NPCの馬に乗る騎手は、週の最初に日ごとに割り当てる**（`domain/jockeyBooking.js`・2026-09-28・
 `devlog/wave12.md`§15）。`domain/weekBooking.js`が、走らせる前に今週の全レース（一般競走・重賞・
-プレイヤーの鞍の相手馬。プレイヤーの馬は除く）の出走枠を決め（`planNpcGradedFields`・
-`planNpcWeeklyFields`・`raceOutcome.js`の`assemblePlayerMountField`）、`bookJockeysForWeek`を1回呼ぶ。
+プレイヤーが乗るレースも同じ）の出走枠を決め（`weekFields.js`の`planWeekFields`＝`planNpcGradedFields`・
+`planNpcWeeklyFields`）、プレイヤーが乗る馬（騎手がプレイヤー自身）を除いて`bookJockeysForWeek`を1回呼ぶ。
 `advanceWeek`と事前シミュレーション（`bootstrap.js`）が同じ手順で、出走枠は走らせる側へそのまま渡す。
 - **順序**：土曜→日曜。馬は馬idごとに1回にまとめ（同じ馬が複数のレースに出ることがある）、
   最初に出る日に`horse.record.earnings`の多い順（同額は馬id順）で1頭ずつ決める＝良い馬から先に

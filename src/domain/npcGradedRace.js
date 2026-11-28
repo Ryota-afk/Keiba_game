@@ -8,6 +8,8 @@
 // ⭐⭐**2026-09-17（第10弾）：出走登録を`horse.plan`ベースへ作り直した**（`devlog/wave10.md`・
 // `domain/npcWeeklyRace.js`と同じ変更）。トライアルの優先出走権（`priorityIds`）は
 // これまでどおり計画とは無関係に効く——トライアル上位馬は目標がこの重賞でなくても入れる。
+// ⭐⭐2026-11-28（`devlog/wave14.md`§18・§19）：プレイヤーが乗る重賞もここで走らせる（プレイヤーの馬も
+// 出られる馬の1頭として同じ枠に入り、違いは騎手がプレイヤーなことだけ。`riders`・`domain/raceRun.js`）。
 // 純ロジック（JSX無し。`data/`・`core/`・同じ`domain/`内の他ファイルだけに依存）。
 
 import { weekOfYear } from "../data/calendar.js";
@@ -23,14 +25,10 @@ import {
   placePrizeShare,
 } from "./horse.js";
 import { shutokuOf, withReclassedClass } from "./horseClass.js";
-import { runRaceSim, buildPlan } from "../sim/index.js";
-import { deriveFavoredStrategy } from "./strategy.js";
-import { checkFall, applyInjuryToHorse, isSidelined } from "./fall.js";
-import { rollFractureRetirement } from "./retirement.js";
+import { isSidelined } from "./fall.js";
 import { PRIORITY_ENTRY_RANK_CUTOFF } from "./entryPriority.js";
-import { rollActualCondition } from "./weather.js";
-import { computePopularity } from "./popularity.js";
-import { raceDayFormsFor, horseAfterRace, bodyKgFields } from "./horseForm.js";
+import { runFieldRace, applyFall } from "./raceRun.js";
+import { horseAfterRace, bodyKgFields } from "./horseForm.js";
 
 // 出走頭数の上限（JRAの実際の上限。史実の1レースごとの実頭数はまだ取れていないため、
 // 「優先出走権→収得賞金の多い順で上限まで埋める」という仮の形にする）。
@@ -83,21 +81,12 @@ function priorityIdsForRace(gradedRacesThisYear, race, trialResultsForYear) {
  * @returns {{ race: object, entries: object[], fieldSize: number }[]} 今週行われる重賞
  *   （出走が成立したものだけ。並びは`gradedRacesForYear`の順＝走らせる順）
  */
-export function planNpcGradedFields(
-  week,
-  year,
-  horses,
-  excludeHorseIds,
-  excludeRaceIds = new Set(),
-  trialResults
-) {
+export function planNpcGradedFields(week, year, horses, trialResults) {
   if (!hasGradedRaceData(year)) return [];
 
   const thisWeek = weekOfYear(week);
   const gradedRacesThisYear = gradedRacesForYear(year);
-  const racesToday = gradedRacesThisYear.filter(
-    (r) => r.week === thisWeek && !excludeRaceIds.has(r.id)
-  );
+  const racesToday = gradedRacesThisYear.filter((r) => r.week === thisWeek);
   if (racesToday.length === 0) return [];
 
   const racedHorseIds = new Set();
@@ -112,7 +101,7 @@ export function planNpcGradedFields(
     const candidates = [];
     for (const horse of horses) {
       if (horse.isRetired) continue;
-      if (excludeHorseIds.has(horse.id) || racedHorseIds.has(horse.id)) continue;
+      if (racedHorseIds.has(horse.id)) continue;
       if (isSidelined(horse)) continue;
       if (!(shutokuOf(horse) > 0)) continue; // 重賞は収得賞金が0円でない馬なら出られる（未出走・未勝利は除く）
       if (!canRaceOnSurface(horse.surfaceAptitude, race.surface)) continue;
@@ -145,92 +134,75 @@ export function planNpcGradedFields(
 }
 
 /**
- * ある年・その週に行われる重賞を全部走らせる。自己完結の純関数。
+ * ある年・その週に行われる重賞を全部走らせる（プレイヤーが乗る重賞を含む）。自己完結の純関数。
  * @param {number|string} saveSeed
  * @param {number} week - 絶対週
  * @param {number} year - `player.currentYear`
  * @param {object[]} horses - ロースター全馬
- * @param {Set<string>} excludeHorseIds - 今週プレイヤーが乗った馬
- * @param {Set<string>} [excludeRaceIds] - ⭐第11弾（`devlog/wave11.md`§15「訂正：
- *   プレイヤーが乗った重賞がもう1度走る」）：プレイヤーが今週乗ったレースのid
- *   （`mount.raceId`）。ここに含まれるレースはこの週のNPC側で走らせない——渡さないと
- *   プレイヤーが乗った重賞をNPC側がプレイヤーの馬を除いてもう1度走らせてしまい、
- *   その結果で`trialResults`が上書きされる（プレイヤーの馬が優先出走権の対象から漏れる）。
- *   `domain/npcWeeklyRace.js`の`excludeRaceIds`と同じ役割・同じ位置。
  * @param {object} trialResults - `{ [year]: { [レース名]: string[] } }`（優先出走権の材料。
  *   トライアルの上位（`entryPriority.js`の`PRIORITY_ENTRY_RANK_CUTOFF`まで）の馬idを、
  *   レース名をキーに年ごとに持つ）
- * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗る騎手を引く関数
+ * @param {(horse: object) => object|undefined} [getJockey] - 馬に乗るNPC騎手を引く関数
  * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
  *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
  *   渡さないと中間値扱い）
  * @param {{ race: object, entries: object[], fieldSize: number }[]} [plannedFields] - 先に
  *   `planNpcGradedFields`で求めた出走枠。渡せば同じ計算を繰り返さない（渡さなければここで求める）
+ * @param {Map<string, import("./raceRun.js").Rider>} [riders] - プレイヤーが乗る馬（馬id→騎乗）
  * @returns {{ horses: object[], trialResults: object, racedHorseIds: Set<string>,
- *             racesRun: number, startsRun: number }}
+ *             racesRun: number, startsRun: number, riderResults: Map<string, object> }}
+ *   `riderResults`の形は`runNpcWeeklyRaces`と同じ
  */
 export function runNpcGradedRaces(
   saveSeed,
   week,
   year,
   horses,
-  excludeHorseIds,
-  excludeRaceIds = new Set(),
   trialResults,
   getJockey,
   stableStrengthById = new Map(),
-  plannedFields = undefined
+  plannedFields = undefined,
+  riders = new Map()
 ) {
-  const fields =
-    plannedFields ?? planNpcGradedFields(week, year, horses, excludeHorseIds, excludeRaceIds, trialResults);
+  const fields = plannedFields ?? planNpcGradedFields(week, year, horses, trialResults);
   if (fields.length === 0) {
-    return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0 };
+    return { horses, trialResults, racedHorseIds: new Set(), racesRun: 0, startsRun: 0, riderResults: new Map() };
   }
 
   const horseById = new Map(horses.map((h) => [h.id, h]));
-  const getJockeyForHorse = (h) => getJockey?.(h);
+  const riderResults = new Map();
   const racedHorseIds = new Set();
   let nextTrialResults = trialResults;
   let racesRun = 0;
   let startsRun = 0;
 
-  for (const { race, entries, fieldSize } of fields) {
-    // ⚠️`entries`の並び（優先出走権→収得賞金順・馬番の元）はそのまま使い、人気は別の並びとして
-    // 「公開されている情報」だけから作る（`domain/popularity.js`。2026-09-20のユーザー決定）。
-    const popularityByHorseId = computePopularity(
+  for (const { race, entries } of fields) {
+    // ⚠️`entries`の並び（優先出走権→収得賞金順・馬番の元）はそのまま使う。
+    const run = runFieldRace({
       saveSeed,
       week,
-      race.id,
-      entries,
+      year,
+      raceKey: `${year}-w${week}-${race.id}`,
+      popularityKey: race.id,
+      race,
+      field: entries,
+      getJockey,
+      riders,
       horseById,
       stableStrengthById,
-      getJockeyForHorse
-    );
-    const condition = rollActualCondition(saveSeed, week, race.courseId);
-
-    // 本物のsimで着順を決める（消耗・レース傾向・位置取り・適性・騎手）。
-    // ⭐調子と当日の馬体重（`domain/horseForm.js`）：倍率をsimの入口で渡し、体重を戦績に残す。
-    const dayById = raceDayFormsFor(entries, saveSeed, week, year);
-    const simEntries = entries.map((h, i) => ({
-      num: i + 1,
-      horse: h,
-      jockey: getJockey?.(h),
-      formFactor: dayById.get(h.id).factor,
-    }));
-    const plan = buildPlan(simEntries, (e) => deriveFavoredStrategy(e.horse), 1);
-    const sim = runRaceSim({
-      seed: saveSeed,
-      raceKey: `${year}-w${week}-${race.id}`,
-      distance: race.distance,
-      surface: race.surface,
-      condition,
-      entries: simEntries,
-      plan,
     });
+    const { condition, fieldSize, dayById, popularityByHorseId } = run;
+    const finisherIds = run.finishers.map((f) => f.h.id);
+    for (const h of entries) racedHorseIds.add(h.id); // 落馬した馬も今週は別のレースに出ない
+
+    for (const { h, fall } of run.fallen) {
+      const updated = applyFall(saveSeed, week, h, fall);
+      horseById.set(h.id, updated);
+      if (riders.has(h.id)) riderResults.set(h.id, { raceId: race.id, fell: true, fall, horseAfter: updated });
+    }
 
     const topFinishers = [];
-    sim.order.map((entryIndex) => ({ h: simEntries[entryIndex].horse })).forEach(({ h }, idx) => {
-      const position = idx + 1;
+    run.finishers.forEach(({ h, position }) => {
       topFinishers.push(h.id);
       const earningsGain = (race.prize1 ?? 0) * placePrizeShare(position);
       const age = h.bornYear != null ? year - h.bornYear : 4;
@@ -252,6 +224,7 @@ export function runNpcGradedRaces(
             surface: race.surface,
             distance: race.distance,
             condition,
+            ...(riders.has(h.id) ? { byPlayer: true } : {}), // 「自分」の印（騎手がプレイヤーの鞍）
             ...bodyKgFields(day),
           },
           earningsGain,
@@ -267,19 +240,22 @@ export function runNpcGradedRaces(
 
       updated = withReclassedClass(updated, week, year);
 
-      const fall = checkFall(saveSeed, week, h.id, h.abilities.health, 0);
-      if (fall.fell) {
-        updated = applyInjuryToHorse(updated, fall);
-        if (fall.injuryType === "fracture" && rollFractureRetirement(saveSeed, week, h.id)) {
-          updated = { ...updated, isRetired: true };
-        }
-      }
-
       horseById.set(h.id, updated);
-      racedHorseIds.add(h.id);
+      if (riders.has(h.id)) {
+        riderResults.set(h.id, {
+          raceId: race.id,
+          fell: false,
+          position,
+          fieldSize,
+          popularity: popularityByHorseId.get(h.id) ?? null,
+          finisherIds,
+          dayById,
+          horseAfter: updated,
+        });
+      }
       startsRun += 1;
     });
-    racesRun += 1;
+    if (run.finishers.length > 0) racesRun += 1;
 
     // 走ったレースが何であれ、上位（優先出走権の対象）を記録しておく——このレース自身が
     // 別の本番のトライアルなら（`trialFor`を持つなら）、`priorityIdsForRace`が次にその
@@ -300,5 +276,6 @@ export function runNpcGradedRaces(
     racedHorseIds,
     racesRun,
     startsRun,
+    riderResults,
   };
 }

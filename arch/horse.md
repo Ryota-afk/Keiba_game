@@ -121,7 +121,7 @@
 | 調教後の体重（`trainingWeightFor(horse, year, week, saveSeed)→{kg, diff}`） | 当日の体重＋ずれ（−4〜＋4kgの2kg刻み・平均0。⚠️出典なしの仮置き＝ユーザー決定）。週の画面が呼ぶ。⚠️引数の順は画面との取り決め |
 | ⭐掛ける先 | **スピード・瞬発力・勝負根性の3つだけ**。`raceSim.js`の`withFormFactor`が、出走馬の`entry.formFactor`をこの3つの正規化値に掛ける。⚠️スタミナ・柔軟性・賢さ・健康・パワー・精神力、出走馬の強さ（`fieldLevelOf`＝狙いのタイム）には掛けない。`formFactor`が無い（夢のダービー）なら1 |
 | 倍率（`formFactorOf`） | `1＋0.36×(調子−44)/50 − min(0.16, 0.016×max(0, |体重−ベスト体重(2kg刻み)|−2))＋究極仕上げ0.05`。究極仕上げ＝調子58以上（出走の調子の上位20%の境目・実測）かつずれ±2kg以内（出走の約12%） |
-| 掛ける場所 | レースを走らせる3か所すべて：`npcWeeklyRace.js`・`npcGradedRace.js`・`raceOutcome.js`（プレイヤーの鞍・相手馬も）。走った後に`horseAfterRace`（走数＋1・太め×0.5）と、戦績の1行・鞍の記録に`bodyKg`・`bodyKgDiff`（`bodyKgFields`）。負けた重賞の勝ち馬は`ride.winnerDay`経由（`yearGradedLog.js`） |
+| 掛ける場所 | レースを走らせる共通部品`raceRun.js`を通る2か所：`npcWeeklyRace.js`・`npcGradedRace.js`（プレイヤーの鞍も同じ）。走った後に`horseAfterRace`（走数＋1・太め×0.5）と、戦績の1行・鞍の記録に`bodyKg`・`bodyKgDiff`（`bodyKgFields`）。負けた重賞の勝ち馬も世界の重賞として走るので同じ（2026-11-28から別経路は無い） |
 | 乱数 | 専用の列`RNG_STREAMS.FORM`（週×馬id）。消費順は調子の揺れ→体重の揺れ→調教後のずれ。⚠️同じ`(saveSeed, 週, 馬)`なら週の画面とレースの日で必ず同じ値になる前提（1週1走・週の途中で`form`・戦績が変わらない） |
 | 見せ方 | 調子は数値で出さない。⭐**朝の調教で乗った厩舎の馬だけ、言葉で見える**（2026-09-12・ユーザー決定(ア)・未実装）。体重と前走比は画面に出す（⑭の画面はFable） |
 | 人気 | ⚠️体重の増減も調子も人気（`popularity.js`）に入れていない（ユーザー決定） |

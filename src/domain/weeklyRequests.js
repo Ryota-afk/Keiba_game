@@ -14,6 +14,7 @@ import { trustFor } from "./player.js";
 import { rankIndex, rankSpec } from "../data/ranks.js";
 import { gradeToNumber } from "../data/grades.js";
 import { buildWeeklyCard, RACE_SOURCE } from "./weeklyCard.js";
+import { planWeekFields, fieldIndexByHorse } from "./weekFields.js";
 import { canRideGradedRace } from "./rideEligibility.js";
 import { gradedRaceById } from "../data/shutokuPrize.js";
 import { gradedTierOf } from "../data/gradedTier.js";
@@ -29,21 +30,6 @@ export function horsesDueThisWeek(horses, week) {
     (horse) =>
       !horse.isRetired && horse.plan && (horse.plan.targetWeek === week || horse.plan.prepWeek === week)
   );
-}
-
-/**
- * その馬が今週出走を計画しているレースを、週の番組表から引く。
- * @returns {object|null} 見つからなければ`null`（通常は起きないはずの整合性エラー）
- */
-function plannedRaceThisWeek(card, horse, week) {
-  const raceId =
-    horse.plan.targetWeek === week
-      ? horse.plan.targetRaceId
-      : horse.plan.prepWeek === week
-        ? horse.plan.prepRaceId
-        : null;
-  if (!raceId) return null;
-  return card.find((race) => race.raceId === raceId) ?? null;
 }
 
 /** 厩舎の強さ＝3軸（育てる力・見抜く力・仕上げ）の平均をG〜Sの数値(0〜7)で表す。 */
@@ -72,18 +58,24 @@ export function requestQuality(stable, trainerTrust, playerRank) {
  *   isFromOwnStable: boolean, raceId: string, classId: string, courseId: string,
  *   day: string, raceNumber: number|null, surface: string, distance: number, fillyOnly: boolean,
  *   raceName: string|null, grade: string|null, condition: string|null }[]} `condition`は
- *   重賞（実データの年齢・性別条件）だけ持つ——`raceOutcome.js`の`assembleRealField`が
- *   相手馬を集めるときに読む（`devlog/wave11.md`§12）。
+ *   重賞（実データの年齢・性別条件）だけ持つ（`devlog/wave11.md`§12）。
+ *   ⭐依頼になるのは今週の出走枠（`domain/weekFields.js`）に入った馬だけ（`devlog/wave14.md`§19）。
  */
 export function generateWeeklyRequests(saveSeed, week, roster, player) {
   const stableById = new Map(roster.stables.map((s) => [s.id, s]));
   const year = player.currentYear;
   const card = buildWeeklyCard(saveSeed, week, year);
   const dueHorses = horsesDueThisWeek(roster.horses, week);
+  // ⭐**依頼になるのは「実際に出走できる馬」だけ**（2026-11-28のユーザー決定・`devlog/wave14.md`§18・§19）。
+  // 今週の出走枠を、走らせる側・騎手の割り当て・出馬表と同じ関数（`domain/weekFields.js`）で組み、
+  // その枠に入った馬にだけ依頼が来る（登録が5頭に届かない・出たい馬が多くて絞られた馬には来ない）。
+  const fieldIndex = fieldIndexByHorse(planWeekFields(saveSeed, week, year, roster.horses, roster.trialResults ?? {}));
 
   const candidates = [];
   for (const horse of dueHorses) {
-    const race = plannedRaceThisWeek(card, horse, week);
+    const entry = fieldIndex.get(horse.id);
+    if (!entry) continue; // 出走枠に入らない馬には依頼が来ない
+    const race = card.find((r) => r.raceId === entry.raceId);
     if (!race) continue; // 整合性エラー（通常は起きない）——依頼にしない
     // ⭐重賞の門：信頼に加えて、GIは通算31勝が要る（`rideEligibility.js`）。GIかどうかは番組表の依頼に
     // `g1Like`が無いので実データを引いて判定する（`weekResults.js`の`gradedTierForRide`と同じ引き方）。

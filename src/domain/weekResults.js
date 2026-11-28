@@ -1,27 +1,19 @@
 // 週末レースの結果処理（ARCHITECTURE.md §2「週の流れ」の「結果」・§1「必ず知らせる6項目」）。
-// 1つの確定した鞍（mount）について、落馬判定→仮sim→収入→信頼→評判→主戦判定→開示の
-// 順に処理し、更新後のplayer・horseと、この鞍から出た通知を返す。
+// 1つの確定した鞍（mount）について、**世界のレースの結果**（`domain/npcWeeklyRace.js`・
+// `npcGradedRace.js`が他の馬と同じ仕組みで走らせたもの。⭐2026-11-28・`devlog/wave14.md`§19）を読み、
+// 収入→信頼→評判→主戦判定→開示の順に処理して、更新後のplayer・horseと、この鞍から出た通知を返す。
+// プレイヤーのためにレースを走らせることはしない（走らせた結果を読むだけ）。
 // 純ロジック（JSX無し。`domain/`の他ファイルを組み合わせる合成レイヤー）。
-//
-// ⚠️「仮」の位置づけ：`raceOutcome.js`が仮simである以上、ここも仮の結果処理である。
-// ⑦でレースsim本実装に差し替わっても、この合成レイヤーの形（何の後に何を処理するか）
-// 自体は流用できるはず。
 
-import { runPlaceholderRace } from "./raceOutcome.js";
-import { appendRaceResult, appendRaceResultWithEarnings, placePrizeShare, earningsForResult } from "./horse.js";
-import { withReclassedClass } from "./horseClass.js";
-import { shutokuForGeneralRace, shutokuForGradedRace, gradedRaceById } from "../data/shutokuPrize.js";
+import { gradedRaceById } from "../data/shutokuPrize.js";
 import { gradedTierOf } from "../data/gradedTier.js";
-import { checkFall, applyInjuryToHorse } from "./fall.js";
-import { rollActualCondition } from "./weather.js";
-import { fatiguePenaltyFactor } from "./fatigue.js";
 import { rideIncome } from "./income.js";
 import { adjustTrust, trustFor } from "./player.js";
 import { recordRide } from "./mainMount.js";
 import { attemptReveal } from "./disclosure.js";
 import { computeReputation } from "./reputation.js";
 import { injuryNotification, bigTrustChangeNotification, isBigTrustChange } from "./notifications.js";
-import { raceDayForm, horseAfterRace, bodyKgFields } from "./horseForm.js";
+import { raceDayForm, bodyKgFields } from "./horseForm.js";
 
 function gradedTierForRide(mount, year) {
   const race = gradedRaceById(year, mount.raceId);
@@ -37,24 +29,23 @@ export const WIN_OWNER_TRUST_GAIN = 3; // 「その馬主の馬で結果を出�
  * @param {number|string} saveSeed
  * @param {number} week
  * @param {object} player
- * @param {object} horse
+ * @param {object} horseBefore - その週の初めの馬
  * @param {{ horseId: string, declaredStrategy?: string|null, courseId?: string, surface?: string,
  *           distance?: number, raceId?: string }} mount
- * @param {object[]} allHorses - ロースター全馬（実在の相手馬を組むために使う）
- * @param {(horse: object) => object|undefined} [getJockey] - 相手馬に乗るNPC騎手を引く関数
- * @param {Map<string, number>} [stableStrengthById] - 厩舎idごとの強さ（0〜1・
- *   `domain/popularity.js`の`computeStableStrengthById`で週1回まとめて作った値。
- *   人気の材料「厩舎の強さ」に使う）
+ * @param {object} run - その馬の結果（`runNpcWeeklyRaces`・`runNpcGradedRaces`の`riderResults`の1件。
+ *   レースの後の馬`horseAfter`〈戦績・クラス・計画・怪我は反映済み〉・着順・人気を持つ）
  * @returns {{ player: object, horse: object, notifications: object[], raced: boolean,
  *   ride: { horseId: string, horseName: string, raceId: string|null|undefined,
  *     raceName: string|null|undefined, courseId: string|null|undefined,
  *     surface: string|null|undefined, distance: number|null|undefined,
  *     classId: string|null|undefined, grade: string|null|undefined, fell: boolean,
  *     position: number|null, fieldSize: number|null, popularity: number|null,
- *     won: boolean, income: number, prize: number, winnerHorseId?: string|null, tier?: string,
+ *     won: boolean, income: number, prize: number, tier?: string,
  *     injuryType?: "fracture"|"bruise", weeksOut?: number } }}
  */
-export function processMountResult(saveSeed, week, player, horse, mount, allHorses, getJockey, stableStrengthById) {
+export function processMountResult(saveSeed, week, player, horseBefore, mount, run) {
+  const horse = horseBefore;
+  const horseAfter = run.horseAfter;
   const notifications = [];
   // 画面へ渡す「この鞍で何が起きたか」——`mount`（依頼側の実データ）と、この先で
   // 計算される結果・収入を1つにまとめる。値そのものは元々計算済みのものをそのまま乗せるだけ。
@@ -78,13 +69,12 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     ...bodyKgFields(raceDayForm(horse, saveSeed, week, player.currentYear)),
   };
 
-  // 落馬を先に判定する（落馬すればそのレースは走らない）。
-  const fall = checkFall(saveSeed, week, horse.id, horse.abilities.health, player.fatigue);
-  if (fall.fell) {
-    notifications.push(injuryNotification(horse.id, fall.injuryType, fall.weeksOut));
+  // 落馬した馬は走っていない（世界のレースで落馬の判定を受け、怪我が`horseAfter`に反映済み）。
+  if (run.fell) {
+    notifications.push(injuryNotification(horse.id, run.fall.injuryType, run.fall.weeksOut));
     return {
       player,
-      horse: applyInjuryToHorse(horse, fall),
+      horse: horseAfter,
       notifications,
       raced: false,
       ride: {
@@ -95,28 +85,20 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
         popularity: null,
         won: false,
         prize: 0,
-        income: 0, // 落馬した鞍には騎乗料が出ない（下の`rideIncome`呼び出しに到達しないため）
-        injuryType: fall.injuryType,
-        weeksOut: fall.weeksOut,
+        income: 0, // 落馬した鞍には騎乗料が出ない
+        injuryType: run.fall.injuryType,
+        weeksOut: run.fall.weeksOut,
       },
     };
   }
 
-  const fatigueFactor = fatiguePenaltyFactor(player.fatigue);
-  // ⚠️馬場状態はここで1回だけ決め、simにも戦績にも同じ値を渡す（別々に引くとズレる）。
-  const condition = mount.courseId ? rollActualCondition(saveSeed, week, mount.courseId) : "good";
-  const result = runPlaceholderRace(saveSeed, week, mount, horse, allHorses, {
-    jockeyPenalty: fatigueFactor,
-    playerJockey: player.jockey,
-    getJockey,
-    condition,
-    stableStrengthById,
-    // ⭐第11弾（`devlog/wave11.md`§12）：`mount.condition`（重賞の年齢・性別条件）の
-    // 年齢を数える暦年。`assembleRealField`が相手馬を絞り込むのに使う。
-    year: player.currentYear,
-  });
-
-  // ⭐収入（騎乗手当＋進上金）は、馬の獲得賞金（`prizeGain`）が決まった後に積む（下）。
+  const result = {
+    position: run.position,
+    fieldSize: run.fieldSize,
+    won: run.position === 1,
+    popularity: run.popularity,
+    finisherIds: run.finisherIds,
+  };
   let nextPlayer = { ...player };
 
   // 調教師への信頼：乗るだけで少し、勝てばさらに（§6「調教師への信頼」＝日常の鞍）。
@@ -149,72 +131,12 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
   };
 
   // 開示：プレイヤーが自分で判断した鞍なので、レースプールが進む（§3「能力の開示」）。
-  let nextHorse = attemptReveal(saveSeed, week, horse, "race");
-  // ⭐第10弾（2026-09-17）：目標レースを走り終えたら計画は完了（`null`にして
-  // `domain/rotation.js`の`replanStaleHorses`に次の計画を立て直させる）。
-  // 前哨戦を走っただけなら、計画（目標）はそのまま持ち越す（`devlog/wave10.md`）。
-  const wasTarget = horse.plan?.targetRaceId === mount.raceId;
-  // ⭐収得賞金（`data/shutokuPrize.js`）：1着だけ積む（重賞は2着まで）。プレイヤーが乗った重賞・
-  // オープン特別でも積む（第13弾まで0円だった不具合の修正）。重賞かどうかは`mount.raceName`の有無で
-  // 判定する（`domain/playerRecord.js`と同じ）。⚠️獲得賞金（`earnings`）の積み方は従来のまま。
-  const rideAge = horse.bornYear != null ? player.currentYear - horse.bornYear : 4;
-  let shutokuGain;
-  const gradedRace = mount.raceName ? gradedRaceById(player.currentYear, mount.raceId) : null;
-  if (mount.raceName) {
-    shutokuGain = gradedRace ? shutokuForGradedRace(gradedRace, player.currentYear, result.position, rideAge) : 0;
-  } else {
-    shutokuGain = shutokuForGeneralRace(mount.classId ?? horse.classId, rideAge, result.position);
-  }
-  const historyEntry = {
-    position: result.position,
-    fieldSize: result.fieldSize,
-    popularity: result.popularity,
-    week,
-    year: player.currentYear,
-    courseId: mount.courseId ?? null,
-    surface: mount.surface ?? null,
-    distance: mount.distance ?? null,
-    condition,
-    byPlayer: true, // 「自分」の印（プレイヤーの鞍だけ。古い記録・NPCの記録には無い＝false扱い）
-    ...(result.selfDay ? bodyKgFields(result.selfDay) : {}),
-  };
-  let nextRecord;
-  let prizeGain; // この鞍でその馬が稼いだ獲得賞金（円・`ride.prize`＝最多獲得賞金騎手の材料）
-  if (mount.raceName) {
-    // ⭐E1・E3（`devlog/wave13.md`§10）：重賞は、レース名（クラス名ではなく）と、そのレース本来の
-    // 賞金（`prize1`×着順の配分）で積む。NPCの重賞（`domain/npcGradedRace.js`）と同じ形。
-    // 実データが引けなかったとき（通常は起きない）はクラスの額に退く。
-    const tier = gradedRace ? gradedTierOf(gradedRace, player.currentYear) : (mount.grade ?? "g3");
-    prizeGain = gradedRace
-      ? (gradedRace.prize1 ?? 0) * placePrizeShare(result.position)
-      : earningsForResult(horse.classId, result.position);
-    nextRecord = appendRaceResultWithEarnings(
-      horse.record,
-      { ...historyEntry, raceName: mount.raceName },
-      prizeGain,
-      true,
-      undefined,
-      shutokuGain,
-      tier
-    );
-  } else {
-    nextRecord = appendRaceResult(horse.record, horse.classId, historyEntry, null, shutokuGain);
-    prizeGain = nextRecord.earnings - horse.record.earnings;
-  }
+  const nextHorse = attemptReveal(saveSeed, week, horseAfter, "race");
+  // この鞍でその馬が稼いだ獲得賞金（円・`ride.prize`＝最多獲得賞金騎手の材料）。
+  const prizeGain = horseAfter.record.earnings - horse.record.earnings;
   // この鞍1件ぶんの収入（画面・年間成績へも渡す）。進上金＝馬が今取った本賞（`prizeGain`）の5%
   const income = rideIncome(horse.classId, prizeGain);
   nextPlayer = { ...nextPlayer, money: nextPlayer.money + income };
-  nextHorse = {
-    ...(result.selfDay ? horseAfterRace(nextHorse, result.selfDay) : nextHorse),
-    plan: wasTarget ? null : horse.plan,
-    // 通算成績：`domain/npcWeeklyRace.js`のNPC馬と同じ形で積む（2026-09-15までは
-    // プレイヤーが乗った馬だけ通算成績が更新されず、収得賞金順の出走選抜や引退判定で
-    // NPC馬とズレる不整合があった）。⭐距離は`mount.distance`（週の番組表・実データが
-    // 決めた具体的なメートル数。`arch/race-program.md`§10）をそのまま使う。
-    record: nextRecord,
-  };
-  // クラスは収得賞金・馬齢・時期から決め直す（`domain/horseClass.js`）。
-  nextHorse = withReclassedClass(nextHorse, week, player.currentYear);
 
   const ride = {
     ...rideBase,
@@ -225,15 +147,7 @@ export function processMountResult(saveSeed, week, player, horse, mount, allHors
     won: result.won,
     income,
     prize: prizeGain, // その馬が稼いだ獲得賞金（円）。落馬した鞍は0
-    // 重賞のとき：1着の馬（プレイヤーの馬を含む）のid。負けた重賞の勝ち馬を記録するため
-    ...(mount.raceName
-      ? {
-          winnerHorseId: result.finisherIds?.[0] ?? null,
-          tier: gradedTierForRide(mount, player.currentYear),
-          // 勝ち馬の当日の状態（負けた重賞の勝ち馬の記録＝`yearGradedLog.js`の`applyLostPlayerRaceWinners`が使う）
-          winnerDay: result.dayById?.get(result.finisherIds?.[0]) ?? null,
-        }
-      : {}),
+    ...(mount.raceName ? { tier: gradedTierForRide(mount, player.currentYear) } : {}),
   };
 
   return { player: nextPlayer, horse: nextHorse, notifications, raced: true, result, ride };

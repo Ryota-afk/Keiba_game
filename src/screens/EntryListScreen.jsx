@@ -26,8 +26,8 @@ export function EntryListScreen({ saveSeed, week, currentYear, player, roster, h
   );
 
   const field = useMemo(
-    () => previewEntryField(saveSeed, week, horse, mount, roster.horses, currentYear),
-    [saveSeed, week, horse, mount, roster.horses, currentYear]
+    () => previewEntryField(saveSeed, week, horse, mount, roster.horses, currentYear, roster.trialResults ?? {}),
+    [saveSeed, week, horse, mount, roster.horses, currentYear, roster.trialResults]
   );
 
   const columns = useMemo(

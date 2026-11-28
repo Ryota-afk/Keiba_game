@@ -101,9 +101,7 @@ export function runBootstrapWeek(saveSeed, week, year, rosterIn, options = {}) {
     week,
     year,
     roster.horses,
-    new Set(),
-    new Set(), // 事前シミュレーションにプレイヤーはいない
-    roster.trialResults ?? {},
+    roster.trialResults ?? {}, // 事前シミュレーションにプレイヤーはいない
     getJockey,
     stableStrengthById,
     weekBooking.gradedFields
@@ -118,7 +116,6 @@ export function runBootstrapWeek(saveSeed, week, year, rosterIn, options = {}) {
     year,
     gradedResult.horses,
     gradedResult.racedHorseIds,
-    new Set(),
     getJockey,
     stableStrengthById,
     weekBooking.weeklyFields

@@ -34,11 +34,13 @@ test("古いセーブのreserve・strategyは数えず、二重に開けない",
   assert.equal(cur.disclosure.raceRevealed.filter((k) => k === "speed").length, 1);
 });
 
-test("プレイヤーの鞍の記録にbyPlayerが付く（NPCの経路には付けない）", () => {
-  const src = readFileSync(new URL("../src/domain/weekResults.js", import.meta.url), "utf8");
-  assert.match(src, /byPlayer: true/);
-  const npc = readFileSync(new URL("../src/domain/npcWeeklyRace.js", import.meta.url), "utf8");
-  assert.doesNotMatch(npc, /byPlayer/);
+test("騎手がプレイヤーの鞍の記録にだけbyPlayerが付く（走らせる仕組みは世界の同じもの）", () => {
+  for (const file of ["npcWeeklyRace.js", "npcGradedRace.js"]) {
+    const src = readFileSync(new URL(`../src/domain/${file}`, import.meta.url), "utf8");
+    assert.match(src, /riders\.has\(h\.id\) \? \{ byPlayer: true \} : \{\}/);
+  }
+  const results = readFileSync(new URL("../src/domain/weekResults.js", import.meta.url), "utf8");
+  assert.doesNotMatch(results, /byPlayer/);
 });
 
 test("初出走の馬：全部「？」", () => {

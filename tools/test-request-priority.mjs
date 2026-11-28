@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { bootstrapRoster } from "../src/domain/bootstrap.js";
 import { createPlayer } from "../src/domain/player.js";
 import { generateWeeklyRequests } from "../src/domain/weeklyRequests.js";
+import { planWeekFields } from "../src/domain/weekFields.js";
 import { buildWeeklyCard, RACE_SOURCE } from "../src/domain/weeklyCard.js";
 import { canRideGradedRace, G1_RIDE_MIN_CAREER_WINS } from "../src/domain/rideEligibility.js";
 import { gradedRaceById } from "../src/data/shutokuPrize.js";
@@ -95,28 +96,42 @@ test("canRideGradedRace：GIは通算31勝が要る・GII/GIIIと、格を渡さ
 
 test("GIの依頼は通算31勝まで来ない（GII・GIIIは信頼だけで来る）", () => {
   const { roster, player } = setup();
-  const own = player.jockey.stableId;
-  const base = roster.horses[0];
-  const trusted = { ...player, trainerTrust: { [own]: 20 }, ownerTrust: { [base.ownerId]: 20 } };
   const find = (tier) => {
     for (let week = player.currentWeek; week < player.currentWeek + 52; week += 1) {
-      const race = buildWeeklyCard(SEED, week, YEAR).find((r) => {
-        if (r.source !== RACE_SOURCE.GRADED) return false;
-        const g = gradedRaceById(YEAR, r.raceId);
-        return g && gradedTierOf(g, YEAR) === tier;
-      });
-      if (race) return { week, race };
+      const gradedFields = planWeekFields(SEED, week, YEAR, roster.horses, roster.trialResults ?? {}).gradedFields;
+      for (const f of gradedFields) {
+        const g = gradedRaceById(YEAR, f.race.id);
+        if (g && gradedTierOf(g, YEAR) === tier) return { week, race: f.race, horse: f.entries[0] };
+      }
     }
     throw new Error(`${tier}の週が見つからない`);
   };
-  const ask = ({ week, race }, wins) =>
-    generateWeeklyRequests(SEED, week, { ...roster, horses: [planned(base, "h", own, base.ownerId, week, race.raceId)] }, {
-      ...trusted,
-      record: { ...trusted.record, wins },
-    }).filter((r) => r.raceId === race.raceId).length;
+  // 出走枠に入っている馬の1頭に、その週のそのレースを目標にさせて依頼を求める
+  const ask = ({ week, race, horse }, wins) => {
+    // 依頼の数に上限があるので、ほかの馬の計画は外して、この1頭だけが目標にする
+    const horses = roster.horses.map((h) =>
+      h.id === horse.id ? { ...h, plan: { targetWeek: week, targetRaceId: race.id, prepWeek: null, prepRaceId: null } } : { ...h, plan: null }
+    );
+    const trusted = { ...player, trainerTrust: { [horse.stableId]: 20 }, ownerTrust: { [horse.ownerId]: 20 } };
+    return generateWeeklyRequests(SEED, week, { ...roster, horses }, { ...trusted, record: { ...trusted.record, wins } }).filter(
+      (r) => r.raceId === race.id && r.horseId === horse.id
+    ).length;
+  };
   const g1 = find("g1");
   assert.equal(ask(g1, 30), 0);
   assert.equal(ask(g1, 31), 1);
   const g3 = find("g3");
   assert.equal(ask(g3, 0), 1);
+});
+
+test("依頼は出走枠に入った馬だけ（登録が5頭に届かないレースの馬には来ない）", () => {
+  const { roster, player } = setup();
+  const own = player.jockey.stableId;
+  const { week, race } = findWeekWithRace(player, (r) => r.source !== RACE_SOURCE.GRADED);
+  // 全馬の計画を外し、1頭だけがこのレースを目標にする（登録1頭＝レースは成立しない）
+  const base = roster.horses[0];
+  const horses = roster.horses.map((h) => ({ ...h, plan: null }));
+  horses.push(planned(base, "lonely", own, base.ownerId, week, race.raceId));
+  const result = generateWeeklyRequests(SEED, week, { ...roster, horses }, player).filter((r) => r.raceId === race.raceId);
+  assert.equal(result.length, 0);
 });

@@ -345,7 +345,7 @@ export function canDebutThisWeek(horse, week, year) {
  * 無い馬は`canDebutThisWeek`と同じ扱いで年齢条件を素通りさせる。
  * ⚠️⚠️**第11弾（`devlog/wave11.md`§15「訂正」）：`year`を渡さない（`null`／`undefined`
  * どちらでも）と年齢の条件は見ない**——性別の条件はそれでも見る（年を必要としないため）。
- * 呼び出し側（`raceOutcome.js`の`runPlaceholderRace`のJSDoc等）の記述をこの関数自身が
+ * 呼び出し側のJSDocの記述をこの関数自身が
  * 保証する形にしてある。⚠️以前は`year`に`null`を渡すと`null - bornYear`が負の実数になり、
  * 「年齢条件を見ない」つもりで`null`を渡した呼び出しが逆に**全頭を弾く**事故があった
  * （`undefined`を直接渡した場合だけ`NaN`で偶然素通りしていた・呼び出し元の書き方で

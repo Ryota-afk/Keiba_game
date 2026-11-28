@@ -63,7 +63,7 @@ export function countWinnerJockeys(horses, week, excludeHorseIds, jockeyIdOf) {
  * `devlog/wave13.md`§10）。騎乗数＝今週走った馬（`record.recentFinishes[0].week`が今週）＋プレイヤーが乗った
  * 重賞の相手馬（`extraStarterIds`。負けた側は記録に残らないため別に渡す）。賞金＝その馬の獲得賞金
  * （`record.earnings`）の今週の増え。プレイヤーが乗った馬は数えない（`excludeHorseIds`）。
- * ⚠️プレイヤーが乗った重賞の相手馬は、勝った馬の賞金だけ数える（2着以下の記録は馬に積んでいないため）。
+ * ⚠️2026-11-28以降、プレイヤーが乗った重賞の相手馬も世界の重賞として走り記録が残るので、`extraStarterIds`は空で渡される。
  * @param {object[]} horsesBefore - 今週の初めの馬（賞金の増えを引くための元の値）
  * @param {object[]} horsesAfter - 今週のレースが終わった後の全馬
  * @param {number} week - 絶対週
