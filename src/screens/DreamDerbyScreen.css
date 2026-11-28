@@ -122,7 +122,7 @@
   top: 60px;
   bottom: 0;
   width: 28px;
-  z-index: 2;
+  z-index: 1002; /* 馬（1〜999・手前ほど上）より上に置く */
   background:
     repeating-linear-gradient(90deg, #2f6b2a 0 3px, transparent 3px 12px),
     repeating-linear-gradient(0deg, #2f6b2a 0 3px, transparent 3px 22px);
@@ -146,7 +146,7 @@
   align-items: center;
   justify-content: center;
   transform: translateX(-50%);
-  z-index: 2;
+  z-index: 1002; /* 馬（1〜999・手前ほど上）より上に置く */
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 /* ゴール標識（白い台座＋黒い縦棒＋青い馬蹄形アーチ） */
@@ -154,7 +154,7 @@
   position: absolute;
   bottom: 0;
   width: 46px;
-  z-index: 1;
+  z-index: 1001; /* 馬（1〜999・手前ほど上）より上に置く */
   overflow: visible;
 }
 

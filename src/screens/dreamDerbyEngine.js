@@ -243,6 +243,9 @@ export function createDreamDerbyEngine({ refs, saveSeed, entries, callbacks }) {
       if (!el) continue;
       el.style.left = `${x * 100}%`;
       el.style.top = `${y * 100}%`;
+      // 重なり順は画面の下（手前）ほど上。以前は出走番号の順のまま描いていて、奥の馬が手前の馬の上に
+      // 出ていた（2026-11-28・通しプレイ⑤の指摘・`devlog/wave15.md`§2）。
+      el.style.zIndex = String(1 + Math.round(Math.min(1, Math.max(0, y)) * 998)); // 1〜999。ゲート・標識は1001〜（CSS）
     }
     const ordered = Object.entries(positions)
       .map(([numStr, p]) => ({ num: Number(numStr), x: clamp01(p.cx ?? p.x) }))
